@@ -76,4 +76,4 @@ Wydajność dla orientacji: królik z przykładu (dt = 1 ms) liczy się ~25 ms n
 
 ### GUI
 
-`runSofa` (domyślne GUI) startuje pod Waylandem bez dodatkowych zmiennych. Tryb `-g batch` działa (50 kroków przykładu w 5.9 s).
+`runSofa` startuje pod Waylandem bez dodatkowych zmiennych. Domyślne GUI to **ImGui** (plugin SofaImGui). Przykład `PressureVsVolumeGrowthControl` działa: po **Animate** oba króliki się nadmuchują (sprawdzone ręcznie). Przy pierwszym uruchomieniu w logu pojawia się `[ERROR] [ImGuiGUIEngine] Cannot set window position/size from settings`. To tylko brak zapisanych ustawień okna, nieszkodliwe. Tryb `-g batch` działa (50 kroków przykładu w 5.9 s).
