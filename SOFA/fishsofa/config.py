@@ -66,6 +66,24 @@ class TailConfig:
     poisson_ratio: float = 0.45
     rho_silicone: float = 1100.0   # [kg/m³] jak rho_tail w MuJoCo; PLACEHOLDER – do identyfikacji z pomiarów
 
+    # ------------------------------------------------------------------ warianty konstrukcji (etap 2)
+    # „Kręgosłup”: przegroda między komorami na całej długości korpusu z materiału
+    # sztywniejszego niż silikon (np. silikon twardszy albo z wkładką). Działa jak warstwa
+    # nierozciągliwa w osi zginania: wydłużenie boku z ciśnieniem zamienia się w zgięcie.
+    spine_E_factor: float = 1.0    # E_kręgosłupa / E_silikonu (1 = brak); PLACEHOLDER – do identyfikacji z pomiarów
+    # Włókna obwodowe: oplot (nić, tkanina) na skórze ogona biegnący dookoła przekroju.
+    # Nie pozwala ściance wydymać się na zewnątrz, a prawie nie usztywnia ogona osiowo
+    # (zasada aktuatorów „fiber-reinforced”). Modelowane pierścieniami sprężyn (tylko
+    # rozciąganie) na długości komór, tuż pod skórą (fishsofa/fibers.py).
+    hoop_fibers: bool = False
+    fiber_ring_spacing: float = 0.004   # [m] odstęp pierścieni wzdłuż ogona
+    fiber_ring_points: int = 64         # punktów na pierścień
+    fiber_inset: float = 0.0005         # [m] głębokość pod skórą (punkt musi leżeć w tetrze)
+    # Sztywność membranowa oplotu w kierunku obwodowym = E_włókna · grubość warstwy [N/m]
+    # (np. tkanina ~1 GPa × 0.2 mm = 2e5 N/m). PLACEHOLDER – do identyfikacji z pomiarów
+    hoop_stiffness: float = 2e5
+    include_weight: bool = True    # False = brak ciężaru (etap 2: krzywa p–V zależna tylko od materiału)
+
     # ------------------------------------------------------------------ numeryka
     dt: float = 0.002              # [s] krok czasu (etap 1: tylko ugięcie pod ciężarem)
     # Tłumienie Rayleigha w EulerImplicitSolver: C = α·M + β·K. Zastępuje tłumienie
@@ -80,11 +98,11 @@ class TailConfig:
     #           z poprzedniego kroku (warm start),
     #   "warp" – PCG z prekondycjonerem: rozkład LDLᵀ raz w spoczynku, obracany co krok
     #           (patrz scene._add_warp_solver).
-    # Domyślnie "warp": na siatce coarse 8.6× szybciej niż "ldl" przy tej samej trajektorii
-    # (różnica < 0.001 mm na 0.4 s ruchu); "cg" daje tylko ~10%. Pomiary w README.
-    # Z komorą SurfacePressureConstraint warp liczy podatność komory w przybliżeniu:
-    # objętość trzyma dokładnie, ciśnienie różni się od "ldl" o ~2%. Statyka zawsze "ldl".
-    linear_solver: str = "warp"
+    # "warp" bez komór: 6–13× szybciej niż "ldl" przy tej samej trajektorii. Z komorą
+    # SurfacePressureConstraint jest BŁĘDNY przy dużych odkształceniach (30 ml: ciśnienie
+    # −25% względem "ldl", bo przybliżona podatność komory przesuwa równowagę), więc
+    # domyślnie "ldl", a scena z komorami wymusza "ldl". Pomiary w README.
+    linear_solver: str = "ldl"
     warp_refactor_steps: int = 10**9  # co ile kroków ponowny rozkład (praktycznie: nigdy)
     cg_max_iterations: int = 1000
     cg_tolerance: float = 1e-12    # |r|²/|b|² (kwadrat residuum względnego!)

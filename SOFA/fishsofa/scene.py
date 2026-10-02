@@ -35,22 +35,30 @@ PLUGINS = [
     "Sofa.Component.Mass",                            # MeshMatrixMass
     "Sofa.Component.MechanicalLoad",                  # ConstantForceField
     "Sofa.Component.Mapping.Linear",                  # BarycentricMapping
+    "Sofa.Component.SolidMechanics.Spring",           # StiffSpringForceField (włókna)
+    "Sofa.Component.Topology.Container.Constant",     # MeshTopology (powierzchnia komory)
 ]
 GUI_PLUGINS = ["Sofa.GL.Component.Rendering3D", "Sofa.Component.Visual"]
 
 
 def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
-               solver: str = "dynamic", gui: bool = False) -> dict:
+               solver: str = "dynamic", gui: bool = False, chambers: dict | None = None) -> dict:
     """Buduje ogon w węźle root. Zwraca uchwyty do komponentów i dane siatki.
 
     solver="dynamic" – EulerImplicitSolver (ruch w czasie),
-    solver="static"  – StaticSolver (od razu stan równowagi, metoda Newtona).
+    solver="static"  – StaticSolver (od razu stan równowagi, metoda Newtona; bez komór).
+    chambers – np. {"L": "volume", "R": "vented"}; tryby w add_chamber().
     """
+    chambers = chambers or {}
+    if chambers and solver == "static":
+        raise ValueError("komory (ograniczenia Lagrange'a) wymagają solver='dynamic' – "
+                         "StaticSolver nie działa z FreeMotionAnimationLoop (etap 1)")
     folder = mesh_gen.ensure(cfg, level, mesh_root)
     mesh = mesh_gen.load(cfg, level, mesh_root)
     mm = masses.build(mesh, cfg)
 
-    root.addObject("RequiredPlugin", pluginName=PLUGINS + (GUI_PLUGINS if gui else []))
+    root.addObject("RequiredPlugin", pluginName=PLUGINS + (GUI_PLUGINS if gui else [])
+                   + (["SoftRobots"] if chambers else []))
     root.dt = cfg.dt
     # Grawitacja SOFA wyłączona – ciężar liczymy sami (patrz fishsofa/masses.py).
     root.gravity = [0.0, 0.0, 0.0]
@@ -74,6 +82,11 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
         raise ValueError(solver)
     # Statyka (Newton) zawsze z dokładnym LDL – warp jest zestrojony pod dynamikę.
     linear_solver = cfg.linear_solver if solver == "dynamic" else "ldl"
+    if chambers and linear_solver == "warp":
+        # Warp z komorą przesuwa równowagę (30 ml: ciśnienie −25%), patrz README.
+        import Sofa
+        Sofa.msg_warning("fishsofa", 'linear_solver="warp" z komorami jest niedokładny – używam "ldl"')
+        linear_solver = "ldl"
     if linear_solver == "ldl":
         # Bezpośredni solver liniowy (rozkład LDLᵀ macierzy rzadkiej). Bloki 3×3, bo każdy
         # węzeł ma 3 stopnie swobody – tak jest szybciej niż skalarnie.
@@ -100,8 +113,10 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
     fem_name = "ParallelTetrahedronFEMForceField" if cfg.parallel_fem else "TetrahedronFEMForceField"
     if cfg.parallel_fem:
         root.addObject("RequiredPlugin", pluginName=["MultiThreading"])
+    # Moduł Younga na element: silikon albo sztywniejszy „kręgosłup” w przegrodzie.
+    young = np.where(mesh.tet_region == 1, cfg.young_modulus * cfg.spine_E_factor, cfg.young_modulus)
     tail.addObject(fem_name, name="fem", method="large",
-                   youngModulus=cfg.young_modulus, poissonRatio=cfg.poisson_ratio)
+                   youngModulus=young.tolist(), poissonRatio=cfg.poisson_ratio)
 
     if linear_solver == "warp":
         _add_warp_solver(tail, cfg)
@@ -116,8 +131,12 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
     tail.addObject("FixedProjectiveConstraint", name="fixed", indices=mesh.base_nodes.tolist())
 
     # Ciężar (i wypór w wodzie) jako stałe siły węzłowe.
+    weight = mm.node_weight if cfg.include_weight else np.zeros_like(mm.node_weight)
     tail.addObject("ConstantForceField", name="weight",
-                   indices=list(range(len(mesh.points))), forces=mm.node_weight.tolist())
+                   indices=list(range(len(mesh.points))), forces=weight.tolist())
+
+    if cfg.hoop_fibers:
+        _add_hoop_fibers(tail, cfg)
 
     if solver == "dynamic":
         # Korekcja ograniczeń: mówi solverowi ograniczeń, jak węzły zareagują na siły
@@ -129,13 +148,64 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
         else:
             tail.addObject("LinearSolverConstraintCorrection")
 
+    spcs = {side: add_chamber(tail, folder, side, mode, cfg) for side, mode in chambers.items()}
+
     if gui:
         visu = tail.addChild("visu")
         visu.addObject("MeshOBJLoader", name="loader", filename=os.path.join(folder, "outer.obj"))
         visu.addObject("OglModel", src="@loader", color=[0.95, 0.70, 0.30, 1.0])
         visu.addObject("BarycentricMapping")
 
-    return {"tail": tail, "dofs": dofs, "mesh": mesh, "masses": mm, "folder": folder}
+    return {"tail": tail, "dofs": dofs, "mesh": mesh, "masses": mm, "folder": folder,
+            "chambers": spcs, "dt": cfg.dt}
+
+
+def add_chamber(tail, folder: str, side: str, mode: str, cfg: TailConfig):
+    """Komora hydrauliczna L (+Y) albo R (−Y) jako węzeł-dziecko ogona.
+
+    mode="volume"   – SurfacePressureConstraint z valueType="volumeGrowth": zadajemy
+                      przyrost objętości (pompa wymusza objętość, woda jest nieściśliwa),
+                      SOFA liczy potrzebne ciśnienie (mnożnik Lagrange'a),
+    mode="pressure" – zadajemy ciśnienie (value = p·dt, patrz hydraulics.py),
+    mode="vented"   – brak komponentu: wnęka bez ograniczenia, ciśnienie 0, jak komora
+                      z otwartym króćcem na stanowisku pomiarowym. Zwraca None.
+    Powierzchnia wnęki jest „przyklejona” do FEM przez BarycentricMapping (jej węzły to
+    węzły FEM, więc mapowanie jest dokładne); siły ciśnienia wracają tą samą drogą.
+    """
+    if mode == "vented":
+        return None
+    if mode not in ("volume", "pressure"):
+        raise ValueError(mode)
+    node = tail.addChild(f"chamber{side}")
+    node.addObject("MeshOBJLoader", name="loader", filename=os.path.join(folder, f"chamber_{side}.obj"))
+    node.addObject("MeshTopology", name="topology", src="@loader")
+    node.addObject("MechanicalObject", name="dofs", template="Vec3d")
+    spc = node.addObject("SurfacePressureConstraint", name="spc", value=[0.0],
+                         valueType="volumeGrowth" if mode == "volume" else "pressure")
+    node.addObject("BarycentricMapping", name="mapping")
+    return spc
+
+
+def _add_hoop_fibers(tail, cfg: TailConfig):
+    """Oplot obwodowy: pierścienie sprężyn tuż pod skórą, przyczepione do FEM.
+
+    Pierwsza wersja kładła sprężyny na krawędziach siatki skóry, ale siatka z loftu nie
+    ma krawędzi obwodowych (są osiowe i ukośne 45–72°), więc oplotu w praktyce nie było.
+    Teraz pierścienie są osobnymi punktami (fishsofa/fibers.py), a BarycentricMapping
+    przenosi ich ruch z czworościanów, w których leżą, i oddaje siły włókien do FEM.
+    """
+    from fishsofa import fibers
+
+    ring = fibers.hoop_rings(cfg)
+    node = tail.addChild("hoopFibers")
+    node.addObject("MechanicalObject", name="dofs", template="Vec3d", position=ring.points.tolist())
+    # StiffSpringForceField dodaje też macierz sztywności sprężyn do układu niejawnego,
+    # więc sztywne włókna nie psują stabilności. elongationOnly: nić nie pcha przy ściskaniu.
+    node.addObject("StiffSpringForceField", name="springs",
+                   springsIndices1=ring.springs[:, 0].tolist(), springsIndices2=ring.springs[:, 1].tolist(),
+                   stiffness=ring.stiffness.tolist(), damping=[0.0] * len(ring.springs),
+                   lengths=ring.lengths.tolist(), elongationOnly=True)
+    node.addObject("BarycentricMapping", name="mapping", input="@../dofs", output="@dofs")
 
 
 def _add_ode_solver(tail, cfg: TailConfig, solver: str):

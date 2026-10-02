@@ -33,7 +33,7 @@ from fishsofa.config import TailConfig
 
 # Wersja generatora: zmiana kodu, która zmienia wynik siatkowania, podbija numer,
 # żeby ensure() wygenerował siatki od nowa (wchodzi do _geometry_hash).
-GENERATOR_VERSION = 2
+GENERATOR_VERSION = 4
 
 # Faces tetry (a,b,c,d) o dodatniej objętości, z normalnymi NA ZEWNĄTRZ tetry.
 _TET_FACES = np.array([[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]])
@@ -49,6 +49,7 @@ class TailMesh:
     base_nodes: np.ndarray   # węzły przedniej ściany x = 0 (mocowanie)
     fin_nodes: np.ndarray    # węzły płetwy za końcem korpusu (pomiar końcówki)
     sicn: np.ndarray         # jakość elementów gmsh (signed inverse condition number), połowa siatki
+    tet_region: np.ndarray   # (M,) 0 = silikon, 1 = przegroda / kręgosłup (|y| środka ≤ septum/2, w korpusie)
     level: str
     h_wall: float
     h_far: float
@@ -231,7 +232,19 @@ def generate(cfg: TailConfig, level: str) -> TailMesh:
     L = cfg.tail_length
     base = np.flatnonzero(np.abs(points[:, 0]) < 1e-9)
     fin = np.flatnonzero(points[:, 0] < -L - 1e-9)
-    return TailMesh(points, tets, tri_outer, tri_L, tri_R, base, fin, sicn, level, h_wall, h_far)
+    region = _tet_regions(cfg, points, tets)
+    return TailMesh(points, tets, tri_outer, tri_L, tri_R, base, fin, sicn, region, level, h_wall, h_far)
+
+
+def _tet_regions(cfg: TailConfig, points, tets):
+    """Region materiału każdej tetry: 1 = przegroda/kręgosłup, 0 = reszta silikonu.
+
+    Kryterium po środku tetry: |y| ≤ septum/2 i x w korpusie (−L ≤ x ≤ 0). Przy siatce
+    ~1 elementu na grubość przegrody to przybliżenie (raport podaje objętość regionu).
+    """
+    c = points[tets].mean(axis=1)
+    return ((np.abs(c[:, 1]) <= cfg.septum_thickness / 2) & (c[:, 0] >= -cfg.tail_length)).astype(np.int8)
+
 
 
 # ----------------------------------------------------------------------------- raport jakości
@@ -293,6 +306,8 @@ def quality_report(mesh: TailMesh, cfg: TailConfig) -> dict:
         "elements_across_wall": cfg.wall_thickness / h_ch,
         "elements_across_septum": cfg.septum_thickness / h_ch,
         "h_fin_mm": h_fin * 1e3,
+        "volume_spine_m3": float(vol[mesh.tet_region == 1].sum()),
+        "volume_spine_nominal_m3": _spine_nominal_volume(cfg),
         "elements_across_fin": cfg.fin_thickness / h_fin,
     }
 
@@ -314,7 +329,16 @@ def format_report(r: dict) -> str:
         f"  przy ściankach komory: średnia krawędź {r['h_chamber_wall_mm']:.2f} mm -> "
         f"~{r['elements_across_wall']:.1f} elem. na ściankę, ~{r['elements_across_septum']:.1f} na przegrodę",
         f"  płetwa: średnia krawędź {r['h_fin_mm']:.2f} mm -> ~{r['elements_across_fin']:.1f} elem. na grubość",
+        f"  region przegrody/kręgosłupa: {r['volume_spine_m3'] * 1e6:.1f} ml "
+        f"(nominalnie {r['volume_spine_nominal_m3'] * 1e6:.1f} ml)",
     ])
+
+
+def _spine_nominal_volume(cfg: TailConfig) -> float:
+    """Objętość płyty |y| ≤ septum/2 w korpusie: ∫ szerokość przekroju w Z dx."""
+    xs = np.linspace(-cfg.tail_length, 0.0, 401)
+    rz = np.array([cfg.rz0 * cfg.scale_at(x) for x in xs])
+    return float(np.trapezoid(2 * rz * cfg.septum_thickness, xs))
 
 
 # ----------------------------------------------------------------------------- zapis / odczyt
@@ -331,8 +355,10 @@ def _geometry_hash(cfg: TailConfig, level: str) -> str:
 
 
 def mesh_dir(cfg: TailConfig, level: str, root: str | None = None) -> str:
+    """meshes/<poziom>_<skrót geometrii>: warianty geometrii (np. grubsza ścianka) mają
+    osobne katalogi i nie nadpisują sobie siatek."""
     base = root if root is not None else os.path.join(PROJECT_DIR, cfg.mesh_dir)
-    return os.path.join(base, level)
+    return os.path.join(base, f"{level}_{_geometry_hash(cfg, level)}")
 
 
 def _write_obj(path, points, tris):
@@ -374,6 +400,7 @@ def save(mesh: TailMesh, cfg: TailConfig, root: str | None = None) -> str:
              points=mesh.points, tets=mesh.tets, tri_outer=mesh.tri_outer,
              tri_chamber_L=mesh.tri_chamber_L, tri_chamber_R=mesh.tri_chamber_R,
              base_nodes=mesh.base_nodes, fin_nodes=mesh.fin_nodes, sicn=mesh.sicn,
+             tet_region=mesh.tet_region,
              level=mesh.level, h_wall=mesh.h_wall, h_far=mesh.h_far,
              geometry_hash=_geometry_hash(cfg, mesh.level))
     with open(os.path.join(out, "report.txt"), "w") as f:
@@ -384,7 +411,7 @@ def save(mesh: TailMesh, cfg: TailConfig, root: str | None = None) -> str:
 def load(cfg: TailConfig, level: str, root: str | None = None) -> TailMesh:
     d = np.load(os.path.join(mesh_dir(cfg, level, root), "tail_meta.npz"))
     return TailMesh(d["points"], d["tets"], d["tri_outer"], d["tri_chamber_L"], d["tri_chamber_R"],
-                    d["base_nodes"], d["fin_nodes"], d["sicn"], str(d["level"]),
+                    d["base_nodes"], d["fin_nodes"], d["sicn"], d["tet_region"], str(d["level"]),
                     float(d["h_wall"]), float(d["h_far"]))
 
 

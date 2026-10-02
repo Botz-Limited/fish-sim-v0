@@ -191,3 +191,49 @@ def test_warp_solver_matches_ldl(cfg, mesh_root):
     b = headless.run(TailConfig(linear_solver="warp"), LEVEL, n_steps=30, mesh_root=mesh_root)
     za = np.array([p[2] for p in a.tip]); zb = np.array([p[2] for p in b.tip])
     assert np.max(np.abs(za - zb)) < 1e-3 * np.max(np.abs(za))
+
+
+# ----------------------------------------------------------------------------- etap 2: komora
+
+@pytest.fixture(scope="session")
+def qs_curve(mesh_root):
+    from fishsofa import headless
+    cfg = TailConfig(include_weight=False)
+    return headless.quasi_static_sweep(cfg, LEVEL, [4e-6, 8e-6, 12e-6], mesh_root=mesh_root)
+
+
+def test_chamber_sign_convention(qs_curve):
+    # +ΔV w komorze L -> wnęka rośnie o zadaną objętość, ciśnienie dodatnie.
+    assert qs_curve.dV[-1] == pytest.approx(12e-6, rel=1e-3)
+    assert all(p > 0 for p in qs_curve.p)
+    # Wydymanie na zewnątrz po stronie komory.
+    assert qs_curve.bulge[-1] > 0
+
+
+def test_pressure_increases_with_volume(qs_curve):
+    assert np.all(np.diff(qs_curve.p) > 0)
+
+
+def test_quasi_static_is_equilibrium(qs_curve):
+    # Kryterium specu: energia kinetyczna < 1% pracy ciśnienia w każdym punkcie.
+    assert max(qs_curve.ke_ratio) < 0.01
+
+
+def test_pressure_units_independent_of_dt(mesh_root):
+    # pressure z SOFA to p·dt (etap 0); po przeliczeniu w hydraulics.py ten sam stan
+    # przy innym kroku musi dać to samo ciśnienie w Pa.
+    from fishsofa import headless
+    cfg = TailConfig(include_weight=False)
+    a = headless.quasi_static_sweep(cfg, LEVEL, [8e-6], mesh_root=mesh_root, dt=0.05)
+    b = headless.quasi_static_sweep(cfg, LEVEL, [8e-6], mesh_root=mesh_root, dt=0.025, ramp_steps=8)
+    assert a.p[-1] == pytest.approx(b.p[-1], rel=0.01)
+
+
+def test_warp_is_replaced_by_ldl_with_chambers(cfg, mesh_root):
+    # Warp z komorą daje błędną równowagę (README) – scena musi wymusić LDL.
+    from fishsofa import headless
+    from fishsofa.scene import build_tail
+    Sofa = headless._sofa()
+    root = Sofa.Core.Node("root")
+    h = build_tail(root, TailConfig(linear_solver="warp"), LEVEL, mesh_root, chambers={"L": "volume"})
+    assert h["tail"].getObject("linsolver").getClassName() == "SparseLDLSolver"
