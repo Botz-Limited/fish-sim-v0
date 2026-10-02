@@ -204,7 +204,8 @@ def _add_hoop_fibers(tail, cfg: TailConfig):
     node.addObject("StiffSpringForceField", name="springs",
                    springsIndices1=ring.springs[:, 0].tolist(), springsIndices2=ring.springs[:, 1].tolist(),
                    stiffness=ring.stiffness.tolist(), damping=[0.0] * len(ring.springs),
-                   lengths=ring.lengths.tolist(), elongationOnly=True)
+                   lengths=ring.lengths.tolist(), elongationOnly=" ".join(["1"] * len(ring.springs)),
+                   enabled=" ".join(["1"] * len(ring.springs)))
     node.addObject("BarycentricMapping", name="mapping", input="@../dofs", output="@dofs")
 
 

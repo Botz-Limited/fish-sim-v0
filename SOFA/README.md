@@ -2,7 +2,7 @@
 
 Edukacyjne demo FEM ogona robota-ryby. Specyfikacja: [SPEC_fish_sofa_demo.md](SPEC_fish_sofa_demo.md). **To nie jest skalibrowany model** – wszystkie parametry to placeholdery.
 
-Stan: **etapy 0 (instalacja, API) i 1 (siatka, ugięcie pod ciężarem) zakończone.** Kolejne etapy: patrz spec, sekcja 8.
+Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem) i 2 (komora L quasi-statycznie) zakończone.** Kolejne etapy: patrz spec, sekcja 8.
 
 ## Instalacja (Linux, sprawdzone na Fedorze 44)
 
@@ -41,6 +41,8 @@ python SOFA/scripts/probe_volume_growth.py  # etap 0: jak działa SurfacePressur
 cd SOFA && pytest -q                        # testy (~25 s, gruba siatka "test" w katalogu tymczasowym)
 python -m fishsofa.mesh_gen --level all     # etap 1: siatki do meshes/ (fine ~10 s)
 python scripts/run_stage1.py                # etap 1: raport + wykres do results/ (~10 min, głównie fine)
+python scripts/run_stage2_variants.py       # etap 2a: warianty konstrukcji (~10 min)
+python scripts/run_stage2.py                # etap 2: krzywa p–V i kąt, 3 siatki (~25 min)
 scripts/run_gui.sh coarse                   # ogon w GUI; po Animate ugina się pod ciężarem
 # GUI z przykładem SoftRobots (komora ciśnieniowa vs objętościowa):
 $SOFA_ROOT/bin/runSofa -l SofaPython3 $SOFA_ROOT/plugins/SoftRobots/share/sofa/examples/SoftRobots/component/constraint/SurfacePressureConstraint/PressureVsVolumeGrowthControl.py
@@ -127,7 +129,7 @@ Grawitacja SOFA jest wyłączona. Masa (silikon + woda z komór, przypisana do t
 
 `StaticSolver` wymaga osobnego komponentu `NewtonRaphsonSolver` (od v25.12 parametry Newtona przeniesiono tam) i **nie działa z `FreeMotionAnimationLoop`** (ogon się nie rusza), więc statyka używa `DefaultAnimationLoop`. Pierwsza iteracja Newtona przestrzeliwuje (ostrzeżenie „Line search failed at Newton iteration 0”), kolejne zbiegają (residuum 42 → 0.13 → 0.006 → …). Drugi krok statyki nic już nie zmienia (test).
 
-### Wydajność dynamiki: solver „warp” (rozwiązane przed etapem 2)
+### Wydajność dynamiki: solver „warp” (przed etapem 2; ograniczenie z komorami niżej)
 
 Domyślny `SparseLDLSolver` robi pełny rozkład LDLᵀ macierzy w każdym kroku, bo korotacyjny FEM zmienia macierz sztywności co krok. To dawało 383× wolniej niż czas rzeczywisty na coarse.
 
@@ -144,7 +146,17 @@ Domyślny `SparseLDLSolver` robi pełny rozkład LDLᵀ macierzy w każdym kroku
 | medium (52k) | 2306 ms/krok | 260 ms/krok | 8.9× |
 | fine (142k) | 19 337 ms/krok | 1510 ms/krok | 12.8× |
 
-**Dokładność:** trajektoria końcówki na coarse przez 0.4 s jest identyczna z LDL (różnica < 0.001 mm; test `test_warp_solver_matches_ldl`). Z komorą `SurfacePressureConstraint` (5 ml w komorze L, siatka test) objętość jest trzymana dokładnie (5.0002 ml), ale ciśnienie różni się od LDL o 1.7% (227 vs 231 Pa), a kąt końcówki o ~3%. Podatność komory liczona przez warp jest przybliżona. **Statyka zawsze używa dokładnego LDL.**
+**Dokładność:** trajektoria końcówki na coarse przez 0.4 s jest identyczna z LDL (różnica < 0.001 mm; test `test_warp_solver_matches_ldl`).
+
+**Ale z komorą warp jest błędny** (sprawdzone w planie etapu 2, siatka test, 30 ml w komorze L, stan ustalony):
+
+| solver | ciśnienie |
+|---|---|
+| LDL, wolna rampa, dt 2 ms | 1950.4 Pa |
+| LDL, pseudo-statyka dt 10 / 50 ms | 1950.4 Pa |
+| warp, dt 2 ms | **1471 Pa (−25%)** |
+
+Przy 5 ml różnica była 1.7%, więc błąd rośnie z odkształceniem. Przyczyna: korekcja ograniczeń używa przybliżonej podatności J·A_warp⁻¹·Jᵀ, więc rozkład siły ciśnienia na węzły jest zły i równowaga się przesuwa. Dlatego **domyślny solver to znowu `"ldl"`**, a scena z komorami wymusza LDL (test `test_warp_is_replaced_by_ldl_with_chambers`). Warp jest użyteczny tylko bez komór. Dla dynamiki z komorami (etapy 4–6) wydajność trzeba będzie rozwiązać inaczej.
 
 Trzy błędy wcześniejszych prób (etap 1), dla przyszłych czytelników:
 - `assemblingRate=15` (jak w przykładzie SOFA): macierz składana w stanie odkształconym, a obrót z `TetrahedronFEMForceField` (liczony względem spoczynku) nakłada się drugi raz, więc symulacja wybucha.
@@ -158,3 +170,67 @@ Trzy błędy wcześniejszych prób (etap 1), dla przyszłych czytelników:
 **Niewykorzystane opcje:**
 - `EigenCholmodSupernodalLLT` (plugin SofaCHOLMOD, dokładny i 4–11× szybszy rozkład) jest dopiero w gałęzi master SOFA, nie w binarce v26.06.
 - Redukcja rzędu modelu (plugin ModelOrderReduction, w binarce) daje nawet ~50×, ale wymaga treningu offline i działa tylko w wytrenowanym zakresie. To kandydat dopiero na etap 6.
+
+## Etap 2a – dlaczego ogon się nie zginał i co pomogło
+
+**Problem:** przy geometrii z etapu 1 (V0: ścianki 4 mm, jednorodny silikon) 72 ml w komorze L zgina ogon tylko o 1.3°. Ciecz idzie w wybrzuszanie ścianki zewnętrznej (jak balon) i w uginanie przegrody w stronę komory R, a nie w wydłużanie lewego boku ogona. Dopiero wydłużenie jednego boku daje zgięcie.
+
+**Przegląd wariantów** (`scripts/run_stage2_variants.py`, coarse, quasi-statycznie, komora R odpowietrzona, bez ciężaru; `results/s2_variants.png`, `.csv`):
+
+| wariant | max \|θ\| (przy ΔV) | p przy max | 15° przy |
+|---|---|---|---|
+| V0 obecny | 1.3° (72.5 ml) | 7.2 kPa | – |
+| V1 kręgosłup E×20 | 2.8° (72.5 ml) | 13.4 kPa | – |
+| V2 ścianka 8 mm | 0.6° (47.5 ml) | 9.1 kPa | – |
+| V3 włókna obwodowe | 9.0° (72.5 ml) | 10.4 kPa | – |
+| **V4 kręgosłup + włókna** | **31° (72.5 ml)** | 33.8 kPa | **47.0 ml, 17.5 kPa** |
+
+Co pokazuje wykres:
+- Każdy element osobno daje mało. Włókna obwodowe nie pozwalają ściance się wybrzuszać, a kręgosłup (przegroda E×20 na całej długości) działa jak nierozciągliwa warstwa w osi zginania. Dopiero razem zamieniają wtłoczoną objętość w wydłużenie boku, czyli w zgięcie.
+- Grubsza ścianka **pogarsza** sprawę: komora jest mniejsza, a ogon sztywniejszy.
+- To ta sama zasada, której używają prawdziwe miękkie aktuatory: oplot włóknem i warstwa ograniczająca odkształcenie (strain-limiting layer).
+
+**Wybór:** V4. Kryterium (15° przy p ≤ 50 kPa i ΔV ≤ 50% objętości komory) V4 przekracza o włos: 51.4% objętości przy 17.5 kPa. Decyzja użytkownika: V4 bez zmian, bo ciśnienie ma duży zapas, a przekroczenie mieści się w niepewności siatki coarse. V4 jest teraz domyślną konstrukcją w `config.py`. Etap 1 był liczony jeszcze dla V0.
+
+**Jak to jest modelowane:**
+- **Kręgosłup:** tetry ze środkiem w |y| ≤ septum/2 dostają E×20 (`spine_E_factor`, PLACEHOLDER). Przy ~1 elemencie na grubość przegrody to przybliżenie; raport siatki podaje objętość regionu względem nominalnej.
+- **Włókna:** pierścienie punktów co 4 mm na długości komór, 0.5 mm pod skórą, połączone sprężynami pracującymi tylko na rozciąganie (`StiffSpringForceField elongationOnly`). Do FEM są przyczepione przez `BarycentricMapping`. Sztywność odpowiada membranie K = 2·10⁵ N/m (np. tkanina ~1 GPa × 0.2 mm, PLACEHOLDER). W symulacji nić wydłuża się < 0.15%.
+- Dwa błędy złapane po drodze: `elongationOnly=True` jest w SOFA v26.06 po cichu ignorowane, bo to lista z jedną wartością na sprężynę, a SOFA czyta `"1 1 1 …"` (test `test_hoop_fibers_work_in_tension_only`). Do tego po zmianie domyślnego configu na V4 wariant „V0 = {}” liczył się jako V4, więc teraz każdy wariant ustawia wszystkie przełączniki jawnie.
+- Pierwsza wersja włókien kładła sprężyny na krawędziach siatki skóry. Siatka z loftu nie ma jednak krawędzi obwodowych (są tylko osiowe i ukośne 45–72°), więc oplotu w praktyce nie było i V3/V4 wyglądały na bezużyteczne. Wyłapał to brak jakiejkolwiek zmiany wybrzuszenia.
+
+**Uwaga do miary „wybrzuszenia”:** to przesunięcie skrajnego węzła skóry po stronie komory **względem osi** ogona, a przy odpowietrzonej komorze R oś też się przesuwa, bo przegroda ugina się w stronę R. Pomiar pierścienia włókien pokazał, że sama ścianka V4 wychodzi na zewnątrz tylko o ~0.4 mm przy 8 ml.
+
+**Tryb komory R** (siatka test, V4, 12 ml w L): odpowietrzona −3.0°, zamknięta (stała objętość) −2.6°, antagonistyczna (ΔV_R = −ΔV_L, czyli praca pompy) −2.8°. Tryb R zmienia wynik o ~15%.
+
+## Etap 2 – komora L quasi-statycznie: krzywa p–V i kąt końcówki
+
+`scripts/run_stage2.py`. Konstrukcja V4, komora L dostaje zadany przyrost objętości 0…50 ml, komora R jest odpowietrzona (ciśnienie 0, jak drugi króciec otwarty na stanowisku), bez ciężaru. Liczone pseudo-statycznie: niejawny Euler z dt = 50 ms i LDL. Po każdym punkcie objętość jest trzymana, aż energia kinetyczna < 1% pracy ciśnienia ∫p dV; w praktyce wychodzi ≤ 0.4%. Ta metoda daje ten sam stan co wolna rampa przy dt = 2 ms (sprawdzone na siatce test: 1950.4 Pa w obu przypadkach), a jest 5–25× tańsza. `StaticSolver` odpada, bo nie działa z ograniczeniami Lagrange'a komory.
+
+### Wyniki (`results/s2_pv_curve.png`, `results/s2_tip_angle.png`, `results/s2_curves.csv`)
+
+| siatka | p przy 50 ml | θ_tip przy 50 ml | czas |
+|---|---|---|---|
+| coarse (28k tetr) | 19.3 kPa | −16.3° | 35 s |
+| medium (52k) | 18.4 kPa | −15.7° | 1.7 min |
+| fine (142k) | 16.1 kPa | −15.4° | 16 min |
+
+- **Krzywa p–V** (`s2_pv_curve.png`) jest prawie liniowa na początku i coraz bardziej stroma. Ogon zgięty o 15° trudniej dalej zginać, a włókna przenoszą coraz więcej siły. Przy 50 ml potrzeba ~16 kPa, czyli 1/3 ciśnienia otwarcia zaworu z MuJoCo (50 kPa). Pompa ma zapas.
+- **Kąt końcówki** (`s2_tip_angle.png`): komora L (+Y) wydłuża lewy bok, więc ogon zgina się w **−Y** (θ < 0, w prawo). Zależność też jest lekko wypukła: ~0.25°/ml na początku i ~0.45°/ml przy 50 ml. Tę samą krzywą zmierzysz na prawdziwym ogonie (strzykawka dozująca objętość, manometr, zdjęcie z góry), i to jest główny wynik demo.
+
+### Zbieżność siatki (`results/s2_convergence.txt`)
+
+| | p @ 25 ml | θ @ 25 ml | p @ 50 ml | θ @ 50 ml |
+|---|---|---|---|---|
+| coarse vs fine | +26.6% | +4.8% | +20.3% | +5.9% |
+| medium vs fine | +19.9% | +2.7% | +14.5% | +2.5% |
+
+**Kąt zbiega dobrze** (coarse już w ~5%). **Ciśnienie zbiega słabo**: nawet medium jest 15–20% za wysoko, a fine pewnie też jeszcze nie jest granicą. Kąt wynika z kinematyki (ile objętości wtłoczono i jak długi jest bok), a ciśnienie ze sztywności cienkich ścianek, a te przy ~1–2 elementach na grubość są za sztywne (locking liniowych czworościanów). Wnioski:
+- do kształtu ruchu (kąt, etapy 4–6) wystarczy coarse, z błędem ~5%,
+- ciśnienia z coarse są zawyżone o ~20–25%; do porównań z pomiarem ciśnienia trzeba podawać ten błąd albo liczyć na fine,
+- dokładniejsze ciśnienie wymagałoby elementów kwadratowych albo ≥ 3 elementów na ściankę (~450k tetr), czego binarka SOFA tu nie udźwignie w rozsądnym czasie.
+
+### Jak to zmierzyć na prawdziwym ogonie (kalibracja)
+
+1. Ogon przykręcony nasadą do stołu, komora R z otwartym króćcem.
+2. Strzykawka lub pompa dozująca w komorę L po 5 ml, manometr na wlocie i zdjęcie z góry (kąt cięciwy od nasady do środka płetwy, tak jak `geometry.tip_angle`).
+3. Dopasowanie: najpierw `young_modulus` do krzywej p–V (ciśnienie skaluje się ~liniowo z E), potem `spine_E_factor` i `hoop_stiffness` do krzywej θ–V. Na grubej siatce trzeba uwzględnić jej +20% na ciśnieniu.

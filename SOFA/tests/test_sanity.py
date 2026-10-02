@@ -214,6 +214,13 @@ def test_pressure_increases_with_volume(qs_curve):
     assert np.all(np.diff(qs_curve.p) > 0)
 
 
+def test_tip_bends_away_from_inflated_chamber(qs_curve):
+    # Komora L (+Y) wydłuża lewy bok -> ogon zgina się w −Y: θ_tip < 0 i rośnie co do modułu.
+    th = np.array(qs_curve.tip_angle)
+    assert np.all(th < 0)
+    assert np.all(np.diff(np.abs(th)) > 0)
+
+
 def test_quasi_static_is_equilibrium(qs_curve):
     # Kryterium specu: energia kinetyczna < 1% pracy ciśnienia w każdym punkcie.
     assert max(qs_curve.ke_ratio) < 0.01
@@ -237,3 +244,16 @@ def test_warp_is_replaced_by_ldl_with_chambers(cfg, mesh_root):
     root = Sofa.Core.Node("root")
     h = build_tail(root, TailConfig(linear_solver="warp"), LEVEL, mesh_root, chambers={"L": "volume"})
     assert h["tail"].getObject("linsolver").getClassName() == "SparseLDLSolver"
+
+
+def test_hoop_fibers_work_in_tension_only(cfg, mesh_root):
+    # elongationOnly to w SOFA v26.06 lista (jedna wartość na sprężynę); pojedyncze True
+    # było po cichu ignorowane i włókna pracowały też na ściskanie.
+    from fishsofa import headless
+    from fishsofa.scene import build_tail
+    Sofa = headless._sofa()
+    root = Sofa.Core.Node("root")
+    h = build_tail(root, TailConfig(hoop_fibers=True), LEVEL, mesh_root)
+    ff = h["tail"].getChild("hoopFibers").getObject("springs")
+    flags = np.array(ff.elongationOnly.value).ravel()
+    assert len(flags) == len(ff.springsIndices1.value) and flags.all()

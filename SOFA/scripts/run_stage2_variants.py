@@ -35,12 +35,15 @@ MAX_FRACTION_SWEEP = 0.8   # liczymy dalej niż kryterium, żeby było widać tr
 MAX_FRACTION_OK = 0.5      # kryterium wyboru: ΔV ≤ 50% objętości komory
 RESULTS = os.path.join(PROJECT_DIR, "results")
 
+# Każdy wariant ustawia JAWNIE wszystkie przełączniki konstrukcji: domyślny config to
+# już V4, więc samo „{}” nie byłoby wariantem obecnym (tak było w jednym przebiegu).
+_BASE = {"spine_E_factor": 1.0, "hoop_fibers": False, "wall_thickness": 0.004}
 VARIANTS = {
-    "V0 obecny": {},
-    "V1 kręgosłup E×20": {"spine_E_factor": 20.0},
-    "V2 ścianka 8 mm": {"wall_thickness": 0.008},
-    "V3 włókna obwodowe": {"hoop_fibers": True},
-    "V4 kręgosłup + włókna": {"spine_E_factor": 20.0, "hoop_fibers": True},
+    "V0 obecny": {**_BASE},
+    "V1 kręgosłup E×20": {**_BASE, "spine_E_factor": 20.0},
+    "V2 ścianka 8 mm": {**_BASE, "wall_thickness": 0.008},
+    "V3 włókna obwodowe": {**_BASE, "hoop_fibers": True},
+    "V4 kręgosłup + włókna": {**_BASE, "spine_E_factor": 20.0, "hoop_fibers": True},
 }
 
 # Paleta kategoryczna (skill dataviz, tryb jasny), stała kolejność.

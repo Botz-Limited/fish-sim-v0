@@ -56,6 +56,9 @@ class TailConfig:
     wall_thickness: float = 0.004  # [m] ścianka zewnętrzna komory; PLACEHOLDER – do identyfikacji z pomiarów
     septum_thickness: float = 0.004  # [m] przegroda między komorami L i R; PLACEHOLDER – do identyfikacji z pomiarów
     # Długość komory = długość napędzanych segmentów MuJoCo (liczona w __post_init__).
+    # Zakres roboczy przyrostu objętości jednej komory (etap 2: krzywa p–V, test
+    # monotoniczności). 50 ml ≈ 55% objętości komory, ~16° zgięcia dla V4.
+    dV_max: float = 50e-6          # [m³] PLACEHOLDER – do identyfikacji z pomiarów
 
     # ------------------------------------------------------------------ materiał (silikon)
     young_modulus: float = 3e5     # [Pa] silikon typu Dragon Skin / Ecoflex: rząd 1e5–1e6; PLACEHOLDER – do identyfikacji z pomiarów
@@ -70,12 +73,15 @@ class TailConfig:
     # „Kręgosłup”: przegroda między komorami na całej długości korpusu z materiału
     # sztywniejszego niż silikon (np. silikon twardszy albo z wkładką). Działa jak warstwa
     # nierozciągliwa w osi zginania: wydłużenie boku z ciśnieniem zamienia się w zgięcie.
-    spine_E_factor: float = 1.0    # E_kręgosłupa / E_silikonu (1 = brak); PLACEHOLDER – do identyfikacji z pomiarów
+    # Domyślna konstrukcja = wariant V4 z przeglądu (etap 2a, README): kręgosłup E×20
+    # + włókna obwodowe. Bez nich ogon praktycznie się nie zgina (komora się wydyma).
+    # Etap 1 (ugięcie pod ciężarem) był liczony jeszcze bez nich (V0).
+    spine_E_factor: float = 20.0   # E_kręgosłupa / E_silikonu (1 = brak); PLACEHOLDER – do identyfikacji z pomiarów
     # Włókna obwodowe: oplot (nić, tkanina) na skórze ogona biegnący dookoła przekroju.
     # Nie pozwala ściance wydymać się na zewnątrz, a prawie nie usztywnia ogona osiowo
     # (zasada aktuatorów „fiber-reinforced”). Modelowane pierścieniami sprężyn (tylko
     # rozciąganie) na długości komór, tuż pod skórą (fishsofa/fibers.py).
-    hoop_fibers: bool = False
+    hoop_fibers: bool = True
     fiber_ring_spacing: float = 0.004   # [m] odstęp pierścieni wzdłuż ogona
     fiber_ring_points: int = 64         # punktów na pierścień
     fiber_inset: float = 0.0005         # [m] głębokość pod skórą (punkt musi leżeć w tetrze)
