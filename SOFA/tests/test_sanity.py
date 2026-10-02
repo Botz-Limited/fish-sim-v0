@@ -182,3 +182,12 @@ def test_static_sag_is_equilibrium(cfg, mesh_root):
     st = headless.static_sag(cfg, LEVEL, mesh_root, n_steps=2)
     assert st.tip[-1][2] < 0
     assert np.allclose(st.tip[0], st.tip[1], atol=1e-6)
+
+
+def test_warp_solver_matches_ldl(cfg, mesh_root):
+    # Warp (rozkład w spoczynku + obroty + PCG) ma dawać tę samą trajektorię co dokładny LDL.
+    from fishsofa import headless
+    a = headless.run(TailConfig(linear_solver="ldl"), LEVEL, n_steps=30, mesh_root=mesh_root)
+    b = headless.run(TailConfig(linear_solver="warp"), LEVEL, n_steps=30, mesh_root=mesh_root)
+    za = np.array([p[2] for p in a.tip]); zb = np.array([p[2] for p in b.tip])
+    assert np.max(np.abs(za - zb)) < 1e-3 * np.max(np.abs(za))

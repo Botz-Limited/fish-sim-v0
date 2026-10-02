@@ -127,12 +127,34 @@ Grawitacja SOFA jest wyłączona. Masa (silikon + woda z komór, przypisana do t
 
 `StaticSolver` wymaga osobnego komponentu `NewtonRaphsonSolver` (od v25.12 parametry Newtona przeniesiono tam) i **nie działa z `FreeMotionAnimationLoop`** (ogon się nie rusza), więc statyka używa `DefaultAnimationLoop`. Pierwsza iteracja Newtona przestrzeliwuje (ostrzeżenie „Line search failed at Newton iteration 0”), kolejne zbiegają (residuum 42 → 0.13 → 0.006 → …). Drugi krok statyki nic już nie zmienia (test).
 
-### Otwarty problem: wydajność dynamiki
+### Wydajność dynamiki: solver „warp” (rozwiązane przed etapem 2)
 
-Dynamika jest bardzo wolna: **coarse 383× wolniej niż czas rzeczywisty** (0.77 s na krok przy dt = 2 ms). Prawie cały czas zajmuje pełny rozkład LDLᵀ macierzy w każdym kroku, bo korotacyjny FEM zmienia macierz sztywności co krok. Sprawdzone bez sukcesu (na siatce test, 12k tetr, ~200 ms/krok):
-- metody numeracji Metis, AMD i COLAMD (domyślna jest już dobra; bez numeracji jest 100× wolniej),
-- wielowątkowość (`nbThreads`, `ParallelTetrahedronFEMForceField`) – bez zysku,
-- `AsyncSparseLDLSolver` i PCG + `WarpPreconditioner` + Async (oba ~10 ms/krok, ale symulacja wybucha) – przyczyna niezdiagnozowana, nie maskowana,
-- PCG + `WarpPreconditioner` + zwykły LDL – bez zysku (rozkład dalej co krok).
+Domyślny `SparseLDLSolver` robi pełny rozkład LDLᵀ macierzy w każdym kroku, bo korotacyjny FEM zmienia macierz sztywności co krok. To dawało 383× wolniej niż czas rzeczywisty na coarse.
 
-Dla etapów 4–6 (dziesiątki tysięcy kroków) trzeba to rozwiązać przed etapem 4: większy `dt` (niejawny Euler to znosi, a 3 Hz wymaga ~6 ms), poprawna konfiguracja warp/async albo grubsza siatka dla dynamiki.
+**Rozwiązanie** (z dokumentacji i kodu SOFA na GitHubie, `fishsofa/scene.py:_add_warp_solver`, `linear_solver="warp"`, domyślne):
+1. Rozkład LDLᵀ liczony **raz, w stanie spoczynku**: `RotationMatrixSystem` z bardzo dużym `assemblingRate`.
+2. W każdym kroku tylko „obracany” o aktualne obroty elementów (`WarpPreconditioner`, `rotationFinder=@fem`). Dla korotacyjnego FEM sztywność odkształconego ogona ≈ R·K₀·Rᵀ.
+3. Obrócony rozkład jest prekondycjonerem dla PCG (`PCGLinearSolver` + `PreconditionedMatrixFreeSystem`), który kilkoma iteracjami doprowadza wynik do dokładnego.
+4. Korekcja ograniczeń komór linkuje prekondycjoner (`LinearSolverConstraintCorrection linearSolver=@warp`), bo sam PCG nie składa macierzy.
+
+| siatka | LDL (dt 2 ms) | warp (dt 2 ms) | przyspieszenie |
+|---|---|---|---|
+| test (12k tetr) | 196 ms/krok | 31 ms/krok | 6.2× |
+| coarse (28k) | 726 ms/krok | 84 ms/krok | 8.6× |
+| medium (52k) | 2306 ms/krok | 260 ms/krok | 8.9× |
+| fine (142k) | 19 337 ms/krok | 1510 ms/krok | 12.8× |
+
+**Dokładność:** trajektoria końcówki na coarse przez 0.4 s jest identyczna z LDL (różnica < 0.001 mm; test `test_warp_solver_matches_ldl`). Z komorą `SurfacePressureConstraint` (5 ml w komorze L, siatka test) objętość jest trzymana dokładnie (5.0002 ml), ale ciśnienie różni się od LDL o 1.7% (227 vs 231 Pa), a kąt końcówki o ~3%. Podatność komory liczona przez warp jest przybliżona. **Statyka zawsze używa dokładnego LDL.**
+
+Trzy błędy wcześniejszych prób (etap 1), dla przyszłych czytelników:
+- `assemblingRate=15` (jak w przykładzie SOFA): macierz składana w stanie odkształconym, a obrót z `TetrahedronFEMForceField` (liczony względem spoczynku) nakłada się drugi raz, więc symulacja wybucha.
+- Brak jawnego linku `EulerImplicitSolver linearSolver=@linsolver`: integrator brał pierwszy solver w węźle (LDL z prekondycjonera) i PCG nie był używany.
+- Linki `@…` w SofaPython3 muszą wskazywać obiekty, które już istnieją, więc kolejność tworzenia ma znaczenie.
+
+**Większy krok czasu** (warp, coarse): dt 5 ms daje 2× krótszy czas całości, ale różnica trajektorii to 3.4 mm (~5% amplitudy). Przy dt 10 ms jest 3.5× szybciej, ale z różnicą 7.8 mm (~11%). Niejawny Euler przy dużym kroku tłumi ruch numerycznie. Domyślnie zostaje 2 ms; większy krok tylko świadomie, z podanym błędem.
+
+**Sprawdzone bez zysku:** numeracja Metis/AMD/COLAMD (domyślna jest dobra), `nbThreads`, `ParallelTetrahedronFEMForceField` (składanie macierzy zostaje sekwencyjne), CG na złożonej macierzy (~10%), sam `AsyncSparseLDLSolver` (niestabilny, co dokumentacja SOFA przyznaje).
+
+**Niewykorzystane opcje:**
+- `EigenCholmodSupernodalLLT` (plugin SofaCHOLMOD, dokładny i 4–11× szybszy rozkład) jest dopiero w gałęzi master SOFA, nie w binarce v26.06.
+- Redukcja rzędu modelu (plugin ModelOrderReduction, w binarce) daje nawet ~50×, ale wymaga treningu offline i działa tylko w wytrenowanym zakresie. To kandydat dopiero na etap 6.

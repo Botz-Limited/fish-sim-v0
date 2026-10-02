@@ -73,6 +73,21 @@ class TailConfig:
     rayleigh_mass: float = 0.1       # α [1/s]; PLACEHOLDER – do identyfikacji z pomiarów
     rayleigh_stiffness: float = 0.01  # β [s]; PLACEHOLDER – do identyfikacji z pomiarów
     parallel_fem: bool = False     # ParallelTetrahedronFEMForceField (plugin MultiThreading)
+    # Solver układu liniowego w każdym kroku niejawnego Eulera:
+    #   "ldl" – bezpośredni rozkład LDLᵀ (dokładny, ale FEM korotacyjny zmienia macierz
+    #           co krok, więc rozkład co krok – to dominuje czas, patrz README),
+    #   "cg"  – gradient sprzężony na złożonej macierzy, startujący od rozwiązania
+    #           z poprzedniego kroku (warm start),
+    #   "warp" – PCG z prekondycjonerem: rozkład LDLᵀ raz w spoczynku, obracany co krok
+    #           (patrz scene._add_warp_solver).
+    # Domyślnie "warp": na siatce coarse 8.6× szybciej niż "ldl" przy tej samej trajektorii
+    # (różnica < 0.001 mm na 0.4 s ruchu); "cg" daje tylko ~10%. Pomiary w README.
+    # Z komorą SurfacePressureConstraint warp liczy podatność komory w przybliżeniu:
+    # objętość trzyma dokładnie, ciśnienie różni się od "ldl" o ~2%. Statyka zawsze "ldl".
+    linear_solver: str = "warp"
+    warp_refactor_steps: int = 10**9  # co ile kroków ponowny rozkład (praktycznie: nigdy)
+    cg_max_iterations: int = 1000
+    cg_tolerance: float = 1e-12    # |r|²/|b|² (kwadrat residuum względnego!)
 
     # Poziomy siatki do studium zbieżności: (rozmiar elementu przy powierzchniach,
     # rozmiar daleko od nich) [m]. Przy ściance 4 mm: coarse ≈ 1 element na grubość,
@@ -90,6 +105,8 @@ class TailConfig:
     chamber_length: float = field(init=False)
 
     def __post_init__(self):
+        if self.linear_solver not in ("ldl", "cg", "warp"):
+            raise ValueError('linear_solver musi być "ldl", "cg" albo "warp"')
         if self.environment not in ("air", "water"):
             raise ValueError('environment musi być "air" albo "water"')
         if not 1 <= self.n_actuated <= self.n_segments:
