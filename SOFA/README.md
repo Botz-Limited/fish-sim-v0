@@ -119,6 +119,10 @@ Grawitacja SOFA jest wyłączona. Masa (silikon + woda z komór, przypisana do t
 - **Lewy wykres:** statyczne ugięcie końcówki pod ciężarem na trzech siatkach. Różnica coarse → fine to tylko 1.6% (−40.5 → −41.2 mm). Zginanie całego ogona pod ciężarem przenosi głównie skóra i rdzeń, a nie cienkie ścianki komór, więc gruba siatka wystarcza. To **nie** przesądza o etapie 2: tam ciśnienie odkształca właśnie ścianki, więc tam zbieżność trzeba zmierzyć osobno.
 - **Prawy wykres:** ogon „puszczony” w t = 0 (ciężar włączony skokowo) na siatce coarse. Oscyluje wokół równowagi statycznej (linia przerywana) z okresem ~0.33 s, czyli pierwsza częstość własna w powietrzu to ~3 Hz, a drgania gasną przez tłumienie Rayleigha i numeryczne. Pierwsze wychylenie (−68 mm) jest ~1.7× większe od statycznego (dla nietłumionego układu przy skoku obciążenia byłoby 2×).
 
+### GUI
+
+`scripts/run_gui.sh coarse` otwiera ogon. Po **Animate** ogon opada i się kołysze (sprawdzone ręcznie). Ruch jest wolny, bo jeden krok to ~0.8 s – patrz „Otwarty problem” niżej.
+
 ### Statyka w SOFA v26.06
 
 `StaticSolver` wymaga osobnego komponentu `NewtonRaphsonSolver` (od v25.12 parametry Newtona przeniesiono tam) i **nie działa z `FreeMotionAnimationLoop`** (ogon się nie rusza), więc statyka używa `DefaultAnimationLoop`. Pierwsza iteracja Newtona przestrzeliwuje (ostrzeżenie „Line search failed at Newton iteration 0”), kolejne zbiegają (residuum 42 → 0.13 → 0.006 → …). Drugi krok statyki nic już nie zmienia (test).
