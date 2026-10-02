@@ -119,7 +119,9 @@ SOFA/
 
 ## 6. Hydraulika (hydraulics.py)
 
-Woda jest praktycznie nieściśliwa, więc **pompa wymusza objętość, a nie ciśnienie**. Dlatego używamy `SurfacePressureConstraint` z `valueType="volumeGrowth"`. SOFA sama policzy ciśnienie potrzebne do uzyskania danej objętości (pole `pressure`, tylko do odczytu). To jest fizycznie poprawniejsze dla hydrauliki niż sterowanie ciśnieniem, opisz to w komentarzu. Semantykę `value` (całkowity przyrost vs na krok) bierzesz z etapu 0.
+Woda jest praktycznie nieściśliwa, więc **pompa wymusza objętość, a nie ciśnienie**. Dlatego używamy `SurfacePressureConstraint` z `valueType="volumeGrowth"`. SOFA sama policzy ciśnienie potrzebne do uzyskania danej objętości (pole `pressure`, tylko do odczytu). To jest fizycznie poprawniejsze dla hydrauliki niż sterowanie ciśnieniem, opisz to w komentarzu.
+
+**Ustalone w etapie 0 (SOFA v26.06, README):** `value` to przyrost **całkowity** względem `initialCavityVolume`. Pole `pressure` to **p·dt** (impuls z solvera ograniczeń), więc ciśnienie = `pressure / dt`. W trybie `valueType="pressure"` wejście `value` też podajemy jako p·dt. Każde ciśnienie w kodzie, logach i na wykresach jest w Pa, a przeliczenie robimy w jednym miejscu (funkcja w `hydraulics.py`).
 
 - **Rytm jak w MuJoCo:** zadajemy przepompowaną objętość `V_ref(t) = V_bias + A_V·r(t)·sin(2πft)` (rampa `r(t)` przez `ramp_time`), a nie sinus komendy pompy. Komenda: `u = sat((dV_ref/dt + K_v·(V_ref − V_p)) / Q_max, −1, 1)`, gdzie `V_p = ∫Q dt`. Nazwy i wartości parametrów jak w `MuJoCo/fishsim/config.py` (`tail_freq`, `tail_volume_amp`, `tail_volume_bias`, `K_v`, `ramp_time`, `Q_max`, `tau_pump`). Uzasadnienie w komentarzu: sinus w `u` dawałby amplitudę objętości ∝ 1/f, więc przegląd częstotliwości mieszałby dwa efekty.
 - Pompa jako człon I rzędu: `dQ/dt = (u·Q_max − Q)/τ_pump`.
@@ -185,7 +187,8 @@ Testy używają grubej siatki testowej (`mesh_size_test`). Budżet: cały `pytes
 - Woda (jednostkowo, `water.py` na syntetycznych prędkościach): moc oporu F·v ≤ 0 na każdym trójkącie; zerowa prędkość → zerowa siła.
 - Woda (w scenie): amplituda z wodą < amplituda bez wody przy tej samej komendzie; `max(c·dt/m)` < 0.5.
 - Moduł Younga ×2 przy tym samym ΔV (quasi-statycznie, g = 0): ciśnienie ×2 (±10%), ugięcie zmienia się < 5%.
-- Moduł Younga ×2 przy tym samym ciśnieniu (`valueType="pressure"`): ugięcie ~×0.5 (±15%).
+- Moduł Younga ×2 przy tym samym ciśnieniu (`valueType="pressure"`, `value = p·dt`): ugięcie ~×0.5 (±15%).
+- Jednostki ciśnienia: ten sam stan ustalony przy `dt` i `2·dt` daje to samo ciśnienie w Pa (pilnuje dzielenia przez `dt`).
 
 ## 11. README – obowiązkowe sekcje
 
