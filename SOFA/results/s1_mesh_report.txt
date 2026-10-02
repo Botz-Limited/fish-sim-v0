@@ -1,0 +1,44 @@
+Etap 1 – siatki ogona i ugięcie pod własnym ciężarem (powietrze, komory pełne wody)
+E = 3e+05 Pa, ν = 0.45, ρ = 1100.0 kg/m³ (wszystko PLACEHOLDER)
+'elem. na ściankę' = grubość / średnia krawędź tetr przy wnęce (przybliżenie)
+
+[coarse] h przy powierzchni = 4.0 mm, h w głębi = 8.0 mm
+  węzły: 7744, czworościany: 28112, trójkąty: zewn. 7528, komory L/R 2524/2524
+  węzły nasady (mocowanie): 319, węzły płetwy: 1354
+  min objętość tetry: 1.039e-09 m³, tetry z objętością ≤ 0: 0
+  jakość SICN (1 = idealny czworościan): min 0.185, 1. percentyl 0.347, średnia 0.826
+  objętość silikonu: 244.8 ml, wnęki L/R: 91.38 / 91.38 ml
+  powierzchnie zamknięte (krawędzie otwarte zewn./L/R): [0, 0, 0], objętość w powierzchni zewn. 427.5 ml
+  symetria lustrzana węzłów: TAK
+  przy ściankach komory: średnia krawędź 4.22 mm -> ~0.9 elem. na ściankę, ~0.9 na przegrodę
+  płetwa: średnia krawędź 3.99 mm -> ~1.5 elem. na grubość
+  ugięcie statyczne końcówki (centroid płetwy): Δz = -40.52 mm, Δx = 4.41 mm (StaticSolver, 5.6 s)
+  dynamika: 766 ms/krok przy dt = 2 ms -> 383× wolniej niż czas rzeczywisty
+
+[medium] h przy powierzchni = 3.0 mm, h w głębi = 6.0 mm
+  węzły: 13906, czworościany: 51818, trójkąty: zewn. 12822, komory L/R 4436/4436
+  węzły nasady (mocowanie): 544, węzły płetwy: 2257
+  min objętość tetry: 3.870e-10 m³, tetry z objętością ≤ 0: 0
+  jakość SICN (1 = idealny czworościan): min 0.088, 1. percentyl 0.377, średnia 0.824
+  objętość silikonu: 245.0 ml, wnęki L/R: 91.52 / 91.52 ml
+  powierzchnie zamknięte (krawędzie otwarte zewn./L/R): [0, 0, 0], objętość w powierzchni zewn. 428.0 ml
+  symetria lustrzana węzłów: TAK
+  przy ściankach komory: średnia krawędź 3.50 mm -> ~1.1 elem. na ściankę, ~1.1 na przegrodę
+  płetwa: średnia krawędź 3.36 mm -> ~1.8 elem. na grubość
+  ugięcie statyczne końcówki (centroid płetwy): Δz = -40.73 mm, Δx = 4.03 mm (StaticSolver, 16.9 s)
+  dynamika: 2306 ms/krok przy dt = 2 ms -> 1153× wolniej niż czas rzeczywisty
+
+[fine] h przy powierzchni = 2.0 mm, h w głębi = 6.0 mm
+  węzły: 35545, czworościany: 142096, trójkąty: zewn. 28870, komory L/R 9870/9870
+  węzły nasady (mocowanie): 1183, węzły płetwy: 5163
+  min objętość tetry: 1.364e-10 m³, tetry z objętością ≤ 0: 0
+  jakość SICN (1 = idealny czworościan): min 0.064, 1. percentyl 0.399, średnia 0.821
+  objętość silikonu: 245.2 ml, wnęki L/R: 91.62 / 91.62 ml
+  powierzchnie zamknięte (krawędzie otwarte zewn./L/R): [0, 0, 0], objętość w powierzchni zewn. 428.4 ml
+  symetria lustrzana węzłów: TAK
+  przy ściankach komory: średnia krawędź 2.40 mm -> ~1.7 elem. na ściankę, ~1.7 na przegrodę
+  płetwa: średnia krawędź 2.69 mm -> ~2.2 elem. na grubość
+  ugięcie statyczne końcówki (centroid płetwy): Δz = -41.17 mm, Δx = 4.14 mm (StaticSolver, 176.1 s)
+  dynamika: 19337 ms/krok przy dt = 2 ms -> 9668× wolniej niż czas rzeczywisty
+
+[coarse] dynamika 200 kroków: NaN = False, max przemieszczenie węzła = 84.0 mm (długość ogona 200 mm)

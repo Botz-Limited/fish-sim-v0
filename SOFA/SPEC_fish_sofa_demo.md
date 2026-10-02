@@ -91,6 +91,8 @@ SOFA/
 - Generuj **połowę** ogona (y ≥ 0) z jedną komorą i odbij ją lustrzanie względem XZ. Wtedy siatka jest dokładnie symetryczna i test symetrii sprawdza kod, a nie przypadek w siatkowaniu.
 - Liniowe czworościany przy zginaniu cienkiej warstwy są za sztywne (shear locking), jeśli na grubości są 1–2 elementy. Wymagaj **≥ 3 elementów na grubość** ścianek komór, przegrody i płetwy: lokalne zagęszczenie w gmsh (pola rozmiaru), grubsze elementy w środku bryły.
 - Rozmiar: realny cel to ≤ ~20k czworościanów. Zapisz w raporcie liczbę elementów i elementy na grubość każdej ścianki. Dodaj grubszą siatkę testową (`mesh_size_test` w configu), żeby `pytest` był szybki.
+- **Decyzja z etapu 1:** ≥ 3 elementy na ściankę 4 mm i ≤ 20k elementów nie dadzą się spełnić razem (ogon 0.2 m: 4 mm → ~28k, 2 mm → ~140k, 1.3 mm → ~450k tetr). Zamiast tego **studium zbieżności**: poziomy `coarse` / `medium` / `fine` (4/3/2 mm przy powierzchniach) i `test` (6 mm, tylko pytest). Etap 2 (statyka p–V) liczony na wszystkich trzech, żeby zmierzyć, o ile gruba siatka zawyża sztywność. Etapy dynamiczne na najgrubszej, z podanym błędem.
+- **Ustalone w etapie 1:** `MeshVTKLoader` (SOFA v26.06) nie czyta VTK 5.1 z meshio (segfault), więc siatka jest zapisywana jako klasyczny VTK 4.2. `StaticSolver` wymaga osobnego `NewtonRaphsonSolver` (od v25.12) i nie działa z `FreeMotionAnimationLoop`.
 - Wnęki komór **nie są** siatkowane (puste w środku bryły).
 - Eksport:
   - siatka objętościowa tetra (format, który wczyta loader SOFA w tej wersji: `MeshGmshLoader` lub `MeshVTKLoader`; jeśli wersja formatu `.msh` sprawia problem, eksportuj VTK przez meshio),
