@@ -318,4 +318,4 @@ Obserwacje:
 
 **Wpływ dt (spec, sekcja 5):** przy dt = 2 ms amplituda jest o 5.1% mniejsza niż przy 1 ms. Niejawny Euler tłumi numerycznie i to tłumienie rośnie z dt. Dla etapów 5–6 to znany błąd systematyczny (−5% amplitudy). Jeśli porównania mają być ilościowe, trzeba liczyć przy 1 ms, kosztem 2× dłuższego czasu.
 
-**GUI:** `scripts/run_gui.sh` (domyślnie tryb `flap`, Animate) pokazuje ten sam przebieg z rysowaniem ciśnienia komór (`drawPressure`). Ugięcie pod ciężarem z etapu 1: `scripts/run_gui.sh coarse sag`.
+**GUI (sprawdzone 5.10.2026: ogon macha):** `scripts/run_gui.sh` (domyślnie tryb `flap`, Animate) pokazuje ten sam przebieg z rysowaniem ciśnienia komór (`drawPressure`). Pierwsza sekunda to prefill (ogon prawie stoi), a 1 s symulacji liczy się ~2 min. Ugięcie pod ciężarem z etapu 1: `scripts/run_gui.sh coarse sag`.
