@@ -236,6 +236,16 @@ def test_pressure_units_independent_of_dt(mesh_root):
     assert a.p[-1] == pytest.approx(b.p[-1], rel=0.01)
 
 
+def test_cholmod_matches_ldl_with_chamber(mesh_root):
+    # CHOLMOD to inny rozkład tej samej macierzy – wynik musi być ten sam co z LDL,
+    # także z komorą (korekcja ograniczeń korzysta z rozkładu solvera).
+    from fishsofa import headless
+    a, b = (headless.quasi_static_sweep(TailConfig(include_weight=False, linear_solver=s), LEVEL,
+                                        [8e-6], mesh_root=mesh_root) for s in ("ldl", "cholmod"))
+    assert b.p[-1] == pytest.approx(a.p[-1], rel=1e-6)
+    assert b.tip_angle[-1] == pytest.approx(a.tip_angle[-1], rel=1e-6)
+
+
 def test_warp_is_replaced_by_ldl_with_chambers(cfg, mesh_root):
     # Warp z komorą daje błędną równowagę (README) – scena musi wymusić LDL.
     from fishsofa import headless

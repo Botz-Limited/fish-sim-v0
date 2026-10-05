@@ -120,7 +120,7 @@ def quasi_static_sweep(cfg: TailConfig, level: str, dV_targets, side: str = "L",
     Kryterium „quasi-statyczności” (spec, etap 2): po dojściu do każdego punktu trzymamy
     objętość, aż energia kinetyczna < ke_tol · praca ciśnienia ∫p dV (dla procesu
     quasi-statycznego praca ciśnienia ≈ zmagazynowana energia odkształcenia).
-    Zawsze solver "ldl" – "warp" z komorą daje błędną równowagę (README).
+    Zawsze dokładny solver ("cholmod" albo "ldl") – "warp" z komorą daje błędną równowagę (README).
     """
     from dataclasses import replace
 
@@ -128,7 +128,8 @@ def quasi_static_sweep(cfg: TailConfig, level: str, dV_targets, side: str = "L",
     from fishsofa.scene import build_tail
 
     Sofa = _sofa()
-    cfg = replace(cfg, dt=dt, linear_solver="ldl")
+    exact = cfg.linear_solver if cfg.linear_solver in ("ldl", "cholmod") else "ldl"
+    cfg = replace(cfg, dt=dt, linear_solver=exact)
     other = "R" if side == "L" else "L"
     root = Sofa.Core.Node("root")
     h = build_tail(root, cfg, level, mesh_root, chambers={side: "volume", other: "vented"})

@@ -2,7 +2,7 @@
 
 Edukacyjne demo FEM ogona robota-ryby. Specyfikacja: [SPEC_fish_sofa_demo.md](SPEC_fish_sofa_demo.md). **To nie jest skalibrowany model** – wszystkie parametry to placeholdery.
 
-Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem) i 2 (komora L quasi-statycznie) zakończone.** Kolejne etapy: patrz spec, sekcja 8.
+Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem) i 2 (komora L quasi-statycznie) zakończone; solver CHOLMOD (4–15× szybciej) dodany po etapie 2.** Kolejne etapy: patrz spec, sekcja 8.
 
 ## Instalacja (Linux, sprawdzone na Fedorze 44)
 
@@ -12,6 +12,7 @@ Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem) i 2 (komo
 | SoftRobots, SoftRobots.Inverse, STLIB, SofaPython3 | **w oficjalnej binarce** (nie trzeba kompilować ani używać DefrostSofaBundle) |
 | Licencje | SOFA: LGPL 2.1+ (`LICENSE-LGPL.md`); SoftRobots: **LGPL v3** (`plugins/SoftRobots/LICENSE`) |
 | Python | **3.12** w środowisku conda `fishsofa` (systemowy Python 3.14 nie pasuje do binarki) |
+| SofaCHOLMOD | wtyczka z SOFA master (commit `6c3e21f`), **budowana osobno** dla v26.06 skryptem `scripts/build_cholmod_plugin.sh` (solver `"cholmod"`, domyślny) |
 
 ```bash
 # 1. SOFA poza repo (~230 MB do pobrania, ~800 MB po rozpakowaniu)
@@ -23,7 +24,11 @@ unzip SOFA_v26.06.00_Linux_Python3.12.zip          # -> ~/sofa/SOFA_v26.06.00_Li
 conda create -n fishsofa python=3.12 numpy scipy pybind11 matplotlib pytest
 conda run -n fishsofa pip install gmsh meshio
 
-# 3. W każdej nowej powłoce (bash lub zsh), z katalogu repo:
+# 3. Wtyczka CHOLMOD (~1 min; zależności systemowe, Fedora):
+sudo dnf install -y cmake ninja-build gcc-c++ suitesparse-devel eigen3-devel flexiblas-devel
+SOFA/scripts/build_cholmod_plugin.sh        # -> ~/sofa/SofaCHOLMOD_v26.06
+
+# 4. W każdej nowej powłoce (bash lub zsh), z katalogu repo:
 source SOFA/scripts/env.sh
 python SOFA/scripts/check_sofa.py           # kod 0 = wszystko jest
 ```
@@ -156,7 +161,7 @@ Domyślny `SparseLDLSolver` robi pełny rozkład LDLᵀ macierzy w każdym kroku
 | LDL, pseudo-statyka dt 10 / 50 ms | 1950.4 Pa |
 | warp, dt 2 ms | **1471 Pa (−25%)** |
 
-Przy 5 ml różnica była 1.7%, więc błąd rośnie z odkształceniem. Przyczyna: korekcja ograniczeń używa przybliżonej podatności J·A_warp⁻¹·Jᵀ, więc rozkład siły ciśnienia na węzły jest zły i równowaga się przesuwa. Dlatego **domyślny solver to znowu `"ldl"`**, a scena z komorami wymusza LDL (test `test_warp_is_replaced_by_ldl_with_chambers`). Warp jest użyteczny tylko bez komór. Dla dynamiki z komorami (etapy 4–6) wydajność trzeba będzie rozwiązać inaczej.
+Przy 5 ml różnica była 1.7%, więc błąd rośnie z odkształceniem. Przyczyna: korekcja ograniczeń używa przybliżonej podatności J·A_warp⁻¹·Jᵀ, więc rozkład siły ciśnienia na węzły jest zły i równowaga się przesuwa. Dlatego **domyślny solver to znowu `"ldl"`**, a scena z komorami wymusza LDL (test `test_warp_is_replaced_by_ldl_with_chambers`). Warp jest użyteczny tylko bez komór. Dla dynamiki z komorami rozwiązaniem jest CHOLMOD (sekcja niżej), który od tej pory jest domyślnym solverem.
 
 Trzy błędy wcześniejszych prób (etap 1), dla przyszłych czytelników:
 - `assemblingRate=15` (jak w przykładzie SOFA): macierz składana w stanie odkształconym, a obrót z `TetrahedronFEMForceField` (liczony względem spoczynku) nakłada się drugi raz, więc symulacja wybucha.
@@ -168,8 +173,28 @@ Trzy błędy wcześniejszych prób (etap 1), dla przyszłych czytelników:
 **Sprawdzone bez zysku:** numeracja Metis/AMD/COLAMD (domyślna jest dobra), `nbThreads`, `ParallelTetrahedronFEMForceField` (składanie macierzy zostaje sekwencyjne), CG na złożonej macierzy (~10%), sam `AsyncSparseLDLSolver` (niestabilny, co dokumentacja SOFA przyznaje).
 
 **Niewykorzystane opcje:**
-- `EigenCholmodSupernodalLLT` (plugin SofaCHOLMOD, dokładny i 4–11× szybszy rozkład) jest dopiero w gałęzi master SOFA, nie w binarce v26.06.
 - Redukcja rzędu modelu (plugin ModelOrderReduction, w binarce) daje nawet ~50×, ale wymaga treningu offline i działa tylko w wytrenowanym zakresie. To kandydat dopiero na etap 6.
+
+### Wydajność: CHOLMOD (po etapie 2, domyślny solver)
+
+`linear_solver="cholmod"`: `EigenCholmodSupernodalLLT` z wtyczki SofaCHOLMOD. To ten sam dokładny rozkład macierzy co LDL, tylko supernodalny: gęste bloki liczy zoptymalizowany BLAS (OpenBLAS przez FlexiBLAS). W przeciwieństwie do warp **działa z komorami**, bo korekcja ograniczeń dostaje dokładny rozkład. Pomiar: dt 2 ms, z komorą L i włóknami, 1 wątek BLAS (4 i 6 wątków dają ten sam czas):
+
+| siatka | LDL | CHOLMOD | przyspieszenie | ciśnienie LDL = CHOLMOD |
+|---|---|---|---|---|
+| coarse | 871 ms/krok | 203 ms/krok | 4.3× | tak (10588.97 Pa) |
+| medium | 2447 ms/krok | 471 ms/krok | 5.2× | tak (14642.81 Pa) |
+| fine | 19785 ms/krok | 1324 ms/krok | **15×** | tak (13071.41 Pa) |
+
+Zgodność z LDL pilnuje test `test_cholmod_matches_ldl_with_chamber`. Testy (25) trwają teraz ~63 s zamiast ~82 s.
+
+**Dlaczego wtyczka z master na v26.06, a nie cała SOFA master.** Zbudowałem SOFA master (v26.12-dev, commit `6c3e21f`, 5.10.2026) razem z SofaPython3, SoftRobots i STLIB w wersjach master. Działa, ale ma **błąd w połączeniu komory ze sztywnymi włóknami**:
+- z włóknami tylko na rozciąganie (V4) ogon nie dochodzi do równowagi, tylko stale drga (ciśnienie ±0.5%), a średnie ciśnienie jest o ~9% niższe niż w v26.06 (siatka test, 8 ml: 2790 zamiast 3056 Pa);
+- z włóknami działającymi też na ściskanie symulacja się rozbiega (v26.06: stabilnie, 3633 Pa);
+- bez włókien obie wersje dają identyczne ciśnienie (1321.52 Pa). Siły też są identyczne (to samo obciążenie zadane siłami węzłowymi daje ten sam kąt), a włókna są poprawnie zmapowane (różnica pozycji < 1e-16 m). Minimalna scena ze sztywną zmapowaną sprężyną bez komory działa w obu wersjach.
+
+v26.06 dochodzi do spoczynku (prędkość 1e-13 m/s), a przy tych samych siłach to jest prawdziwa równowaga. Dlatego zostajemy na v26.06. Prawdopodobna przyczyna to przejście ograniczeń z impulsów na siły (SOFA PR #6117), ale tego nie potwierdziłem. Inne zmiany w master, gdyby kiedyś przechodzić: pole `pressure` i wejście trybu ciśnienia `SurfacePressureConstraint` są w Pa, a nie p·dt (sonda `probe_volume_growth.py` rozpoznaje obie konwencje), `NewtonRaphsonSolver` jest usunięty (statyka: `StaticEquilibriumIntegrationScheme` z `alwaysAdvanceNewton=True`), integratory mają nowe nazwy (`EulerImplicitIntegrationScheme`, moduł `Sofa.Component.IntegrationScheme.Backward`).
+
+**Jak zbudowana jest wtyczka** (`scripts/build_cholmod_plugin.sh`): źródła samej wtyczki z master, skompilowane na nagłówkach binarki v26.06 z dwiema poprawkami. (1) Nowszy `EigenSolverFactory.h`, bo wtyczka używa szablonu `registerProxyType`, który doszedł po v26.06. To czysty dodatek w nagłówku, bez zmiany układu klasy, więc SOFA nie trzeba przebudowywać. (2) `FindCHOLMOD.cmake` bez configu CMake z SuiteSparse, bo config z Fedory odwołuje się do nieistniejących plików `*_static.cmake`. `env.sh` dopisuje katalog wtyczki do `SOFA_PLUGIN_PATH`; tak samo widzi ją `runSofa`.
 
 ## Etap 2a – dlaczego ogon się nie zginał i co pomogło
 
@@ -204,7 +229,7 @@ Co pokazuje wykres:
 
 ## Etap 2 – komora L quasi-statycznie: krzywa p–V i kąt końcówki
 
-`scripts/run_stage2.py`. Konstrukcja V4, komora L dostaje zadany przyrost objętości 0…50 ml, komora R jest odpowietrzona (ciśnienie 0, jak drugi króciec otwarty na stanowisku), bez ciężaru. Liczone pseudo-statycznie: niejawny Euler z dt = 50 ms i LDL. Po każdym punkcie objętość jest trzymana, aż energia kinetyczna < 1% pracy ciśnienia ∫p dV; w praktyce wychodzi ≤ 0.4%. Ta metoda daje ten sam stan co wolna rampa przy dt = 2 ms (sprawdzone na siatce test: 1950.4 Pa w obu przypadkach), a jest 5–25× tańsza. `StaticSolver` odpada, bo nie działa z ograniczeniami Lagrange'a komory.
+`scripts/run_stage2.py`. Konstrukcja V4, komora L dostaje zadany przyrost objętości 0…50 ml, komora R jest odpowietrzona (ciśnienie 0, jak drugi króciec otwarty na stanowisku), bez ciężaru. Liczone pseudo-statycznie: niejawny Euler z dt = 50 ms i LDL (wyniki etapu 2 policzone jeszcze z LDL; CHOLMOD daje te same liczby). Po każdym punkcie objętość jest trzymana, aż energia kinetyczna < 1% pracy ciśnienia ∫p dV; w praktyce wychodzi ≤ 0.4%. Ta metoda daje ten sam stan co wolna rampa przy dt = 2 ms (sprawdzone na siatce test: 1950.4 Pa w obu przypadkach), a jest 5–25× tańsza. `StaticSolver` odpada, bo nie działa z ograniczeniami Lagrange'a komory.
 
 ### Wyniki (`results/s2_pv_curve.png`, `results/s2_tip_angle.png`, `results/s2_curves.csv`)
 

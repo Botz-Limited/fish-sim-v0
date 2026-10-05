@@ -80,8 +80,8 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
     tail = root.addChild("tail")
     if solver not in ("dynamic", "static"):
         raise ValueError(solver)
-    # Statyka (Newton) zawsze z dokładnym LDL – warp jest zestrojony pod dynamikę.
-    linear_solver = cfg.linear_solver if solver == "dynamic" else "ldl"
+    # Statyka (Newton) zawsze z dokładnym rozkładem – warp jest zestrojony pod dynamikę.
+    linear_solver = cfg.linear_solver if solver == "dynamic" or cfg.linear_solver == "cholmod" else "ldl"
     if chambers and linear_solver == "warp":
         # Warp z komorą przesuwa równowagę (30 ml: ciśnienie −25%), patrz README.
         import Sofa
@@ -91,6 +91,13 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
         # Bezpośredni solver liniowy (rozkład LDLᵀ macierzy rzadkiej). Bloki 3×3, bo każdy
         # węzeł ma 3 stopnie swobody – tak jest szybciej niż skalarnie.
         tail.addObject("SparseLDLSolver", name="linsolver", template="CompressedRowSparseMatrixMat3x3d")
+    elif linear_solver == "cholmod":
+        # CHOLMOD sam wybiera porządek eliminacji (AMD/METIS); OrderingMethod jest wymagany
+        # przez API solvera, ale ignorowany (README wtyczki SofaCHOLMOD).
+        root.addObject("RequiredPlugin", pluginName=["Sofa.Component.LinearSolver.Ordering", "SofaCHOLMOD"])
+        tail.addObject("NaturalOrderingMethod", name="ordering")
+        tail.addObject("EigenCholmodSupernodalLLT", name="linsolver", template="CompressedRowSparseMatrixMat3x3d",
+                       numThreads=cfg.cholmod_threads, orderingMethod="@ordering")
     elif linear_solver == "cg":
         # Gradient sprzężony na złożonej (assembled) macierzy. Złożona macierz, a nie
         # wersja „matrix-free”, bo korekcja ograniczeń komór (etap 2) potrzebuje macierzy.

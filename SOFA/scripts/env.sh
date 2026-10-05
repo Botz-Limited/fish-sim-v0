@@ -43,6 +43,15 @@ for _p in SofaPython3 SoftRobots STLIB; do
 done
 unset _p _sp
 
+# Wtyczka SofaCHOLMOD (solver "cholmod"), zbudowana osobno dla binarki v26.06 – binarka
+# jej nie zawiera (README, „Instalacja”). SOFA szuka wtyczek też w SOFA_PLUGIN_PATH.
+: "${FISHSOFA_CHOLMOD_LIB:=$HOME/sofa/SofaCHOLMOD_v26.06/lib}"
+if [ -f "$FISHSOFA_CHOLMOD_LIB/libSofaCHOLMOD.so" ]; then
+    export SOFA_PLUGIN_PATH="$FISHSOFA_CHOLMOD_LIB${SOFA_PLUGIN_PATH:+:$SOFA_PLUGIN_PATH}"
+else
+    echo "env.sh: brak wtyczki SofaCHOLMOD w $FISHSOFA_CHOLMOD_LIB – solver \"cholmod\" nie zadziała" >&2
+fi
+
 # Katalog projektu SOFA/ też na PYTHONPATH, żeby `import fishsofa` działało bez instalacji.
 _here="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")/.." && pwd)"
 case ":$PYTHONPATH:" in *":$_here:"*) ;; *) export PYTHONPATH="$_here:$PYTHONPATH" ;; esac

@@ -103,15 +103,19 @@ class TailConfig:
     #   "cg"  – gradient sprzężony na złożonej macierzy, startujący od rozwiązania
     #           z poprzedniego kroku (warm start),
     #   "warp" – PCG z prekondycjonerem: rozkład LDLᵀ raz w spoczynku, obracany co krok
-    #           (patrz scene._add_warp_solver).
+    #           (patrz scene._add_warp_solver),
+    #   "cholmod" – supernodalny rozkład Cholesky'ego z CHOLMOD (SuiteSparse), wtyczka
+    #           SofaCHOLMOD zbudowana osobno dla v26.06 (README, „Instalacja”). Dokładny jak
+    #           "ldl" (te same wyniki), ale gęste bloki liczy BLAS: 4.3× szybciej na coarse.
     # "warp" bez komór: 6–13× szybciej niż "ldl" przy tej samej trajektorii. Z komorą
     # SurfacePressureConstraint jest BŁĘDNY przy dużych odkształceniach (30 ml: ciśnienie
     # −25% względem "ldl", bo przybliżona podatność komory przesuwa równowagę), więc
-    # domyślnie "ldl", a scena z komorami wymusza "ldl". Pomiary w README.
-    linear_solver: str = "ldl"
+    # scena z komorami zamienia "warp" na "ldl". Pomiary w README.
+    linear_solver: str = "cholmod"
     warp_refactor_steps: int = 10**9  # co ile kroków ponowny rozkład (praktycznie: nigdy)
     cg_max_iterations: int = 1000
     cg_tolerance: float = 1e-12    # |r|²/|b|² (kwadrat residuum względnego!)
+    cholmod_threads: int = 1       # wątki BLAS dla "cholmod"; 1–6 dają ten sam czas (README)
 
     # Poziomy siatki do studium zbieżności: (rozmiar elementu przy powierzchniach,
     # rozmiar daleko od nich) [m]. Przy ściance 4 mm: coarse ≈ 1 element na grubość,
@@ -129,8 +133,8 @@ class TailConfig:
     chamber_length: float = field(init=False)
 
     def __post_init__(self):
-        if self.linear_solver not in ("ldl", "cg", "warp"):
-            raise ValueError('linear_solver musi być "ldl", "cg" albo "warp"')
+        if self.linear_solver not in ("ldl", "cg", "warp", "cholmod"):
+            raise ValueError('linear_solver musi być "ldl", "cg", "warp" albo "cholmod"')
         if self.environment not in ("air", "water"):
             raise ValueError('environment musi być "air" albo "water"')
         if not 1 <= self.n_actuated <= self.n_segments:

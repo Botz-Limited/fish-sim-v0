@@ -7,11 +7,13 @@ Pytania, na które odpowiada (od nich zależy hydraulics.py):
      czy przyrost NA KROK? Test: trzymamy stałe `value` przez wiele kroków.
      Całkowity -> zmierzony przyrost się zatrzymuje; na krok -> rośnie liniowo.
   2. Znak: czy dodatnie `value` powiększa wnękę i daje dodatnie ciśnienie?
-  3. Jednostki pola `pressure`: opis pola mówi, że trzeba je podzielić przez dt.
-     Test: ten sam stan ustalony przy dwóch różnych dt. Jeśli pressure/dt jest
-     takie samo, a surowe pressure skaluje się z dt, to opis się zgadza.
-     (Powód: solver ograniczeń liczy impuls siły w kroku, λ = p·dt, a nie samą siłę.)
-  4. Czy w trybie valueType="pressure" `value` też jest w jednostkach p·dt?
+  3. Jednostki pola `pressure`: Pa czy p·dt? Test: ten sam stan ustalony przy dwóch
+     różnych dt. Surowe pressure niezależne od dt -> Pa; skaluje się z dt -> p·dt.
+     Historia: SOFA v26.06 dawała impuls λ = p·dt (opis pola nadal mówi „podziel
+     przez dt”). Od SOFA PR #6117 (gałąź master, v26.12) solver ograniczeń liczy
+     siły zamiast impulsów, więc pole jest w Pa.
+  4. Czy w trybie valueType="pressure" `value` jest w tych samych jednostkach co pole
+     `pressure`? Test: zadajemy jako value to, co odczytaliśmy z pola.
 
 Scena: pusty w środku „królik” z przykładów SoftRobots (siatka w mm, więc tu
 wyjątkowo NIE pracujemy w SI – do odpowiedzi na powyższe pytania jednostki nie mają
@@ -106,29 +108,30 @@ def main():
     print(f"  dt=0.001: surowe = {r1[2]:.6g}, /dt = {r1[3]:.6g}")
     print(f"  dt=0.002: surowe = {r2[2]:.6g}, /dt = {r2[3]:.6g}")
     raw_ratio = r2[2] / r1[2]
-    p_ratio = r2[3] / r1[3]
-    print(f"  stosunek surowych = {raw_ratio:.3f} (≈2 -> surowe = p·dt), stosunek p = {p_ratio:.3f} (≈1)")
-    per_dt = abs(raw_ratio - 2) < 0.05 and abs(p_ratio - 1) < 0.05
+    print(f"  stosunek surowych (dt 0.002 / 0.001) = {raw_ratio:.3f} (≈1 -> Pa, ≈2 -> p·dt)")
+    in_pa = abs(raw_ratio - 1) < 0.05
+    per_dt = abs(raw_ratio - 2) < 0.05
 
     print("\nTest 4: volumeGrowth 10 -> odczyt p, potem valueType=pressure (oba z rampą 0.3 s)")
-    # Pierwsza wersja tego testu zadawała value = p (w Pa-podobnych jednostkach) i dawała NaN:
-    # tryb pressure też oczekuje p·dt, więc ciśnienie było 1000x za duże i FEM wybuchał.
+    # W v26.06 zadanie value = p w Pa dawało NaN: tryb pressure oczekiwał p·dt,
+    # ciśnienie było 1000x za duże i FEM wybuchał. Stąd test na tych samych jednostkach.
     small, dt = 10.0, 0.001
     _, log_s = run(dt, "volumeGrowth", small, 1.0, ramp=0.3)
-    p_small = log_s[-1][3]
-    _, log3 = run(dt, "pressure", p_small * dt, 1.0, ramp=0.3)
+    raw_small = log_s[-1][2]
+    _, log3 = run(dt, "pressure", raw_small, 1.0, ramp=0.3)
     dv3, raw3 = log3[-1][1], log3[-1][2]
-    print(f"  volumeGrowth {small}: p = pressure/dt = {p_small:.6g}")
-    print(f"  pressure value = p·dt = {p_small * dt:.6g}: V-V0 = {dv3:.3f} (oczekiwane ≈ {small}), "
+    print(f"  volumeGrowth {small}: surowe pressure = {raw_small:.6g}")
+    print(f"  valueType=pressure, value = {raw_small:.6g}: V-V0 = {dv3:.3f} (oczekiwane ≈ {small}), "
           f"pole pressure = {raw3:.6g}")
     pressure_mode_ok = bool(np.isfinite(dv3)) and abs(dv3 - small) < 0.02 * small
 
     print("\nPODSUMOWANIE")
     print(f"  value w volumeGrowth = przyrost całkowity względem V0: {'TAK' if total else 'NIE'}")
     print(f"  znak dodatni (V rośnie, p > 0):                      {'TAK' if sign_ok else 'NIE'}")
-    print(f"  pole pressure = p·dt (trzeba dzielić przez dt):       {'TAK' if per_dt else 'NIE'}")
-    print(f"  tryb pressure też oczekuje value = p·dt:              {'TAK' if pressure_mode_ok else 'NIE'}")
-    return 0 if (total and sign_ok and per_dt and pressure_mode_ok) else 1
+    units = "Pa (SOFA master)" if in_pa else ("p·dt (SOFA v26.06)" if per_dt else "NIEJASNE")
+    print(f"  jednostki pola pressure:                              {units}")
+    print(f"  tryb pressure: value w tych samych jednostkach:       {'TAK' if pressure_mode_ok else 'NIE'}")
+    return 0 if (total and sign_ok and (in_pa or per_dt) and pressure_mode_ok) else 1
 
 
 if __name__ == "__main__":
