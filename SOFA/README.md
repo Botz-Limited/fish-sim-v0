@@ -2,7 +2,7 @@
 
 Edukacyjne demo FEM ogona robota-ryby. Specyfikacja: [SPEC_fish_sofa_demo.md](SPEC_fish_sofa_demo.md). **To nie jest skalibrowany model** – wszystkie parametry to placeholdery.
 
-Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem) i 2 (komora L quasi-statycznie) zakończone; solver CHOLMOD (4–15× szybciej) dodany po etapie 2.** Kolejne etapy: patrz spec, sekcja 8.
+Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem), 2 (komora L quasi-statycznie) i 3 (symetria L/R) zakończone; solver CHOLMOD (4–15× szybciej) dodany po etapie 2.** Kolejne etapy: patrz spec, sekcja 8.
 
 ## Instalacja (Linux, sprawdzone na Fedorze 44)
 
@@ -259,3 +259,21 @@ Co pokazuje wykres:
 1. Ogon przykręcony nasadą do stołu, komora R z otwartym króćcem.
 2. Strzykawka lub pompa dozująca w komorę L po 5 ml, manometr na wlocie i zdjęcie z góry (kąt cięciwy od nasady do środka płetwy, tak jak `geometry.tip_angle`).
 3. Dopasowanie: najpierw `young_modulus` do krzywej p–V (ciśnienie skaluje się ~liniowo z E), potem `spine_E_factor` i `hoop_stiffness` do krzywej θ–V. Na grubej siatce trzeba uwzględnić jej +20% na ciśnieniu.
+
+## Etap 3 – symetria: komora R jako lustro komory L
+
+`scripts/run_stage3.py` (~3 min z CHOLMOD). Te same warunki co w etapie 2: V4, bez ciężaru, druga komora odpowietrzona, 5…50 ml. Liczone osobno dla komory L i R, na trzech poziomach siatki. Siatka jest lustrzana z konstrukcji: każdy węzeł ma parę w odbiciu względem płaszczyzny XZ, w odległości 0.0 m. Pierścienie włókien też są symetryczne.
+
+**Wynik** (`results/s3_symmetry.png`, `.csv`, `.txt`): przy 50 ml na fine komora R daje p = 16.050 kPa i θ = +15.352°, a komora L te same 16.050 kPa i −15.352°. Największy błąd symetrii na całym zakresie:
+
+| siatka | kąt | ciśnienie | wydymanie |
+|---|---|---|---|
+| coarse | 0.75% | 0.023% | 0.14% |
+| medium | 0.11% | 0.008% | 0.014% |
+| fine | 0.34% | 0.012% | 0.11% |
+
+Spec wymaga < 5%; test `test_chamber_R_mirrors_L` pilnuje 1% na siatce test.
+
+**Skąd resztkowy błąd:** to nie siatka, tylko kryterium końca trzymania punktu (energia kinetyczna < 1% pracy ciśnienia). Symulacje L i R zatrzymują się w trochę innym momencie zanikającego ruchu. Dlatego błąd jest największy w pierwszym punkcie (5 ml), gdzie ruch po rampie jest największy względem ugięcia. Przy 30–50 ml spada do 1e-5…1e-7%. Na fine zostaje na poziomie ~1e-3%: to szum zaokrągleń rozkładu macierzy przy innej kolejności elementów w lustrzanej połowie.
+
+**Kontrola CHOLMOD:** krzywa L z tego etapu (CHOLMOD) różni się od etapu 2 (LDL) o ≤ 0.0006% w kącie i ≤ 0.0002% w ciśnieniu na wszystkich poziomach. Wyniki etapu 2 nie wymagają przeliczenia.

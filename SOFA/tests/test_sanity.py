@@ -202,6 +202,24 @@ def qs_curve(mesh_root):
     return headless.quasi_static_sweep(cfg, LEVEL, [4e-6, 8e-6, 12e-6], mesh_root=mesh_root)
 
 
+@pytest.fixture(scope="session")
+def qs_curve_R(mesh_root):
+    from fishsofa import headless
+    cfg = TailConfig(include_weight=False)
+    return headless.quasi_static_sweep(cfg, LEVEL, [4e-6, 8e-6, 12e-6], side="R", mesh_root=mesh_root)
+
+
+def test_chamber_R_mirrors_L(qs_curve, qs_curve_R):
+    # Etap 3: siatka i włókna są lustrzane względem płaszczyzny XZ, więc komora R ma dać
+    # odbicie wyniku komory L: to samo ciśnienie i wydymanie, kąt z przeciwnym znakiem.
+    # Spec wymaga < 5%; zmierzone ≤ 0.13% (reszta to moment zatrzymania trzymania, README).
+    L, R = qs_curve, qs_curve_R
+    assert np.all(np.array(R.tip_angle) > 0)
+    assert np.array(R.tip_angle) == pytest.approx(-np.array(L.tip_angle), rel=0.01)
+    assert np.array(R.p) == pytest.approx(np.array(L.p), rel=0.01)
+    assert np.array(R.bulge) == pytest.approx(np.array(L.bulge), rel=0.01)
+
+
 def test_chamber_sign_convention(qs_curve):
     # +ΔV w komorze L -> wnęka rośnie o zadaną objętość, ciśnienie dodatnie.
     assert qs_curve.dV[-1] == pytest.approx(12e-6, rel=1e-3)
