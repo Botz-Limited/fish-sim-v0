@@ -177,3 +177,71 @@ def quasi_static_sweep(cfg: TailConfig, level: str, dV_targets, side: str = "L",
     res.wall_s = time.perf_counter() - t0
     Sofa.Simulation.unload(root)
     return res
+
+
+# ----------------------------------------------------------------------------- etap 4: machanie
+
+@dataclass
+class FlapRun:
+    log: dict                     # tablice numpy, klucze z controller.LOG_KEYS
+    dt: float
+    ms_per_step: float
+    cycles: dict                  # metryki z cycle_metrics()
+
+
+def run_flapping(cfg: TailConfig, level: str, t_end: float, mesh_root: str | None = None,
+                 progress_every: int = 0) -> FlapRun:
+    """Układ antagonistyczny L↔R: prefill, potem rytm V_ref(t) (hydraulics.TailHydraulics).
+
+    Obie komory w trybie volumeGrowth, dynamika (niejawny Euler, cfg.dt), ciężar wg
+    cfg.environment. Solver dokładny ("cholmod" albo "ldl") – warp z komorami jest błędny.
+    """
+    from dataclasses import replace
+
+    from fishsofa.controller import FlapController
+    from fishsofa.scene import build_tail
+
+    Sofa = _sofa()
+    if cfg.linear_solver not in ("ldl", "cholmod"):
+        cfg = replace(cfg, linear_solver="ldl")
+    root = Sofa.Core.Node("root")
+    h = build_tail(root, cfg, level, mesh_root, chambers={"L": "volume", "R": "volume"})
+    ctrl = root.addObject(FlapController(name="flap", root=root, handles=h, cfg=cfg))
+    Sofa.Simulation.init(root)
+    n = int(round(t_end / cfg.dt))
+    t0 = time.perf_counter()
+    for i in range(n):
+        Sofa.Simulation.animate(root, cfg.dt)
+        if progress_every and (i + 1) % progress_every == 0:
+            el = time.perf_counter() - t0
+            print(f"  t = {(i + 1) * cfg.dt:.2f} s, {1e3 * el / (i + 1):.0f} ms/krok", flush=True)
+    ms = 1e3 * (time.perf_counter() - t0) / n
+    log = {k: np.array(v, dtype=float) for k, v in ctrl.log.items()}
+    Sofa.Simulation.unload(root)
+    return FlapRun(log, cfg.dt, ms, cycle_metrics(log, cfg))
+
+
+def cycle_metrics(log: dict, cfg: TailConfig) -> dict:
+    """Amplituda kąta w każdym pełnym cyklu po rampie i faza względem V_ref.
+
+    Cykle liczone od końca rampy amplitudy (prefill_time + ramp_time). Amplituda cyklu =
+    (max − min)/2 kąta. Faza z pierwszej harmonicznej w ostatnich 2 cyklach: o ile kąt
+    opóźnia się względem −V_ref (+V_p zgina ogon w −Y, więc odniesieniem jest −V_ref).
+    """
+    t, th, vref = log["t"], log["theta"], log["V_ref"]
+    T = 1.0 / cfg.tail_freq
+    t_start = cfg.prefill_time + cfg.ramp_time
+    n_cyc = int((t[-1] - t_start) // T)
+    amps, means = [], []
+    for k in range(n_cyc):
+        m = (t >= t_start + k * T) & (t < t_start + (k + 1) * T)
+        amps.append(0.5 * (th[m].max() - th[m].min()))
+        means.append(th[m].mean())
+    out = {"amplitude_per_cycle": amps, "mean_per_cycle": means}
+    if n_cyc >= 2:
+        m = (t >= t_start + (n_cyc - 2) * T) & (t < t_start + n_cyc * T)
+        e = np.exp(-2j * np.pi * cfg.tail_freq * t[m])
+        z_th, z_ref = (th[m] * e).sum(), (-vref[m] * e).sum()
+        out["phase_lag_deg"] = float(np.degrees(np.angle(z_ref / z_th)) % 360)
+        out["steady_change"] = abs(amps[-1] / amps[-2] - 1)
+    return out

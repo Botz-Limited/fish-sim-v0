@@ -60,6 +60,36 @@ class TailConfig:
     # monotoniczności). 50 ml ≈ 55% objętości komory, ~16° zgięcia dla V4.
     dV_max: float = 50e-6          # [m³] PLACEHOLDER – do identyfikacji z pomiarów
 
+    # ------------------------------------------------------------------ hydraulika antagonistyczna (etap 4)
+    # Nazwy jak w MuJoCo/fishsim/config.py. Pompa przetacza ciecz z R do L: V_p > 0 to
+    # wtłoczenie do L, ogon zgina się w −Y (w prawo) – tak jak +V_bias w MuJoCo (skręt
+    # w prawo). Zadajemy OBJĘTOŚĆ V_ref(t), nie przepływ (uzasadnienie w hydraulics.py).
+    tail_freq: float = 2.0          # [Hz] jak w MuJoCo
+    # Świadome odstępstwo od MuJoCo (decyzja w etapie 4): komora SOFA ma 91 ml, a nie 30 ml
+    # jak V0_chamber w MuJoCo, więc A_V = 8 ml z MuJoCo dałoby tu tylko ~±3° (README).
+    # 17 ml to największa amplituda z zapasem przy V_prefill = 20 ml (patrz V_prefill).
+    tail_volume_amp: float = 17e-6  # [m³] A_V; PLACEHOLDER – do identyfikacji z pomiarów
+    tail_volume_bias: float = 0.0   # [m³] V_bias – stałe ugięcie ogona (skręt)
+    K_v: float = 10.0               # [1/s] korekta błędu objętości; K_v·τ_pump < 0.5 (jak w MuJoCo)
+    ramp_time: float = 1.0          # [s] miękki start amplitudy (po prefillu)
+    # Pompa musi dać szczytowy przepływ 2π·f·A_V = 214 ml/s, inaczej się nasyca i amplituda
+    # spada (lekcja etapu 6). MuJoCo ma 60 ml/s – za mało dla A_V = 17 ml.
+    Q_max: float = 250e-6           # [m³/s] PLACEHOLDER – do identyfikacji z pomiarów
+    tau_pump: float = 0.03          # [s] stała czasowa pompy, jak w MuJoCo; PLACEHOLDER – do identyfikacji z pomiarów
+    p_max: float = 50e3             # [Pa] zawór przelewowy na |p_L − p_R|, jak w MuJoCo; PLACEHOLDER – do identyfikacji z pomiarów
+    # Przepływ przez otwarty zawór: Q_valve = valve_conductance·(|Δp| − p_max). Wartość
+    # dobrana tak, żeby zawór był „miękki” i stabilny przy jawnym odczycie ciśnienia
+    # (10 kPa nadmiaru -> 10 ml/s). PLACEHOLDER – do identyfikacji z pomiarów
+    valve_conductance: float = 1e-9  # [m³/(s·Pa)]
+    # Wstępne napełnienie obu komór (rampa w prefill_time, przed rytmem). Komora nie może
+    # zejść poniżej objętości spoczynkowej (kontakt ścianek nie jest modelowany), stąd
+    # V_prefill > |V_bias| + A_V + prefill_margin. Górna granica z etapu 4: przy prefillu
+    # > ~22 ml obie napełnione komory ściskają kręgosłup i ogon zaczyna się wyboczać
+    # (README). 20 ml daje ~53 kPa ciśnienia wspólnego.
+    V_prefill: float = 20e-6        # [m³] PLACEHOLDER – do identyfikacji z pomiarów
+    prefill_time: float = 1.0       # [s]
+    prefill_margin: float = 2e-6    # [m³]
+
     # ------------------------------------------------------------------ materiał (silikon)
     young_modulus: float = 3e5     # [Pa] silikon typu Dragon Skin / Ecoflex: rząd 1e5–1e6; PLACEHOLDER – do identyfikacji z pomiarów
     # Poisson 0.45, NIE 0.5: silikon jest prawie nieściśliwy, ale liniowe czworościany
@@ -150,6 +180,9 @@ class TailConfig:
         s = self.scale_at(-x_end)
         if self.ry0 * s - self.wall_thickness <= self.septum_thickness / 2:
             raise ValueError("ścianka + przegroda nie mieszczą się w przekroju na końcu komory")
+        if self.V_prefill <= abs(self.tail_volume_bias) + self.tail_volume_amp + self.prefill_margin:
+            raise ValueError("V_prefill za małe: komora zeszłaby poniżej objętości spoczynkowej "
+                             "(potrzeba V_prefill > |V_bias| + A_V + prefill_margin)")
         if self.fin_root_overlap >= 2 * self.fin_semi_x:
             raise ValueError("fin_root_overlap większy niż płetwa")
 

@@ -1,6 +1,7 @@
 """Scena SOFA: miękki ogon FEM przymocowany do kadłuba.
 
-GUI:      scripts/run_gui.sh [coarse|medium|fine]    (runSofa wywołuje createScene)
+GUI:      scripts/run_gui.sh [coarse|medium|fine]    (runSofa wywołuje createScene;
+          FISHSOFA_MODE=flap – machanie, domyślnie; sag – ugięcie pod ciężarem)
 Headless: fishsofa.headless (ta sama funkcja build_tail)
 
 Etap 1: sam materiał, bez aktuacji – ogon ugina się pod własnym ciężarem.
@@ -266,8 +267,22 @@ def _add_warp_solver(tail, cfg: TailConfig):
 
 
 def createScene(root):
-    """Wejście dla runSofa. Poziom siatki z FISHSOFA_LEVEL (domyślnie coarse)."""
+    """Wejście dla runSofa. Poziom siatki z FISHSOFA_LEVEL (domyślnie coarse).
+
+    FISHSOFA_MODE="flap" (domyślnie, etap 4): obie komory + pompa L↔R, ogon macha
+    (prefill 1 s, potem rytm z rampą 1 s). FISHSOFA_MODE="sag" (etap 1): sam materiał.
+    """
     level = os.environ.get("FISHSOFA_LEVEL", "coarse")
+    mode = os.environ.get("FISHSOFA_MODE", "flap")
     cfg = TailConfig()
-    build_tail(root, cfg, level, gui=True)
+    if mode == "sag":
+        build_tail(root, cfg, level, gui=True)
+    elif mode == "flap":
+        from fishsofa.controller import FlapController
+        h = build_tail(root, cfg, level, gui=True, chambers={"L": "volume", "R": "volume"})
+        for spc in h["chambers"].values():
+            spc.drawPressure = True   # SoftRobots rysuje ciśnienie na powierzchni komory
+        root.addObject(FlapController(name="flap", root=root, handles=h, cfg=cfg))
+    else:
+        raise ValueError(f"FISHSOFA_MODE={mode!r}: dozwolone flap, sag")
     return root

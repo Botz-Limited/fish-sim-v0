@@ -285,3 +285,93 @@ def test_hoop_fibers_work_in_tension_only(cfg, mesh_root):
     ff = h["tail"].getChild("hoopFibers").getObject("springs")
     flags = np.array(ff.elongationOnly.value).ravel()
     assert len(flags) == len(ff.springsIndices1.value) and flags.all()
+
+
+# ----------------------------------------------------------------------------- etap 4: hydraulika
+
+def _offline(cfg, dp=0.0, cycles=4):
+    """Model pompy bez SOFA, przy stałej różnicy ciśnień dp."""
+    from fishsofa.hydraulics import TailHydraulics
+    h, dt = TailHydraulics(cfg), 0.002
+    T = cfg.prefill_time + cfg.ramp_time + cycles / cfg.tail_freq
+    rows = [h.step(i * dt, dp, dt) for i in range(int(T / dt))]
+    t = np.array([r.t for r in rows])
+    steady = t > cfg.prefill_time + cfg.ramp_time + 1 / cfg.tail_freq
+    return rows, steady
+
+
+def test_pump_tracks_v_ref():
+    # Bez nasycenia V_p śledzi V_ref (feed-forward z kompensacją opóźnienia pompy + P).
+    cfg = TailConfig()
+    rows, m = _offline(cfg)
+    vp, vr, u = (np.array([getattr(r, k) for r in rows])[m] for k in ("V_p", "V_ref", "u"))
+    assert np.abs(u).max() < 1
+    assert np.abs(vp - vr).max() < 0.02 * cfg.tail_volume_amp
+
+
+def test_pump_saturation_reduces_amplitude():
+    # Za słaba pompa (Q_max z MuJoCo, 60 ml/s < 2π·f·A_V = 214 ml/s): |u| = 1, amplituda spada.
+    cfg = TailConfig(Q_max=60e-6)
+    rows, m = _offline(cfg)
+    vp, u = (np.array([getattr(r, k) for r in rows])[m] for k in ("V_p", "u"))
+    assert np.mean(np.abs(u) >= 1) > 0.5
+    assert vp.max() < 0.5 * cfg.tail_volume_amp
+
+
+def test_valve_opens_only_above_p_max_and_keeps_volume_sum():
+    from fishsofa.hydraulics import ClosedLoopPump
+    cfg = TailConfig()
+    for dp, should_open in ((0.9 * cfg.p_max, False), (1.2 * cfg.p_max, True), (-1.2 * cfg.p_max, True)):
+        p = ClosedLoopPump(cfg)
+        p.step(0.0, dp, 0.002)
+        assert p.valve_open == should_open
+        # Zawór przelewa z wyższego ciśnienia do niższego: dp > 0 (L wyżej) -> V_p maleje.
+        assert np.sign(-p.V_p) == (np.sign(dp) if should_open else 0)
+    # Suma zadanych objętości = 2·prefill w każdym kroku, także przy pracującym zaworze.
+    rows, _ = _offline(cfg, dp=1.5 * cfg.p_max, cycles=1)
+    assert any(r.valve_open for r in rows)
+    assert all(abs(r.dV_L + r.dV_R - 2 * r.prefill) < 1e-15 for r in rows)
+
+
+def test_prefill_assertion():
+    with pytest.raises(ValueError, match="V_prefill"):
+        TailConfig(V_prefill=15e-6)   # < A_V (17 ml) + margines
+
+
+def test_hydraulics_signals_are_continuous():
+    # Żadnych skoków aktuacji: zadane objętości zmieniają się płynnie (także na granicy
+    # prefill -> rytm i na końcu ramp).
+    cfg = TailConfig()
+    rows, _ = _offline(cfg, cycles=1)
+    for k in ("dV_L", "dV_R"):
+        v = np.array([getattr(r, k) for r in rows])
+        assert np.abs(np.diff(v)).max() < 0.002 * cfg.Q_max * 1.5
+
+
+@pytest.fixture(scope="session")
+def flap_run(mesh_root):
+    from fishsofa import headless
+    # dt 5 ms (spec: dt ≤ 1/(50·f_max) ≈ 6 ms), żeby test był krótki; etap 4 liczy przy 2 ms.
+    cfg = TailConfig(prefill_time=0.2, ramp_time=0.2, dt=0.005)
+    return headless.run_flapping(cfg, LEVEL, 0.9, mesh_root=mesh_root), cfg
+
+
+def test_flapping_keeps_total_volume(flap_run):
+    # Układ zamknięty: zmierzone ΔV_L + ΔV_R = 2·V_prefill po prefillu (cavityVolume
+    # odczytywane z opóźnieniem 1 kroku, stąd porównanie po zakończeniu rampy prefillu).
+    r, cfg = flap_run
+    m = r.log["t"] > cfg.prefill_time + 2 * cfg.dt
+    s = r.log["dV_L"][m] + r.log["dV_R"][m]
+    assert np.abs(s - 2 * cfg.V_prefill).max() < 1e-3 * 2 * cfg.V_prefill
+
+
+def test_flapping_sign_and_motion(flap_run):
+    # +V_p (wtłoczenie do L) -> θ < 0, jak w etapie 2; ogon faktycznie macha w obie strony.
+    r, cfg = flap_run
+    L = r.log
+    m = L["t"] > cfg.prefill_time + cfg.ramp_time
+    vp, th = L["V_p"][m], L["theta"][m]
+    # Kąt opóźnia się za V_p (bezwładność ogona), więc korelacja nie jest bliska −1.
+    assert np.corrcoef(vp, th)[0, 1] < -0.5
+    assert th.min() < -np.radians(5) and th.max() > np.radians(5)
+    assert np.all(np.isfinite(L["p_L"])) and not L["valve_open"].any()

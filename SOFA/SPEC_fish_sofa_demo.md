@@ -159,6 +159,7 @@ Każdy etap kończy się: testy zielone + wykres(y) z sekcji 9 + 2–3 zdania ob
 3. **Symetria**: to samo dla komory R. Wyniki muszą być lustrzane (test).
    - **Ustalone w etapie 3:** błąd symetrii ≤ 0.75% (kąt, coarse, przy 5 ml), ≤ 0.023% (ciśnienie); resztka pochodzi z kryterium końca trzymania punktu, nie z siatki (README, etap 3).
 4. **Hydraulika antagonistyczna**: rytm `V_ref(t)` z sekcji 6, układ zamknięty L↔R, prefill, `environment="air"`. Wykres: kąt końcówki, p_L, p_R, Δp, aktywność zaworu. **Gotowe, gdy:** ustalony cykl po rozbiegu, suma zmierzonych objętości komór stała (test), sprawdzenie wpływu `dt` (sekcja 5).
+   - **Ustalone w etapie 4:** komora SOFA (91 ml) ≠ MuJoCo (30 ml), więc A_V = 17 ml, V_prefill = 20 ml, Q_max = 250 ml/s (decyzja: widoczny ruch). Prefill > ~22 ml wybocza kręgosłup (ciśnienie wspólne). Komenda pompy ma dodaną kompensację opóźnienia τ_pump·d²V_ref/dt² (bez niej 16% przeregulowania przy 2 Hz). Wynik: ±12.7° przy dt 2 ms, −5% względem dt 1 ms (README, etap 4).
 5. **Woda**: to samo z `environment="water"`. Porównanie amplitudy i przesunięcia fazowego z wodą vs bez. Ciąg (definicja w sekcji 5) = jakościowy „ciąg na uwięzi”. **Gotowe, gdy:** `max(c·dt/m)` < 0.5 przez cały przebieg.
 6. **Przeglądy** (protokół: każdy punkt = osobna symulacja, 2 cykle rozbiegu + 3 cykle uśredniania; podaj czas obliczeń całego przeglądu):
    - częstotliwość 0.5–3 Hz (te same punkty co `MuJoCo/scripts/sweep_frequency.py`) → amplituda końcówki, średni ciąg, max |Δp|, czas aktywności zaworu. Porównaj kształt z `MuJoCo/results/s5_sweep.png`.

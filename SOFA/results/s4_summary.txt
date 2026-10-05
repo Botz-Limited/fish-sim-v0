@@ -1,0 +1,22 @@
+Etap 4 – hydraulika antagonistyczna w powietrzu (coarse, V4, ciężar włączony)
+f = 2.0 Hz, A_V = 17 ml, V_prefill = 20 ml, Q_max = 250 ml/s, p_max = 50 kPa
+
+dt = 2 ms: 198 ms/krok = 99× wolniej niż czas rzeczywisty
+  amplituda θ w kolejnych cyklach [°]: 12.67, 12.66, 12.66, 12.66
+  ustalony cykl: zmiana amplitudy w ostatnim cyklu 0.00%; średni kąt w ostatnim cyklu +0.000°
+  opóźnienie fazy θ względem −V_ref: 49.8°
+  V_p: -16.92 … +16.93 ml (V_ref ±17 ml); |u| = 1 w 0.0% kroków
+  p_L, p_R: 50.1 … 56.4 kPa; |Δp| max 5.7 kPa; zawór otwarty w 0 krokach
+  suma zmierzonych ΔV_L + ΔV_R: 39.9991 … 40.0025 ml (zadane 40 ml)
+  solver ograniczeń: max 30 iteracji, max błąd 2.0e-09
+
+dt = 1 ms: 181 ms/krok = 181× wolniej niż czas rzeczywisty
+  amplituda θ w kolejnych cyklach [°]: 13.35, 13.33, 13.33, 13.33
+  ustalony cykl: zmiana amplitudy w ostatnim cyklu 0.00%; średni kąt w ostatnim cyklu +0.000°
+  opóźnienie fazy θ względem −V_ref: 47.0°
+  V_p: -16.96 … +16.96 ml (V_ref ±17 ml); |u| = 1 w 0.0% kroków
+  p_L, p_R: 50.2 … 56.3 kPa; |Δp| max 5.5 kPa; zawór otwarty w 0 krokach
+  suma zmierzonych ΔV_L + ΔV_R: 39.9992 … 40.0003 ml (zadane 40 ml)
+  solver ograniczeń: max 28 iteracji, max błąd 2.0e-09
+
+wpływ dt: amplituda w ostatnim cyklu 12.661° (dt 2 ms) vs 13.334° (dt 1 ms): różnica -5.05%

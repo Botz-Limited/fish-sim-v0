@@ -2,7 +2,7 @@
 
 Edukacyjne demo FEM ogona robota-ryby. Specyfikacja: [SPEC_fish_sofa_demo.md](SPEC_fish_sofa_demo.md). **To nie jest skalibrowany model** – wszystkie parametry to placeholdery.
 
-Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem), 2 (komora L quasi-statycznie) i 3 (symetria L/R) zakończone; solver CHOLMOD (4–15× szybciej) dodany po etapie 2.** Kolejne etapy: patrz spec, sekcja 8.
+Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem), 2 (komora L quasi-statycznie), 3 (symetria L/R) i 4 (machanie w powietrzu) zakończone; solver CHOLMOD (4–15× szybciej) dodany po etapie 2.** Kolejne etapy: patrz spec, sekcja 8.
 
 ## Instalacja (Linux, sprawdzone na Fedorze 44)
 
@@ -277,3 +277,45 @@ Spec wymaga < 5%; test `test_chamber_R_mirrors_L` pilnuje 1% na siatce test.
 **Skąd resztkowy błąd:** to nie siatka, tylko kryterium końca trzymania punktu (energia kinetyczna < 1% pracy ciśnienia). Symulacje L i R zatrzymują się w trochę innym momencie zanikającego ruchu. Dlatego błąd jest największy w pierwszym punkcie (5 ml), gdzie ruch po rampie jest największy względem ugięcia. Przy 30–50 ml spada do 1e-5…1e-7%. Na fine zostaje na poziomie ~1e-3%: to szum zaokrągleń rozkładu macierzy przy innej kolejności elementów w lustrzanej połowie.
 
 **Kontrola CHOLMOD:** krzywa L z tego etapu (CHOLMOD) różni się od etapu 2 (LDL) o ≤ 0.0006% w kącie i ≤ 0.0002% w ciśnieniu na wszystkich poziomach. Wyniki etapu 2 nie wymagają przeliczenia.
+
+## Etap 4 – hydraulika antagonistyczna: machanie w powietrzu
+
+`scripts/run_stage4.py` (~25 min). Siatka coarse, powietrze, ciężar włączony, komory pełne wody. Przebieg: 0–1 s prefill obu komór do 20 ml, potem rytm V_ref(t) z rampą 1 s, łącznie 4.5 s. Pompa przetacza ciecz z R do L (`fishsofa/hydraulics.py`), a kontroler SOFA (`fishsofa/controller.py`) co krok ustawia przyrost objętości obu komór: ΔV_L = prefill + V_p, ΔV_R = prefill − V_p. **+V_p (komora L) zgina ogon w −Y, w prawo. To odpowiada +V_bias w MuJoCo („skręt w prawo”).**
+
+### Parametry: dlaczego nie 1:1 z MuJoCo
+Komora SOFA ma 91 ml, a w MuJoCo `V0_chamber` = 30 ml. A_V = 8 ml z MuJoCo dałoby tu ~±3°. Do tego Q_max = 60 ml/s nie nadąża przy 2 Hz (potrzeba 2π·f·A_V), więc wyszłoby jeszcze mniej. Wybrany jest największy ruch, który się bezpiecznie mieści: **A_V = 17 ml, V_prefill = 20 ml, Q_max = 250 ml/s**. Pozostałe wartości są jak w MuJoCo: f = 2 Hz, K_v = 10 1/s, τ_pump = 30 ms, p_max = 50 kPa.
+
+**Górna granica prefillu: wyboczenie kręgosłupa.** Napełnienie obu komór wydłuża ogon wzdłuż, a sztywny kręgosłup jest wtedy ściskany. Pomiar statyczny na siatce coarse:
+
+| prefill | ciśnienie wspólne | stan symetryczny |
+|---|---|---|
+| 10 ml | 25 kPa | prosty |
+| 20 ml | 53 kPa | prosty |
+| 24 ml | 64 kPa | θ = 0.02°, a Δp ma zły znak (L bardziej napełniona, a ciśnienie niższe) |
+| 30 ml | 78 kPa | θ = 0.34°: ogon wygina się bez różnicy objętości |
+
+±15° wymagałoby prefillu > 24 ml, czyli już w tym zakresie. Wniosek projektowy: przy konstrukcji V4 prefill ogranicza amplitudę, bo ciśnienie wspólne obciąża kręgosłup osiowo.
+
+**Kompensacja opóźnienia pompy (zmiana względem MuJoCo).** Komenda z MuJoCo, u = (dV_ref/dt + K_v·(V_ref − V_p))/Q_max, przy 2 Hz przeregulowywała: V_p dochodziło do 1.16·A_V, czyli 19.7 ml, i komora R prawie do objętości spoczynkowej. Działo się tak nawet bez nasycenia pompy (Q_max 400 ml/s: 1.17×). Pompa I rzędu ma ωτ = 0.38, więc samo sprzężenie w przód jest spóźnione. Dodany człon τ_pump·d²V_ref/dt² odwraca to opóźnienie: błąd śledzenia spada do 1.2% A_V, bez nasycenia (test `test_pump_tracks_v_ref`). **Ten sam problem jest w MuJoCo** (`MuJoCo/fishsim/controllers.py`), tam nic nie zmieniałem.
+
+### Wyniki (`results/s4_air_flapping.png`, `.csv`, `results/s4_summary.txt`)
+
+| | dt = 2 ms | dt = 1 ms |
+|---|---|---|
+| amplituda θ (ustalony cykl) | **±12.66°** | ±13.33° |
+| zmiana amplitudy w ostatnim cyklu | 0.00% | 0.00% |
+| opóźnienie fazy θ względem −V_ref | 50° | 47° |
+| p_L, p_R | 50.1–56.4 kPa | 50.2–56.3 kPa |
+| \|Δp\| max | 5.7 kPa (zawór nie otwiera się) | 5.5 kPa |
+| ΔV_L + ΔV_R zmierzone (zadane 40 ml) | 39.9991–40.0025 ml | 39.9992–40.0003 ml |
+| solver ograniczeń | ≤ 30 iteracji, błąd ≤ 2e-9 | ≤ 28 iteracji |
+| czas obliczeń | 198 ms/krok = **99× wolniej niż czas rzeczywisty** | 181 ms/krok = 181× |
+
+Obserwacje:
+- Cykl ustala się już w drugim cyklu po rampie, a średni kąt wynosi 0.000°: przy prefillu 20 ml wyboczenia nie ma.
+- Kąt opóźnia się o ~50° za objętością, a przy statyce opóźnienia nie byłoby. Za opóźnienie odpowiada bezwładność ogona z wodą w komorach, a nie pompa (V_p pokrywa się z V_ref, dolny panel wykresu).
+- Różnica ciśnień jest mała (±5.7 kPa) na tle ciśnienia wspólnego 53 kPa. W układzie antagonistycznym ruch steruje różnica, a i tak do 50 kPa daleko.
+
+**Wpływ dt (spec, sekcja 5):** przy dt = 2 ms amplituda jest o 5.1% mniejsza niż przy 1 ms. Niejawny Euler tłumi numerycznie i to tłumienie rośnie z dt. Dla etapów 5–6 to znany błąd systematyczny (−5% amplitudy). Jeśli porównania mają być ilościowe, trzeba liczyć przy 1 ms, kosztem 2× dłuższego czasu.
+
+**GUI:** `scripts/run_gui.sh` (domyślnie tryb `flap`, Animate) pokazuje ten sam przebieg z rysowaniem ciśnienia komór (`drawPressure`). Ugięcie pod ciężarem z etapu 1: `scripts/run_gui.sh coarse sag`.
