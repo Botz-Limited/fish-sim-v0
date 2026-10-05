@@ -2,8 +2,9 @@
 # Użycie (z dowolnego katalogu):  source SOFA/scripts/env.sh
 #
 # Co tu się dzieje i dlaczego:
-# - SOFA_ROOT: katalog rozpakowanej binarki SOFA (poza repo, bo ma ~800 MB).
-#   Można nadpisać przed `source`, np. SOFA_ROOT=/opt/sofa source ...
+# - FISHSOFA_HOME: katalog poza repo z binarką SOFA i wtyczką CHOLMOD (domyślnie ~/sofa;
+#   tak samo jak w scripts/setup.sh). SOFA_ROOT: katalog rozpakowanej binarki SOFA
+#   (~800 MB). Oba można nadpisać przed `source`, np. SOFA_ROOT=/opt/sofa source ...
 # - Binarka SOFA ma moduły Pythona (Sofa, SofaRuntime, softrobots, stlib3)
 #   w katalogach pluginów, a nie w site-packages Pythona -> dopisujemy je do PYTHONPATH.
 # - Moduły SofaPython3 są zlinkowane z libpython3.12.so.1.0. Fedora jej nie ma
@@ -12,7 +13,8 @@
 #   przesłoniłaby systemową (ryzyko błędów sterowników OpenGL w GUI).
 #   Zamiast tego osobny katalog z jednym dowiązaniem do libpython.
 
-: "${SOFA_ROOT:=$HOME/sofa/SOFA_v26.06.00_Linux}"
+: "${FISHSOFA_HOME:=$HOME/sofa}"
+: "${SOFA_ROOT:=$FISHSOFA_HOME/SOFA_v26.06.00_Linux}"
 : "${FISHSOFA_CONDA_ENV:=fishsofa}"
 export SOFA_ROOT
 
@@ -45,7 +47,7 @@ unset _p _sp
 
 # Wtyczka SofaCHOLMOD (solver "cholmod"), zbudowana osobno dla binarki v26.06 – binarka
 # jej nie zawiera (README, „Instalacja”). SOFA szuka wtyczek też w SOFA_PLUGIN_PATH.
-: "${FISHSOFA_CHOLMOD_LIB:=$HOME/sofa/SofaCHOLMOD_v26.06/lib}"
+: "${FISHSOFA_CHOLMOD_LIB:=$FISHSOFA_HOME/SofaCHOLMOD_v26.06/lib}"
 if [ -f "$FISHSOFA_CHOLMOD_LIB/libSofaCHOLMOD.so" ]; then
     export SOFA_PLUGIN_PATH="$FISHSOFA_CHOLMOD_LIB${SOFA_PLUGIN_PATH:+:$SOFA_PLUGIN_PATH}"
 else

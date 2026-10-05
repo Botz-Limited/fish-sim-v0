@@ -4,38 +4,40 @@ Edukacyjne demo FEM ogona robota-ryby. Specyfikacja: [SPEC_fish_sofa_demo.md](SP
 
 Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem), 2 (komora L quasi-statycznie), 3 (symetria L/R) i 4 (machanie w powietrzu) zakończone; solver CHOLMOD (4–15× szybciej) dodany po etapie 2.** Kolejne etapy: patrz spec, sekcja 8.
 
-## Instalacja (Linux, sprawdzone na Fedorze 44)
+## Instalacja (Linux x86_64, sprawdzone na Fedorze 44)
+
+**Na nowym komputerze wystarczy jedna komenda** (potrzebna wcześniej: conda, np. [Miniforge](https://github.com/conda-forge/miniforge)):
+
+```bash
+git clone <repo> && cd fish-sim-v0
+SOFA/scripts/setup.sh --install-deps     # ~2 min + pobranie 230 MB; brakujące pakiety przez sudo dnf/apt
+source SOFA/scripts/env.sh               # w każdej nowej powłoce (bash lub zsh)
+SOFA/scripts/run_gui.sh                  # GUI: ogon macha (Animate)
+```
+
+`setup.sh` pomija kroki już zrobione. Kolejno:
+1. Sprawdza zależności systemowe: kompilator, cmake, ninja, SuiteSparse/CHOLMOD, Eigen oraz biblioteki OpenGL/X11 dla gmsh i GUI. Bez `--install-deps` tylko wypisuje komendę `dnf` albo `apt`.
+2. Pobiera binarkę SOFA v26.06.00 do `~/sofa` i sprawdza sumę SHA-256.
+3. Tworzy środowisko conda `fishsofa` z `environment.yml`.
+4. Buduje wtyczkę CHOLMOD.
+5. Uruchamia `check_sofa.py` i `pytest`.
+
+Inny katalog niż `~/sofa`: `FISHSOFA_HOME=/sciezka` dla `setup.sh` **i** `env.sh`. Test czystej instalacji (5.10.2026, osobny katalog i osobne środowisko conda): 1 min 43 s, 33/33 testów.
 
 | Co | Wersja / źródło |
 |---|---|
-| SOFA | **v26.06.00**, oficjalna binarka `SOFA_v26.06.00_Linux_Python3.12.zip` z [github.com/sofa-framework/sofa/releases](https://github.com/sofa-framework/sofa/releases) |
+| SOFA | **v26.06.00**, oficjalna binarka `SOFA_v26.06.00_Linux_Python3.12.zip` z [github.com/sofa-framework/sofa/releases](https://github.com/sofa-framework/sofa/releases), SHA-256 w `setup.sh` |
 | SoftRobots, SoftRobots.Inverse, STLIB, SofaPython3 | **w oficjalnej binarce** (nie trzeba kompilować ani używać DefrostSofaBundle) |
-| Licencje | SOFA: LGPL 2.1+ (`LICENSE-LGPL.md`); SoftRobots: **LGPL v3** (`plugins/SoftRobots/LICENSE`) |
-| Python | **3.12** w środowisku conda `fishsofa` (systemowy Python 3.14 nie pasuje do binarki) |
-| SofaCHOLMOD | wtyczka z SOFA master (commit `6c3e21f`), **budowana osobno** dla v26.06 skryptem `scripts/build_cholmod_plugin.sh` (solver `"cholmod"`, domyślny) |
+| SofaCHOLMOD | źródła w repo: `third_party/SofaCHOLMOD`, z SOFA master, commit `6c3e21f`; opis w `VENDORED.md`. Budowane dla v26.06 przez `scripts/build_cholmod_plugin.sh` (solver `"cholmod"`, domyślny) |
+| Licencje | SOFA i SofaCHOLMOD: LGPL 2.1+ (`LICENSE-LGPL.md`); SoftRobots: **LGPL v3** (`plugins/SoftRobots/LICENSE`) |
+| Python | **3.12** w środowisku conda `fishsofa`; pakiety przypięte w `requirements.txt` (systemowy Python 3.14 nie pasuje do binarki) |
+| Siatki | generowane przy pierwszym użyciu do `SOFA/meshes/` (gmsh, deterministycznie; nie ma ich w repo) |
 
-```bash
-# 1. SOFA poza repo (~230 MB do pobrania, ~800 MB po rozpakowaniu)
-mkdir -p ~/sofa && cd ~/sofa
-curl -LO https://github.com/sofa-framework/sofa/releases/download/v26.06.00/SOFA_v26.06.00_Linux_Python3.12.zip
-unzip SOFA_v26.06.00_Linux_Python3.12.zip          # -> ~/sofa/SOFA_v26.06.00_Linux
-
-# 2. Python 3.12 + zależności
-conda create -n fishsofa python=3.12 numpy scipy pybind11 matplotlib pytest
-conda run -n fishsofa pip install gmsh meshio
-
-# 3. Wtyczka CHOLMOD (~1 min; zależności systemowe, Fedora):
-sudo dnf install -y cmake ninja-build gcc-c++ suitesparse-devel eigen3-devel flexiblas-devel
-SOFA/scripts/build_cholmod_plugin.sh        # -> ~/sofa/SofaCHOLMOD_v26.06
-
-# 4. W każdej nowej powłoce (bash lub zsh), z katalogu repo:
-source SOFA/scripts/env.sh
-python SOFA/scripts/check_sofa.py           # kod 0 = wszystko jest
-```
-
-Inna lokalizacja SOFA: `SOFA_ROOT=/inna/sciezka source SOFA/scripts/env.sh`.
-
-**Co trzeba było zrobić na Fedorze:** nic z `dnf`. Binarka jest budowana na Ubuntu, ale `ldd` pokazał tylko jeden brak: `libpython3.12.so.1.0`. Bierzemy go z condy. `env.sh` tworzy katalog `~/sofa/fishsofa-pylib/` z jednym dowiązaniem do tej biblioteki i dodaje go do `LD_LIBRARY_PATH`. Celowo nie dodajemy całego `$CONDA_PREFIX/lib`, bo wtedy `libstdc++` z condy przesłoniłaby systemową, co grozi błędami sterowników OpenGL w GUI. Odpowiednik ubuntowego `libopengl0` (`libglvnd-opengl`) był już zainstalowany.
+**Dlaczego tak:**
+- Binarka SOFA jest budowana na Ubuntu. Na Fedorze `ldd` pokazał tylko jeden brak: `libpython3.12.so.1.0`, który bierzemy z condy.
+  - `env.sh` tworzy katalog `~/sofa/fishsofa-pylib/` z jednym dowiązaniem do tej biblioteki i dodaje go do `LD_LIBRARY_PATH`.
+  - Celowo nie dodajemy całego `$CONDA_PREFIX/lib`, bo wtedy `libstdc++` z condy przesłoniłaby systemową, co grozi błędami sterowników OpenGL w GUI.
+- Pakiety systemowe są potrzebne tylko do wtyczki CHOLMOD (kompilator i nagłówki) oraz do bibliotek graficznych, których używa gmsh z pip.
 
 ## Uruchamianie
 
@@ -194,7 +196,7 @@ Zgodność z LDL pilnuje test `test_cholmod_matches_ldl_with_chamber`. Testy (25
 
 v26.06 dochodzi do spoczynku (prędkość 1e-13 m/s), a przy tych samych siłach to jest prawdziwa równowaga. Dlatego zostajemy na v26.06. Prawdopodobna przyczyna to przejście ograniczeń z impulsów na siły (SOFA PR #6117), ale tego nie potwierdziłem. Inne zmiany w master, gdyby kiedyś przechodzić: pole `pressure` i wejście trybu ciśnienia `SurfacePressureConstraint` są w Pa, a nie p·dt (sonda `probe_volume_growth.py` rozpoznaje obie konwencje), `NewtonRaphsonSolver` jest usunięty (statyka: `StaticEquilibriumIntegrationScheme` z `alwaysAdvanceNewton=True`), integratory mają nowe nazwy (`EulerImplicitIntegrationScheme`, moduł `Sofa.Component.IntegrationScheme.Backward`).
 
-**Jak zbudowana jest wtyczka** (`scripts/build_cholmod_plugin.sh`): źródła samej wtyczki z master, skompilowane na nagłówkach binarki v26.06 z dwiema poprawkami. (1) Nowszy `EigenSolverFactory.h`, bo wtyczka używa szablonu `registerProxyType`, który doszedł po v26.06. To czysty dodatek w nagłówku, bez zmiany układu klasy, więc SOFA nie trzeba przebudowywać. (2) `FindCHOLMOD.cmake` bez configu CMake z SuiteSparse, bo config z Fedory odwołuje się do nieistniejących plików `*_static.cmake`. `env.sh` dopisuje katalog wtyczki do `SOFA_PLUGIN_PATH`; tak samo widzi ją `runSofa`.
+**Jak zbudowana jest wtyczka** (`scripts/build_cholmod_plugin.sh`): źródła samej wtyczki z master (skopiowane do `third_party/SofaCHOLMOD`, bo master bywa przepisywany), skompilowane na nagłówkach binarki v26.06 z dwiema poprawkami. (1) Nowszy `EigenSolverFactory.h`, bo wtyczka używa szablonu `registerProxyType`, który doszedł po v26.06. To czysty dodatek w nagłówku, bez zmiany układu klasy, więc SOFA nie trzeba przebudowywać. (2) `FindCHOLMOD.cmake` bez configu CMake z SuiteSparse, bo config z Fedory odwołuje się do nieistniejących plików `*_static.cmake`. `env.sh` dopisuje katalog wtyczki do `SOFA_PLUGIN_PATH`; tak samo widzi ją `runSofa`.
 
 ## Etap 2a – dlaczego ogon się nie zginał i co pomogło
 

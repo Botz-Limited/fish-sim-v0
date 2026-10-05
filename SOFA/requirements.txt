@@ -1,9 +1,10 @@
 # Python 3.12 (wersja musi pasować do binarki SOFA v26.06 – patrz README.md).
 # SOFA, SofaPython3 i SoftRobots NIE są pakietami pip: pochodzą z binarki SOFA (scripts/env.sh).
-numpy
-scipy
-pybind11
-matplotlib
-pytest
-gmsh
-meshio
+# Wersje przypięte do tych, na których przeszły testy etapów 0–4 (Fedora 44, 5.10.2026).
+numpy==2.5.3
+scipy==1.18.1
+matplotlib==3.11.2
+pytest==9.1.1
+pybind11==3.1.0
+gmsh==4.15.2
+meshio==5.3.5
