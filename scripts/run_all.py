@@ -23,10 +23,40 @@ def plot_hydraulics_step(sol):
     ], "HydraulicsStep: rampa komendy pompy, ogon zablokowany", "hydraulics_step.png")
 
 
+def plot_tail_flapping(sol):
+    t = sol["time"]
+    plotting.panels(t, [
+        ("komenda u [-]", [(sol["cpg.y"], "u")]),
+        ("kąt ogona [°]", [(np.degrees(sol["drive.theta"]), "θ")]),
+        ("nadciśnienie [kPa]", [(sol["drive.p_L"] / 1e3, "komora L"), (sol["drive.p_R"] / 1e3, "komora R")]),
+        ("prąd [A]", [(sol["drive.i_motor"], "silnik"), (sol["drive.battery.i"], "bateria")]),
+    ], "TailFlapping: sinus 1 Hz, ogon swobodny", "tail_flapping.png")
+
+
+def plot_relief_valve_demo(sol):
+    t = sol["time"]
+    dp = (sol["drive.p_L"] - sol["drive.p_R"]) / 1e3
+    plotting.panels(t, [
+        ("kąt ogona [°]", [(np.degrees(sol["drive.theta"]), "θ")]),
+        ("p_L − p_R [kPa]", [(dp, "Δp"), (np.full_like(t, sol["drive.reliefLR.p_set"][0] / 1e3), "p_set"),
+                             (np.full_like(t, -sol["drive.reliefLR.p_set"][0] / 1e3), "−p_set")]),
+        ("przepływ [ml/s]", [(sol["drive.pump.V_flow"] * 1e6, "pompa"),
+                             ((sol["drive.reliefLR.V_flow"] - sol["drive.reliefRL.V_flow"]) * 1e6, "zawory")]),
+        ("energia [J]", [(sol["E_pump_hyd"], "oddana przez pompę"), (sol["E_relief"], "stracona w zaworach")]),
+    ], "ReliefValveDemo: A = 1 przy 0,25 Hz – zawór przelewowy się otwiera", "relief_valve_demo.png")
+
+
 PLOTS = {
     "FishRobot.Examples.HydraulicsStep": (
         ["time", "bridge.u_lim", "p_L", "p_R", "Q_pump", "Q_relief", "i_motor", "i_battery", "motor.w"],
         plot_hydraulics_step),
+    "FishRobot.Examples.TailFlapping": (
+        ["time", "cpg.y", "drive.theta", "drive.p_L", "drive.p_R", "drive.i_motor", "drive.battery.i"],
+        plot_tail_flapping),
+    "FishRobot.Examples.ReliefValveDemo": (
+        ["time", "drive.theta", "drive.p_L", "drive.p_R", "drive.reliefLR.p_set", "drive.pump.V_flow",
+         "drive.reliefLR.V_flow", "drive.reliefRL.V_flow", "E_pump_hyd", "E_relief"],
+        plot_relief_valve_demo),
 }
 
 

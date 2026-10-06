@@ -6,3 +6,5 @@ ChamberTableFromFile
 ReliefValveLimit
 DCMotorNoLoad
 GearPumpCharacteristic
+TailStaticEnergy
+TailDriveDirection

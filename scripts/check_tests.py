@@ -133,6 +133,45 @@ def check_hydraulics_step(sol):
              f"max {dpmax / 1e3:.2f} kPa, granica {limit / 1e3:.1f} kPa")]
 
 
+def check_tail_static_energy(sol):
+    th, th_ref = sol["tail.theta"], sol["theta_analytic"][0]
+    th_err = abs(th[-1] - th_ref) / th_ref
+    e_err = np.max(np.abs(sol["E_balance_error"])) / sol["E_hyd"][-1]
+    plotting.series(sol["time"], [(np.degrees(th), "θ")], "kąt ogona [°]",
+                    "TailStaticEnergy: odpowiedź ogona na skok Δp = 30 kPa", "tail_static_energy.png",
+                    hlines=[(np.degrees(th_ref), "D_tail·Δp/k")])
+    return [("kąt statyczny θ = D_tail·Δp/k (< 1%)", th_err < 0.01, f"błąd {th_err:.1e}"),
+            ("energia: hydrauliczna = kinetyczna + sprężysta + rozproszona (< 1%)", e_err < 0.01,
+             f"max błąd {e_err:.1e}")]
+
+
+def check_tail_direction(sol):
+    t = sol["time"]
+    late = t > 0.5
+    ok = (np.all(sol["drive.theta"][late] > 0) and np.all(sol["drive.p_L"][late] > sol["drive.p_R"][late])
+          and np.all(sol["drive.tau_tail"][late] > 0))
+    vt = sol["V_total"]
+    drift = np.max(np.abs(vt - vt[0])) / vt[0]
+    return [("u > 0 ⇒ θ > 0, p_L > p_R, τ > 0", bool(ok), f"θ_końc = {np.degrees(sol['drive.theta'][-1]):.1f}°"),
+            ("V_L + V_R = const z ruchomym ogonem (< 1e-9)", drift < 1e-9, f"max dryf {drift:.1e}")]
+
+
+def check_flapping(sol, expect_relief):
+    vt = sol["drive.chamberL.V"] + sol["drive.chamberR.V"]
+    drift = np.max(np.abs(vt - vt[0])) / vt[0]
+    q_relief = np.max(np.abs(sol["drive.reliefLR.V_flow"] - sol["drive.reliefRL.V_flow"]))
+    q_pump = np.max(np.abs(sol["drive.pump.V_flow"]))
+    frac = q_relief / q_pump
+    if expect_relief:
+        relief = ("zawór się otwiera (przepływ > 5% przepływu pompy)", frac > 0.05, f"{frac:.1%}")
+    else:
+        relief = ("zawór zamknięty (przepływ < 1% przepływu pompy)", frac < 0.01, f"{frac:.2%}")
+    return [("V_L + V_R = const (< 1e-9)", drift < 1e-9, f"max dryf {drift:.1e}"), relief]
+
+
+FLAP_VARS = ["time", "drive.chamberL.V", "drive.chamberR.V", "drive.reliefLR.V_flow", "drive.reliefRL.V_flow",
+             "drive.pump.V_flow"]
+
 CHECKS = {
     "FishRobot.Tests.PipeLaminar": (["time", "pipe.dp", "dp_analytic", "pipe.Re"], check_pipe_laminar),
     "FishRobot.Tests.PipeQuadratic": (["time", "pipe.V_flow", "pipe.dp", "dp_exact"], check_pipe_quadratic),
@@ -151,6 +190,12 @@ CHECKS = {
     "FishRobot.Examples.HydraulicsStep": (["time", "bridge.u_lim", "p_L", "p_R", "motor.w", "chamberL.V",
                                            "chamberR.V", "reliefLR.p_set", "reliefLR.dp_open"],
                                           check_hydraulics_step),
+    "FishRobot.Tests.TailStaticEnergy": (["time", "tail.theta", "theta_analytic", "E_balance_error", "E_hyd"],
+                                         check_tail_static_energy),
+    "FishRobot.Tests.TailDriveDirection": (["time", "drive.theta", "drive.p_L", "drive.p_R", "drive.tau_tail",
+                                            "V_total"], check_tail_direction),
+    "FishRobot.Examples.TailFlapping": (FLAP_VARS, lambda s: check_flapping(s, expect_relief=False)),
+    "FishRobot.Examples.ReliefValveDemo": (FLAP_VARS, lambda s: check_flapping(s, expect_relief=True)),
     "FishRobot.Tests.ReliefValveLimit": (["time", "chamber.p_gauge", "source.V_flow", "valve.V_flow",
                                           "valve.p_set", "valve.dp_open"], check_relief_valve),
 }

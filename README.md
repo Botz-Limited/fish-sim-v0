@@ -9,7 +9,7 @@ Uproszczony, **edukacyjny i nieskalibrowany** model robota-ryby w Modelice: siln
 | 1 | Złącze hydrauliczne, `Pipe`, `Reservoir`, `VolumeFlowSource` + testy | gotowe |
 | 2 | `Chamber` (krzywa p–V z tabeli lub CSV), `ReliefValve` + testy | gotowe |
 | 3 | `Battery`, `HBridge`, `DCMotor`, `GearPump` → scenariusz `HydraulicsStep` | gotowe |
-| 4 | `TailEquivalent` → `TailFlapping`, `FrequencySweep`, `ReliefValveDemo` | – |
+| 4 | `TailEquivalent`, `CPG`, podukład `TailDrive` → `TailFlapping`, `FrequencySweep` (`sweep.py`), `ReliefValveDemo` | gotowe |
 | 5 | Bilans energii → `EnergyBudget` | – |
 | 6 | Balast + pion → `DepthControl` | – |
 | 7 | Surge → `SwimForward` | – |
@@ -38,6 +38,8 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/check_tests.py          # wszystkie modele z Tests/ i Examples/
 .venv/bin/python scripts/check_tests.py Pipe     # tylko modele zawierające "Pipe" w nazwie
 .venv/bin/python scripts/run_all.py              # wszystkie scenariusze z Examples/ -> results/examples/
+.venv/bin/python scripts/sweep.py               # przegląd częstotliwości 0,25–4 Hz -> results/sweep/
+.venv/bin/python scripts/sweep.py --A 0.5 --n 30   # inna amplituda komendy, gęstsza siatka
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -47,6 +49,17 @@ Ustawienia wydajności są w `scripts/om_config.py`. W modelach zmienne hydrauli
 ## Otwieranie w OMEdit
 
 `File → Load Library…` (lub `Open Model/Library File`) → wskaż `FishRobot/package.mo`. W drzewie bibliotek rozwiń `FishRobot.Tests`, otwórz model i przełącz na widok *Diagram*. Złącza hydrauliczne są niebieskie: pełne kółko to `port_a`, puste to `port_b`.
+
+`sweep.py` kompiluje model raz, a potem uruchamia gotowy plik wykonywalny równolegle dla każdej częstotliwości (`scripts/om_fast.py`). Parametry zmienia przez `-override`, a wyniki czyta bezpośrednio z plików `.mat` (`scripts/om_results.py`). 16 symulacji zajmuje ok. 0,2 s plus ok. 1 s kompilacji. W OpenModelica 1.27.1 `-override` nie zmienia ustawień eksperymentu (`stopTime`, `tolerance`), więc `om_fast` podmienia je w kopii pliku `_init.xml`.
+
+## Ogon: sformułowanie
+
+Ogon to tłok obrotowy o wydajności `D_tail = A_eff·r_eff` (`Tail.HydraulicBender`):
+
+- ruch ogona wypiera ciecz: `Q_L = D_tail·θ̇`, `Q_R = −D_tail·θ̇`,
+- różnica ciśnień daje moment: `τ = D_tail·(p_L − p_R)`.
+
+Ta sama stała w obu równaniach sprawia, że moc hydrauliczna jest z definicji równa mechanicznej. Krzywa p–V komory opisuje tylko pęcznienie ścianek przy zablokowanym ogonie, więc woda przetłoczona przez pompę dzieli się na dwie części: pęcznienie komór i ruch ogona. Wariant „θ z różnicy objętości przez sztywność” odrzuciłem, bo pomija bezwładność ogona i nie daje momentu do przekazania np. do MuJoCo.
 
 ## Hydraulika: dlaczego własny pakiet
 
@@ -81,6 +94,25 @@ Ich iloczyn `p·V_flow` to moc w watach, więc bilans energii wynika wprost z po
   - Przy ok. 51 kPa otwiera się zawór przelewowy. Od tej chwili woda krąży w pętli pompa → zawór, komory stoją, a cała moc pompy idzie w ciepło.
   - Po zdjęciu komendy mostek zwiera silnik, a napięte komory wypychają wodę z powrotem, głównie przez przeciek pompy. Silnik działa wtedy jak hamulec prądnicowy, stąd ujemny prąd.
   - Przy placeholderowych parametrach silnik jest mocno przewymiarowany względem pompy. Prąd pod obciążeniem to tylko ok. 0,14 A, więc parametry trzeba zidentyfikować, zanim wyciągnie się wnioski o doborze napędu.
+
+- **`tail_flapping.png`** (scenariusz 2) – sinus 1 Hz, ogon swobodny:
+  - Kąt ogona jest opóźniony względem komendy, bo pompa najpierw musi przetłoczyć ciecz.
+  - Ciśnienia w komorach zmieniają się w przeciwfazie.
+  - Prąd baterii ma podwójną częstotliwość i chwilami jest ujemny. W każdej połówce okresu silnik najpierw rozpędza się, a potem hamuje, oddając energię do baterii.
+  - Amplituda rośnie przez 2 okresy, bo CPG zaczyna od łagodnej rampy.
+- **`relief_valve_demo.png`** (scenariusz 4) – pełna komenda przy 0,25 Hz. Różnica ciśnień dochodzi do ±`p_set`, zawory się otwierają, a szczyty kąta ogona się spłaszczają (ok. ±31°). Dolny panel pokazuje, że ponad połowa energii hydraulicznej oddanej przez pompę idzie w ciepło w zaworach.
+
+## Przegląd częstotliwości (`results/sweep/`, scenariusz 3)
+
+`frequency_sweep.png` i `frequency_sweep.csv` pokazują pełną komendę (`A = 1`) przy częstotliwościach 0,25–4 Hz. Zakres zaczyna się od 0,25 Hz, a nie od 0,5 Hz jak w specyfikacji, żeby przy placeholderowych parametrach było widać obszar ograniczony przez zawór.
+
+**Lekcja: dwa różne ograniczenia pasma.**
+
+- **Niskie częstotliwości (≤ ok. 0,4 Hz): ogranicza zawór.** Pompa ma dość czasu, żeby wytworzyć `p_set`. Zawór się otwiera (ponad 20% przepływu pompy idzie przez zawory), a amplituda ogona jest ograniczona ciśnieniem: `θ ≈ D_tail·p_set / k_całk`.
+- **Wyższe częstotliwości: ogranicza przepływ pompy.** W półokresie pompa przetłacza najwyżej `Q_max/(2f)`, więc amplituda spada jak `1/f` (iloczyn θ·f jest prawie stały). Zawory pozostają zamknięte.
+- **Prąd rośnie z częstotliwością, choć amplituda maleje.** Silnik musi coraz częściej zawracać wirnik, a energia kinetyczna wirnika przy każdym zawróceniu w dużej części idzie w ciepło w uzwojeniu (`R·i²`). Szybkie machanie małą pompą jest więc nieefektywne. Lepsza byłaby większa pompa albo przekładnia.
+
+**Rampa CPG a pompa jako integrator.** Pompa całkuje przepływ do objętości. Sinus włączony od zera dałby więc przesunięcie objętości `(1 − cos ωt)/ω`, a ogon machałby wokół wychylonego położenia przez wiele okresów, bo przesunięcie wycieka tylko przez przeciek pompy. Dlatego CPG narasta łagodnie przez 2 okresy (`n_ramp`).
 
 ## Krzywa p–V komory z pliku
 

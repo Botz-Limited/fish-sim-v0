@@ -3,8 +3,8 @@ model GearPump "Odwracalna pompa zębata (wyporowa) z przeciekiem i tarciem mech
   extends FishRobot.Interfaces.PartialTwoPort;
   import Modelica.Constants.pi;
 
-  parameter Modelica.Units.SI.Volume D_rev = 1e-7
-    "Wydajność geometryczna na obrót (0,1 ml/obr) (PLACEHOLDER – do identyfikacji)";
+  parameter Modelica.Units.SI.Volume D_rev = 3e-7
+    "Wydajność geometryczna na obrót (0,3 ml/obr) (PLACEHOLDER – do identyfikacji)";
   parameter Real k_leak(unit="m3/(s.Pa)") = 2e-11
     "Współczynnik przecieku wewnętrznego (PLACEHOLDER – do identyfikacji)";
   parameter Real eta_m(min=0.1, max=1) = 0.8 "Sprawność mechaniczna (PLACEHOLDER – do identyfikacji)";
