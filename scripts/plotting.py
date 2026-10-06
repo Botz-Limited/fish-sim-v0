@@ -47,3 +47,33 @@ def compare(t, sim, ref, ylabel, title, name, sim_label="symulacja", ref_label="
     ax_err.set_ylabel(f"błąd\n{ylabel}")
     ax_err.set_xlabel("czas [s]")
     return save(fig, name)
+
+
+def series(t, curves, ylabel, title, name, hlines=(), bottom=None):
+    """Przebiegi czasowe z opcjonalnymi poziomymi liniami odniesienia i dolnym panelem.
+
+    curves: [(y, etykieta), ...]; hlines: [(wartość, etykieta), ...];
+    bottom: (y, etykieta_osi) – osobny panel (np. odchyłka), bez drugiej osi Y.
+    """
+    if bottom is None:
+        fig, ax = plt.subplots(figsize=(8, 4.5))
+    else:
+        fig, (ax, ax_b) = plt.subplots(2, 1, figsize=(8, 5.5), sharex=True,
+                                       gridspec_kw={"height_ratios": [3, 1.3]})
+    for i, (y, label) in enumerate(curves):
+        ax.plot(t, y, color=SERIES[i], label=label)
+    for value, label in hlines:
+        ax.axhline(value, color=TEXT_2, linewidth=1, linestyle=(0, (2, 2)))
+        ax.annotate(label, (t[-1], value), xytext=(-4, 4), textcoords="offset points",
+                    ha="right", va="bottom", color=TEXT_2, fontsize=9)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title, loc="left", fontsize=11, pad=26 if len(curves) > 1 else 6)
+    if len(curves) > 1:
+        ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=len(curves), borderaxespad=0.2)
+    if bottom is None:
+        ax.set_xlabel("czas [s]")
+    else:
+        ax_b.plot(t, bottom[0], color=SERIES[0])
+        ax_b.set_ylabel(bottom[1])
+        ax_b.set_xlabel("czas [s]")
+    return save(fig, name)

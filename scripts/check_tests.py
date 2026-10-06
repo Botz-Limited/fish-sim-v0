@@ -51,10 +51,56 @@ def check_pipe_inertance(sol):
     return [("Q(t) zgodne z rozwiązaniem analitycznym (< 1% Q_ust)", err < 0.01, f"max błąd {err:.2e} Q_ust")]
 
 
+def check_chamber_closed_loop(sol):
+    t, vl, vr, vt = sol["time"], sol["chamberL.V"], sol["chamberR.V"], sol["V_total"]
+    drift = np.max(np.abs(vt - vt[0])) / vt[0]
+    v_eq = vt[0] / 2  # identyczne krzywe p–V -> równowaga przy równych objętościach
+    eq_err = max(abs(vl[-1] - v_eq), abs(vr[-1] - v_eq)) / v_eq
+    dp0 = abs(sol["chamberL.port.p"][0] - sol["chamberR.port.p"][0])
+    dp_end = abs(sol["chamberL.port.p"][-1] - sol["chamberR.port.p"][-1]) / dp0
+    # Energia: to, co ubyło ze ścianek i słupa cieczy, musi się rozproszyć w rurze.
+    e_lost = sol["E_stored"][0] - sol["E_stored"][-1]
+    e_err = abs(e_lost - sol["E_dissipated"][-1]) / e_lost
+    plotting.series(t, [(vl * 1e6, "V_L"), (vr * 1e6, "V_R")], "objętość [ml]",
+                    "ChamberClosedLoop: wymiana cieczy między komorami", "chamber_closed_loop.png",
+                    hlines=[(v_eq * 1e6, "równowaga")],
+                    bottom=((vt - vt[0]) * 1e6, "odchyłka\nV_L+V_R [ml]"))
+    return [("V_L + V_R = const (< 1e-9 względnie)", drift < 1e-9, f"max dryf {drift:.1e}"),
+            ("równowaga: V_L = V_R, p_L = p_R (< 0,1%)", eq_err < 1e-3 and dp_end < 1e-3,
+             f"błąd objętości {eq_err:.1e}, |p_L − p_R| = {dp_end:.1e} różnicy początkowej"),
+            ("energia: ubytek zmagazynowanej = rozproszona w rurze (< 1%)", e_err < 0.01,
+             f"błąd {e_err:.1e}")]
+
+
+def check_relief_valve(sol):
+    t, pg, q_src, q_valve = sol["time"], sol["chamber.p_gauge"], sol["source.V_flow"], sol["valve.V_flow"]
+    p_set, dp_open = sol["valve.p_set"][0], sol["valve.dp_open"][0]
+    q_err = abs(q_valve[-1] - q_src[-1]) / q_src[-1]
+    plotting.series(t, [(pg / 1e3, "nadciśnienie w komorze")], "Δp [kPa]",
+                    "ReliefValveLimit: zawór przelewowy ogranicza ciśnienie", "relief_valve_limit.png",
+                    hlines=[(p_set / 1e3, "p_set"), ((p_set + dp_open) / 1e3, "p_set + dp_open")])
+    return [("p ≤ p_set + dp_open", pg.max() <= p_set + dp_open,
+             f"max {pg.max() / 1e3:.2f} kPa, granica {(p_set + dp_open) / 1e3:.1f} kPa"),
+            ("zawór otwarty: cały przepływ uchodzi przez zawór (< 1%)", q_err < 0.01, f"różnica {q_err:.1e}")]
+
+
+def check_chamber_from_file(sol):
+    a, b = sol["chamberTable.p_gauge"], sol["chamberFile.p_gauge"]
+    diff = np.max(np.abs(a - b))
+    return [("krzywa z CSV = krzywa z parametru", diff < 1e-6, f"max różnica {diff:.1e} Pa")]
+
+
 CHECKS = {
     "FishRobot.Tests.PipeLaminar": (["time", "pipe.dp", "dp_analytic", "pipe.Re"], check_pipe_laminar),
     "FishRobot.Tests.PipeQuadratic": (["time", "pipe.V_flow", "pipe.dp", "dp_exact"], check_pipe_quadratic),
     "FishRobot.Tests.PipeInertance": (["time", "pipe.V_flow", "Q_analytic"], check_pipe_inertance),
+    "FishRobot.Tests.ChamberClosedLoop": (["time", "chamberL.V", "chamberR.V", "V_total", "chamberL.port.p",
+                                           "chamberR.port.p", "E_stored", "E_dissipated"],
+                                          check_chamber_closed_loop),
+    "FishRobot.Tests.ChamberTableFromFile": (["time", "chamberTable.p_gauge", "chamberFile.p_gauge"],
+                                             check_chamber_from_file),
+    "FishRobot.Tests.ReliefValveLimit": (["time", "chamber.p_gauge", "source.V_flow", "valve.V_flow",
+                                          "valve.p_set", "valve.dp_open"], check_relief_valve),
 }
 
 
