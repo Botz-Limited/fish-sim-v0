@@ -78,6 +78,17 @@ def plot_energy_budget(sol):
           f"\n  błąd bilansu {err:.2e} J ({abs(err) / e_bat:.1e}); czas pracy ≈ {runtime_h:.1f} h przy {p_mean:.2f} W")
 
 
+def plot_depth_control(sol):
+    t = sol["time"]
+    plotting.panels(t, [
+        ("głębokość z [m]", [(sol["fish.z"], "z"), (sol["controller.refLimiter.y"], "zadana (po filtrze)"),
+                             (sol["depthReference.y[1]"], "zadana (skoki)")]),
+        ("pęcherz [ml]", [(sol["syringe.V_b"] * 1e6, "V_b"), (sol["controller.V_ref"] * 1e6, "V_ref (z PID)")]),
+        ("prędkość pionowa [cm/s]", [(sol["fish.v_z"] * 100, "z'")]),
+        ("prąd [A]", [(sol["syringe.i_motor"], "silnik strzykawki")]),
+    ], "DepthControl: skoki zadanej głębokości −0,5 → −1,5 → −1,0 m", "depth_control.png")
+
+
 PLOTS = {
     "FishRobot.Examples.HydraulicsStep": (
         ["time", "bridge.u_lim", "p_L", "p_R", "Q_pump", "Q_relief", "i_motor", "i_battery", "motor.w"],
@@ -93,6 +104,10 @@ PLOTS = {
         ["time", "drive.E_battery", "drive.E_stored", "drive.E_stored0", "drive.E_balance_error", "t_runtime",
          "P_battery_mean", "capacity_Wh"] + [k for k, _ in LOSSES],
         plot_energy_budget),
+    "FishRobot.Examples.DepthControl": (
+        ["time", "fish.z", "controller.refLimiter.y", "depthReference.y[1]", "syringe.V_b", "controller.V_ref",
+         "fish.v_z", "syringe.i_motor"],
+        plot_depth_control),
 }
 
 

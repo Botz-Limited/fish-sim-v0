@@ -7,6 +7,9 @@ model DCMotor "Silnik DC z magnesami trwałymi: R–L + RotationalEMF + inercja 
   parameter Modelica.Units.SI.Inertia J = 5e-6 "Moment bezwładności wirnika (PLACEHOLDER – do identyfikacji)";
   parameter Modelica.Units.SI.RotationalDampingConstant b = 1e-6
     "Tarcie lepkie w łożyskach (PLACEHOLDER – do identyfikacji)";
+  parameter Boolean initRotor = true
+    "= true: wirnik startuje z phi = 0, w = 0. Ustaw false, gdy wał jest sztywno połączony z elementem, który ma już własne warunki początkowe (np. tłok przez przekładnię)"
+    annotation (Evaluate=true, choices(checkBox=true));
 
   Modelica.Electrical.Analog.Interfaces.PositivePin p
     annotation (Placement(transformation(extent={{-110,30},{-90,50}})));
@@ -28,7 +31,7 @@ model DCMotor "Silnik DC z magnesami trwałymi: R–L + RotationalEMF + inercja 
   Modelica.Electrical.Analog.Basic.RotationalEMF emf(k=k)
     annotation (Placement(transformation(extent={{-10,-10},{10,10}})));
   Modelica.Mechanics.Rotational.Components.Inertia rotor(J=J,
-    phi(start=0, fixed=true), w(start=0, fixed=true))
+    phi(start=0, fixed=initRotor), w(start=0, fixed=initRotor))
     annotation (Placement(transformation(extent={{30,-10},{50,10}})));
   Modelica.Mechanics.Rotational.Components.Damper friction(d=b)
     annotation (Placement(transformation(extent={{-10,-10},{10,10}}, rotation=-90, origin={70,-30})));

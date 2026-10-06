@@ -172,6 +172,37 @@ def check_flapping(sol, expect_relief):
 FLAP_VARS = ["time", "drive.chamberL.V", "drive.chamberR.V", "drive.reliefLR.V_flow", "drive.reliefRL.V_flow",
              "drive.pump.V_flow"]
 
+def check_ballast_statics(sol):
+    t = sol["time"]
+    v_n, v_l, v_h = sol["fishNeutral.v_z"], sol["fishLight.v_z"], sol["fishHeavy.v_z"]
+    rigid_drift = abs(sol["fishRigid.z"][-1] - sol["fishRigid.z"][0])
+    comp_dev0 = abs(sol["fishComp.z"][0] + 3.0)
+    comp_dev = abs(sol["fishComp.z"][-1] + 3.0)
+    plotting.series(t, [(sol["fishNeutral.z"], "neutralna"), (sol["fishLight.z"], "+1 ml"),
+                        (sol["fishHeavy.z"], "−1 ml"), (sol["fishComp.z"], "ściśliwy kadłub, start −3,01 m")],
+                    "z [m]", "BallastStatics: ryba bez regulatora przy stałej objętości pęcherza",
+                    "ballast_statics.png")
+    return [("V_b neutralne ⇒ z' → 0", np.max(np.abs(v_n)) < 1e-9, f"max |z'| {np.max(np.abs(v_n)):.1e} m/s"),
+            ("V_b większe ⇒ wynurzanie, mniejsze ⇒ tonięcie", v_l[-1] > 0.01 and v_h[-1] < -0.01,
+             f"z' = {v_l[-1] * 100:+.1f} / {v_h[-1] * 100:+.1f} cm/s"),
+            ("sztywny kadłub: równowaga obojętna (zostaje w miejscu)", rigid_drift < 1e-6,
+             f"przesunięcie {rigid_drift:.1e} m"),
+            ("ściśliwy kadłub: zaburzenie 1 cm rośnie > 10 razy", comp_dev > 10 * comp_dev0,
+             f"{comp_dev0 * 100:.1f} cm -> {comp_dev * 100:.1f} cm po 60 s")]
+
+
+def check_depth_control(sol):
+    t, z = sol["time"], sol["fish.z"]
+    a = (t > 10) & (t < 100)
+    overshoot = (-1.5 - z[a].min()) / 1.0
+    err_end = abs(z[-1] + 1.0)
+    x, x_max = sol["syringe.x"], sol["syringe.x_max"][0]
+    return [("przeregulowanie po skoku −0,5 → −1,5 m < 15%", overshoot < 0.15, f"{overshoot:.1%}"),
+            ("błąd ustalony na −1,0 m < 2 cm", err_end < 0.02, f"{err_end * 100:.2f} cm"),
+            ("tłok nie dotyka ograniczników", x.min() > 0 and x.max() < x_max,
+             f"x ∈ [{x.min() * 1e3:.1f}, {x.max() * 1e3:.1f}] mm z [0, {x_max * 1e3:.0f}]")]
+
+
 CHECKS = {
     "FishRobot.Tests.PipeLaminar": (["time", "pipe.dp", "dp_analytic", "pipe.Re"], check_pipe_laminar),
     "FishRobot.Tests.PipeQuadratic": (["time", "pipe.V_flow", "pipe.dp", "dp_exact"], check_pipe_quadratic),
@@ -196,6 +227,10 @@ CHECKS = {
                                             "V_total"], check_tail_direction),
     "FishRobot.Examples.TailFlapping": (FLAP_VARS, lambda s: check_flapping(s, expect_relief=False)),
     "FishRobot.Examples.ReliefValveDemo": (FLAP_VARS, lambda s: check_flapping(s, expect_relief=True)),
+    "FishRobot.Tests.BallastStatics": (["time", "fishNeutral.v_z", "fishLight.v_z", "fishHeavy.v_z", "fishNeutral.z",
+                                        "fishLight.z", "fishHeavy.z", "fishRigid.z", "fishComp.z"],
+                                       check_ballast_statics),
+    "FishRobot.Examples.DepthControl": (["time", "fish.z", "syringe.x", "syringe.x_max"], check_depth_control),
     "FishRobot.Tests.ReliefValveLimit": (["time", "chamber.p_gauge", "source.V_flow", "valve.V_flow",
                                           "valve.p_set", "valve.dp_open"], check_relief_valve),
 }

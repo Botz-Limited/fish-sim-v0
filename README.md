@@ -11,7 +11,7 @@ Uproszczony, **edukacyjny i nieskalibrowany** model robota-ryby w Modelice: siln
 | 3 | `Battery`, `HBridge`, `DCMotor`, `GearPump` → scenariusz `HydraulicsStep` | gotowe |
 | 4 | `TailEquivalent`, `CPG`, podukład `TailDrive` → `TailFlapping`, `FrequencySweep` (`sweep.py`), `ReliefValveDemo` | gotowe |
 | 5 | Bilans energii w `TailDrive` → `EnergyBudget` + test zamknięcia bilansu | gotowe |
-| 6 | Balast + pion → `DepthControl` | – |
+| 6 | `BallastSyringe`, `VerticalDynamics`, `DepthPID` (kaskada) → `DepthControl`, test `BallastStatics` | gotowe |
 | 7 | Surge → `SwimForward` | – |
 | 8 | FMU + FMPy | – |
 
@@ -101,6 +101,22 @@ Ich iloczyn `p·V_flow` to moc w watach, więc bilans energii wynika wprost z po
   - Prąd baterii ma podwójną częstotliwość i chwilami jest ujemny. W każdej połówce okresu silnik najpierw rozpędza się, a potem hamuje, oddając energię do baterii.
   - Amplituda rośnie przez 2 okresy, bo CPG zaczyna od łagodnej rampy.
 - **`relief_valve_demo.png`** (scenariusz 4) – pełna komenda przy 0,25 Hz. Różnica ciśnień dochodzi do ±`p_set`, zawory się otwierają, a szczyty kąta ogona się spłaszczają (ok. ±31°). Dolny panel pokazuje, że ponad połowa energii hydraulicznej oddanej przez pompę idzie w ciepło w zaworach.
+
+- **`depth_control.png`** (scenariusz 6) – skoki zadanej głębokości −0,5 → −1,5 → −1,0 m:
+  - Żeby zejść głębiej, regulator najpierw zmniejsza pęcherz (ryba robi się cięższa), a przed celem zwiększa go z powrotem, żeby wyhamować. Ryba opada ze stałą prędkością ok. 3 cm/s, bo filtr zadanej zamienia skok na rampę.
+  - Przeregulowanie ok. 6%, błąd ustalony na −1,0 m ok. 5 mm. Tłok pracuje w zakresie 15–23 mm z 40 mm skoku, więc nie dochodzi do ograniczników.
+  - Sprzężenie w przód jest celowo niedokładne (5,5 ml zamiast 6 ml). Różnicę usuwa człon całkujący, ale wolno (`Ti = 120 s`): na −1,5 m ryba przez ok. 50 s wisi 2–4 cm za nisko.
+  - Prąd silnika strzykawki płynie tylko podczas ruchu tłoka (szczyty ok. 0,2 A). Utrzymanie głębokości przy sztywnym kadłubie nic nie kosztuje.
+
+## Balast i pion (scenariusz 6)
+
+Strzykawka (`Buoyancy.BallastSyringe`) to mostek H, silnik DC, przekładnia, śruba pociągowa i tłok z ogranicznikami sprężysto-tłumiącymi. Ciśnienie hydrostatyczne wpycha tłok. `Buoyancy.VerticalDynamics` traktuje rybę jak punkt materialny z masą dodaną i oporem kwadratowym: każdy mililitr ponad objętość neutralną daje ok. 0,01 N siły w górę.
+
+**Lekcja: sztywny kadłub ma równowagę obojętną, kadłub z powietrzem – niestabilną** (test `BallastStatics`). Przy sztywnym kadłubie wypór nie zależy od głębokości, więc ryba zostaje tam, gdzie ją postawiono. Kieszeń powietrza ściska się z głębokością: ryba neutralna na −3 m, przesunięta o 1 cm w dół, robi się cięższa i po 60 s jest 40 cm niżej. Stąd potrzeba aktywnej regulacji.
+
+**Regulator kaskadowy (`Control.DepthPID`).** Od komendy silnika do głębokości są trzy całkowania, więc jeden PID jest trudny do nastrojenia. Pętla wewnętrzna (P) ustawia objętość pęcherza, a zewnętrzna (`LimPID` z anti-windupem) zamienia błąd głębokości na zadaną objętość. Szczegóły nastaw i pułapka inicjalizacji `LimPID` są w dokumentacji modelu.
+
+`DCMotor` ma parametr `initRotor`. W strzykawce wał jest sztywno połączony z tłokiem przez przekładnię, więc warunki początkowe ma tylko tłok. Inaczej układ byłby nadokreślony.
 
 ## Bilans energii (scenariusz 5)
 
