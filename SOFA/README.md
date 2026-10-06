@@ -2,7 +2,7 @@
 
 Edukacyjne demo FEM ogona robota-ryby. Specyfikacja: [SPEC_fish_sofa_demo.md](SPEC_fish_sofa_demo.md). **To nie jest skalibrowany model** – wszystkie parametry to placeholdery.
 
-Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem), 2 (komora L quasi-statycznie), 3 (symetria L/R) i 4 (machanie w powietrzu) zakończone; solver CHOLMOD (4–15× szybciej) dodany po etapie 2.** Kolejne etapy: patrz spec, sekcja 8.
+Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem), 2 (komora L quasi-statycznie), 3 (symetria L/R), 4 (machanie w powietrzu), 5 (woda) i 6 (przeglądy) zakończone; solver CHOLMOD (4–15× szybciej) dodany po etapie 2, OpenBLAS z condy i równoległe przeglądy po etapie 4.** Kolejne etapy: patrz spec, sekcja 8.
 
 ## Instalacja (Linux x86_64, sprawdzone na Fedorze 44 i EndeavourOS/Arch)
 
@@ -45,11 +45,16 @@ Inny katalog niż `~/sofa`: `FISHSOFA_HOME=/sciezka` dla `setup.sh` **i** `env.s
 source SOFA/scripts/env.sh
 python SOFA/scripts/check_sofa.py           # etap 0: nazwy komponentów i pól w tej wersji SOFA
 python SOFA/scripts/probe_volume_growth.py  # etap 0: jak działa SurfacePressureConstraint (~2.5 min)
-cd SOFA && pytest -q                        # testy (~25 s, gruba siatka "test" w katalogu tymczasowym)
+cd SOFA && pytest -q                        # testy (~3 min, gruba siatka "test" w katalogu tymczasowym)
 python -m fishsofa.mesh_gen --level all     # etap 1: siatki do meshes/ (fine ~10 s)
 python scripts/run_stage1.py                # etap 1: raport + wykres do results/ (~10 min, głównie fine)
 python scripts/run_stage2_variants.py       # etap 2a: warianty konstrukcji (~10 min)
 python scripts/run_stage2.py                # etap 2: krzywa p–V i kąt, 3 siatki (~25 min)
+python scripts/run_stage3.py                # etap 3: symetria L/R (~3 min)
+python scripts/run_stage4.py                # etap 4: machanie w powietrzu (~25 min)
+python scripts/run_stage5.py                # etap 5: woda vs powietrze (3 symulacje naraz, ~30 min)
+python scripts/run_stage6.py                # etap 6: przeglądy f i E (19 symulacji, ~1 h na 12 wątkach)
+FISHSOFA_ENV=water scripts/run_gui.sh       # GUI: ogon macha w wodzie
 scripts/run_gui.sh coarse                   # ogon w GUI; po Animate ugina się pod ciężarem
 # GUI z przykładem SoftRobots (komora ciśnieniowa vs objętościowa):
 $SOFA_ROOT/bin/runSofa -l SofaPython3 $SOFA_ROOT/plugins/SoftRobots/share/sofa/examples/SoftRobots/component/constraint/SurfacePressureConstraint/PressureVsVolumeGrowthControl.py
@@ -198,6 +203,18 @@ v26.06 dochodzi do spoczynku (prędkość 1e-13 m/s), a przy tych samych siłach
 
 **Jak zbudowana jest wtyczka** (`scripts/build_cholmod_plugin.sh`): źródła samej wtyczki z master (skopiowane do `third_party/SofaCHOLMOD`, bo master bywa przepisywany), skompilowane na nagłówkach binarki v26.06 z dwiema poprawkami. (1) Nowszy `EigenSolverFactory.h`, bo wtyczka używa szablonu `registerProxyType`, który doszedł po v26.06. To czysty dodatek w nagłówku, bez zmiany układu klasy, więc SOFA nie trzeba przebudowywać. (2) `FindCHOLMOD.cmake` bez configu CMake z SuiteSparse, bo config z Fedory odwołuje się do nieistniejących plików `*_static.cmake`. `env.sh` dopisuje katalog wtyczki do `SOFA_PLUGIN_PATH`; tak samo widzi ją `runSofa`.
 
+### Wydajność: OpenBLAS z condy i równoległe przeglądy (6.10.2026, EndeavourOS)
+
+**Profil kroku** (machanie, coarse, CHOLMOD, `py-spy --native`): 45% składanie macierzy układu (w tym FEM 34%), 30% rozkład CHOLMOD, 8% analiza symboliczna wzorca macierzy, 6% solver ograniczeń. Wszystko na jednym rdzeniu.
+
+**1. BLAS: 2.2× szybciej na Archu.** CHOLMOD supernodalny liczy gęste bloki w BLAS. Na Fedorze BLAS to OpenBLAS (przez FlexiBLAS), a na Archu systemowy `libblas.so.3` to wzorcowy, nieoptymalizowany BLAS z netlib. Tam krok trwał 470 ms zamiast ~200 ms. Teraz OpenBLAS przychodzi z condy (`environment.yml`: `libblas=*=*openblas`), a `env.sh` dowiązuje go w katalogu `fishsofa-pylib` (tak jak libpython), niezależnie od systemu: **470 → 217 ms/krok**, wynik identyczny co do ostatniej cyfry.
+
+**2. Analiza symboliczna co krok – sprawdzone, bez zysku.** SOFA wyrzuca z macierzy dokładne zera, a włókna `elongationOnly` w stanie luźnym mają zerową sztywność, więc wzorzec macierzy zmienia się i CHOLMOD powtarza analizę. Spróbowałem łatki we wtyczce (analiza tylko, gdy nowy wzorzec nie jest podzbiorem poprzedniego). Pomiar: analiza powtarza się tylko w pierwszych ~300 krokach (prefill, gdy kolejne włókna napinają się pierwszy raz), potem już nigdy, także bez łatki. W ustalonym ruchu oba warianty dają 204–206 ms/krok, więc łatkę wycofałem (wtyczka zostaje bez zmian).
+
+**3. Jedna symulacja = jeden rdzeń, więc przeglądy liczymy równolegle.** Składanie macierzy w SOFA jest sekwencyjne (`ParallelTetrahedronFEMForceField` tego nie zmienia), bloki CHOLMOD są za małe na wiele wątków BLAS, a kolejne kroki czasu zależą od poprzednich. Dlatego `top` pokazuje ~1/12 procesora na symulację. Za to punkty przeglądów (etapy 5–6) są niezależne: `fishsofa/parallel.py` liczy je w osobnych procesach (do 10 naraz na 12 wątkach, ~0.5 GB RAM każdy; `FISHSOFA_WORKERS` zmienia limit). `env.sh` ustawia `OPENBLAS_NUM_THREADS=1`, żeby procesy nie walczyły o rdzenie.
+
+Pozostałe rezerwy, nieużyte: redukcja rzędu modelu (ModelOrderReduction, wymaga treningu), elementy wyższego rzędu (mniej węzłów przy tej samej dokładności ciśnienia, ale SOFA ich nie ma dla korotacyjnego FEM z komorami), własne równoległe składanie macierzy FEM (zmiana w C++ SOFA).
+
 ## Etap 2a – dlaczego ogon się nie zginał i co pomogło
 
 **Problem:** przy geometrii z etapu 1 (V0: ścianki 4 mm, jednorodny silikon) 72 ml w komorze L zgina ogon tylko o 1.3°. Ciecz idzie w wybrzuszanie ścianki zewnętrznej (jak balon) i w uginanie przegrody w stronę komory R, a nie w wydłużanie lewego boku ogona. Dopiero wydłużenie jednego boku daje zgięcie.
@@ -321,3 +338,83 @@ Obserwacje:
 **Wpływ dt (spec, sekcja 5):** przy dt = 2 ms amplituda jest o 5.1% mniejsza niż przy 1 ms. Niejawny Euler tłumi numerycznie i to tłumienie rośnie z dt. Dla etapów 5–6 to znany błąd systematyczny (−5% amplitudy). Jeśli porównania mają być ilościowe, trzeba liczyć przy 1 ms, kosztem 2× dłuższego czasu.
 
 **GUI (sprawdzone 5.10.2026: ogon macha):** `scripts/run_gui.sh` (domyślnie tryb `flap`, Animate) pokazuje ten sam przebieg z rysowaniem ciśnienia komór (`drawPressure`). Pierwsza sekunda to prefill (ogon prawie stoi), a 1 s symulacji liczy się ~2 min. Ugięcie pod ciężarem z etapu 1: `scripts/run_gui.sh coarse sag`.
+
+## Etap 5 – woda: opór, ciąg na uwięzi
+
+`scripts/run_stage5.py` (~60 min zegarowo, 3 symulacje naraz). Ten sam przebieg co w etapie 4 (coarse, prefill 20 ml, 2 Hz, A_V = 17 ml), ale `environment="water"`: silikon ma ciężar pozorny g·(1 − ρ_w/ρ_s), woda w komorach ma bezwładność bez ciężaru, a na skórę działa opór wody. GUI: `FISHSOFA_ENV=water scripts/run_gui.sh`.
+
+### Model oporu (`fishsofa/water.py`, `controller.WaterDragController`)
+
+Każdy trójkąt skóry dostaje siłę zależną tylko od własnej prędkości v (średnia z 3 węzłów), normalnej zewnętrznej n i pola A:
+- normalna F_n = −½ρ·C_n·A·(v·n)|v·n|·n (opór ciśnieniowy),
+- styczna F_t = −½ρ·C_t·A·|v_t|·v_t (tarcie skóry).
+
+Siła trójkąta idzie po 1/3 na jego węzły, przez `ConstantForceField` "water" aktualizowany na początku każdego kroku. C_n = 1 i C_t = 0.01 to PLACEHOLDER. C_n działa na każdą stronę powierzchni, więc cienka płytka w przepływie poprzecznym ma C_d ≈ 2·C_n ≈ 2, jak płaska płytka (test `test_drag_on_flat_plate`). Funkcje są czystym numpy i mają testy bez SOFA: moc oporu F·v ≤ 0 na każdym trójkącie, zerowa prędkość daje zerową siłę.
+
+**Stabilność.** Siła liczona z prędkości z poprzedniego kroku to jawne tłumienie. Węzeł o masie m i lokalnym współczynniku c = ρ·C_n·A_węzła·|v_n| jest stabilny tylko przy c·dt/m wyraźnie < 1. Najgorsze są węzły płetwy (6 mm grubości, lekkie i o dużej powierzchni):
+
+| dt | max(c·dt/m) w ustalonym cyklu |
+|---|---|
+| 2 ms | ~0.7 (siatka test), za dużo |
+| 1 ms | **0.536**, chwilowo w szczycie prędkości płetwy, tuż powyżej 0.5 |
+| 0.5 ms | **0.272**, wynik etapu |
+
+Między 1 ms a 0.5 ms amplituda różni się o 1.4%, a ciąg o 5%. Siły nie są obcinane. Krok 0.5 ms kosztuje 2×. Tańsza droga byłaby niejawna: opór jako `ForceField` z członem tłumienia w macierzy układu (rozszerzenie ze specu, niezrobione).
+
+### Wyniki (`results/s5_water_vs_air.png`, `.csv`, `results/s5_summary.txt`)
+
+| | powietrze (dt 1 ms) | woda (dt 0.5 ms) |
+|---|---|---|
+| amplituda θ (ustalony cykl) | ±13.33° | **±7.32°** (0.55×) |
+| opóźnienie fazy θ względem −V_ref | 47° | 77° (+30°) |
+| \|Δp\| max | 5.5 kPa | 5.6 kPa |
+| ciąg na uwięzi (średnie F_x) | – | **+67 mN** |
+| siła boczna F_y | – | ±755 mN |
+| średnia moc oporu | – | 125 mW |
+
+Obserwacje:
+- **Ta sama komenda objętości, prawie dwa razy mniejsze machanie.** W powietrzu ogon (z ~3 Hz częstością własną, etap 1) przy 2 Hz jest blisko rezonansu i bezwładność wzmacnia ruch ponad wychylenie statyczne. Woda tłumi to wzmocnienie i przesuwa fazę o +30°: kąt jeszcze bardziej spóźnia się za objętością.
+- **Δp prawie się nie zmienia.** Ciśnienie w komorach ustala głównie sztywność ogona i ścianek (rząd 10⁴ Pa), a siły wody są małe w porównaniu z siłami sprężystymi. Dla pompy i zaworu woda niewiele zmienia przy tych parametrach.
+- **Ciąg jest ~10× mniejszy niż siła boczna**, a jego składowa F_x pulsuje z 2f (dwa „pchnięcia” na cykl, po jednym na każdy ruch w bok). Średnio +67 mN. To tylko jakościowo: model ma sam opór, bez masy dodanej i bez śladu wirowego, a to te efekty dominują w ciągu ryb (Lighthill). Prawdziwy ogon da prawdopodobnie inną liczbę; do porównania służy pomiar na wadze w wannie (sekcja „Jak kalibrować”).
+- 361–408 ms/krok przy 3 równoległych procesach i 11 procesach razem z etapem 6 (pojedynczo ~220 ms). Woda przy dt 0.5 ms liczy się ~800× wolniej niż czas rzeczywisty.
+
+## Etap 6 – przeglądy: częstotliwość i moduł Younga
+
+`scripts/run_stage6.py`: 19 niezależnych symulacji (siatka coarse) liczonych równolegle przez `fishsofa/parallel.py`. **Czas całego przeglądu: 68 min zegarowo**, w tym 444 min CPU samych symulacji dynamicznych, czyli 6.5× szybciej niż po kolei (8 procesów naraz obok 3 z etapu 5). Wyniki: `results/s6_freq_sweep.png/.csv`, `results/s6_young_sweep.png/.csv`, `results/s6_summary.txt`.
+
+### a) Częstotliwość 0.5–3 Hz w wodzie (`s6_freq_sweep.png`)
+
+Te same punkty co `MuJoCo/scripts/sweep_frequency.py` (co 0.25 Hz), ta sama amplituda objętości A_V = 17 ml. Protokół: prefill 1 s, 2 cykle rozbiegu (pierwszy to rampa amplitudy), 3 cykle uśredniania. Krok: 1 ms do 2 Hz, wyżej 1 ms·2/f.
+
+| f [Hz] | 0.5 | 1.0 | 1.5 | 2.0 | 2.25 | 2.5 | 3.0 |
+|---|---|---|---|---|---|---|---|
+| amplituda θ [°] | 11.8 | 10.8 | 8.9 | 7.2 | 6.5 | 5.7 | 4.3 |
+| opóźnienie fazy [°] | 17 | 40 | 61 | 77 | 84 | 91 | 106 |
+| ciąg [mN] | 1.5 | 19.6 | 45.9 | 63.2 | **67.9** | 62.8 | 47.0 |
+| \|Δp\| max [kPa] | 1.7 | 3.5 | 4.9 | 5.7 | 5.9 | 5.9 | 5.4 |
+| pompa nasycona [% czasu] | 0 | 0 | 0 | 0 | 18 | 36 | 53 |
+
+Co pokazuje wykres:
+- **Amplituda spada z f przez cały zakres.** W wodzie ogon nie ma rezonansu: opór rośnie z kwadratem prędkości i tłumi go silniej niż w powietrzu (tam częstość własna to ~3 Hz, etap 1). Przy niskim f kąt dochodzi do quasi-statycznego (~12°, porównaj etap 2) i prawie nie spóźnia się za objętością.
+- **Ciąg ma maksimum przy ~2.25 Hz.** Rośnie, bo rośnie prędkość płetwy (opór ~ v²), a spada, bo maleje amplituda i od 2.25 Hz pompa się nasyca: potrzebny szczytowy przepływ 2π·f·A_V (240 ml/s przy 2.25 Hz, plus kompensacja opóźnienia pompy) przekracza Q_max = 250 ml/s.
+- **Zawór nie otwiera się nigdzie:** |Δp| ≤ 6 kPa wobec p_max = 50 kPa. Przy tej konstrukcji ograniczeniem jest wydajność pompy, nie ciśnienie.
+- **Porównanie z MuJoCo** (`MuJoCo/results/s5_sweep.png`, na wykresie przeskalowana linia przerywana, tylko kształt): MuJoCo ma pik amplitudy przy 1.5 Hz, SOFA nie ma piku. Przyczyny: MuJoCo modeluje pływającą rybę z masą dodaną i rezonansem pasywnym (`passive_resonance_hz`), a tu ogon jest przymocowany, z samym oporem, który przy tej sztywności tłumi rezonans całkowicie. Spadek powyżej 2 Hz (nasycenie pompy) wygląda w obu podobnie.
+- **Stabilność oporu:** max(c·dt/m) wynosi 0.52 przy 1.75 Hz i 0.54 przy 2 Hz (dt 1 ms), wszędzie indziej < 0.5. Etap 5 zmierzył skutek takiego przekroczenia: przy dt/2 amplituda +1.4%, ciąg +5%. Lepsza reguła na przyszłość: dt = 1 ms·min(1, 1.6/f).
+
+### b) Moduł Younga silikonu ×0.5 / ×1 / ×2 (`s6_young_sweep.png`)
+
+Zmieniany jest tylko silikon (z kręgosłupem, bo jego E to 20× silikon). Włókna obwodowe to inny materiał i ich sztywność zostaje.
+
+| | E×0.5 | E×1 | E×2 |
+|---|---|---|---|
+| **sterowanie objętością**, 40 ml: ciśnienie | 7.1 kPa | 14.2 kPa | 27.9 kPa |
+| ten sam przypadek: kąt | −11.35° | −11.35° | −11.16° |
+| **sterowanie ciśnieniem**, 8 kPa: kąt | −12.91° | −6.03° | −2.73° |
+| **dynamicznie w wodzie, 2 Hz**: amplituda | ±5.8° | ±7.2° | ±8.2° |
+| ten sam przypadek: opóźnienie fazy | 96° | 77° | 59° |
+
+**Lekcja: sterowanie objętością a sterowanie ciśnieniem.**
+- Pompa wymusza **objętość**. Gdy cała konstrukcja jest „jednym materiałem razy k” i nie ma obciążeń zewnętrznych, równowaga przy zadanym ΔV w ogóle nie zależy od k: ten sam kształt, tylko ciśnienie ×k. Tu widać to prawie dokładnie (kąt przy 40 ml różni się o < 2%, ciśnienie skaluje się 0.50 / 1 / 1.97). Odstępstwo przy 10 ml dla E×0.5 (−1.68° vs −1.93°) pochodzi od włókien, które się nie skalują: przy miękkim silikonie są relatywnie sztywniejsze. Test `test_young_x2_same_volume_doubles_pressure_keeps_angle` skaluje też włókna i sprawdza prawo dokładnie.
+- Sztywność decyduje więc o **wymaganym ciśnieniu**: dobór pompy, zaworu, szczelności, zmęczenie silikonu. Na ruch wpływa dopiero przez obciążenia zewnętrzne: wodę, bezwładność, ciężar.
+- **Przy sterowaniu ciśnieniem jest odwrotnie:** ten sam p daje ugięcie ~1/E (8 kPa: 12.9° / 6.0° / 2.7°, test `test_young_x2_same_pressure_halves_angle`). Nawet szybciej niż 1/E, bo krzywa p–V się usztywnia (etap 2), a miękki ogon wchodzi głębiej w jej nieliniową część.
+- **Dynamicznie w wodzie E jednak zmienia ruch:** sztywniejszy ogon ma wyższą częstość własną, więc przy 2 Hz mniej spóźnia się za objętością (59° vs 96°) i mniej ruchu „gubi” na oporze. Miękki ogon przy tej samej objętości macha mniej, bo woda przy jego wolniejszej odpowiedzi zabiera większą część ruchu.

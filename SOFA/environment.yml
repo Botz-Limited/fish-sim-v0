@@ -1,5 +1,5 @@
 # Środowisko conda dla demo SOFA:  conda env create -f SOFA/environment.yml
-# (robi to scripts/setup.sh). Z condy bierzemy tylko Pythona 3.12 – binarka SOFA v26.06
+# (robi to scripts/setup.sh). Z condy bierzemy Pythona 3.12 i OpenBLAS – binarka SOFA v26.06
 # jest zlinkowana z libpython3.12.so.1.0, której systemy z nowszym Pythonem nie mają.
 # Pakiety Pythona z pip (requirements.txt), żeby wersje były identyczne na każdym systemie.
 name: fishsofa
@@ -7,6 +7,10 @@ channels:
   - conda-forge
 dependencies:
   - python=3.12
+  # BLAS/LAPACK dla CHOLMOD (scripts/env.sh): OpenBLAS z condy, niezależnie od systemu.
+  # Systemowy BLAS bywa wzorcowy, nieoptymalizowany (Arch: 2.2× wolniejszy krok).
+  - libblas=*=*openblas
+  - liblapack=*=*openblas
   - pip
   - pip:
       - -r requirements.txt

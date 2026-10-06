@@ -27,6 +27,10 @@ class TailConfig:
     #           ma bezwładność, ale nie ma ciężaru (wypór = ciężar), opór wody włączony.
     environment: str = "air"
     chambers_filled: bool = True   # komory pełne wody (masa wody liczona do bezwładności)
+    # Opór wody (environment="water", fishsofa/water.py). C_n liczony na KAŻDĄ stronę
+    # powierzchni, więc płytka w przepływie poprzecznym ma C_d ≈ 2·C_n ≈ 2 (płaska płytka).
+    drag_C_n: float = 1.0          # [-] PLACEHOLDER – do identyfikacji z pomiarów
+    drag_C_t: float = 0.01         # [-] tarcie skóry, rząd C_f przy Re ~ 1e4–1e5; PLACEHOLDER – do identyfikacji z pomiarów
 
     # ------------------------------------------------------------------ geometria ogona
     # Wymiary przepisane z MuJoCo/fishsim/config.py, żeby eksport PRBM (etap 7) miał sens:

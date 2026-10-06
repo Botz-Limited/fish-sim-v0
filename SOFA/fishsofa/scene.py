@@ -1,7 +1,8 @@
 """Scena SOFA: miękki ogon FEM przymocowany do kadłuba.
 
 GUI:      scripts/run_gui.sh [coarse|medium|fine]    (runSofa wywołuje createScene;
-          FISHSOFA_MODE=flap – machanie, domyślnie; sag – ugięcie pod ciężarem)
+          FISHSOFA_MODE=flap – machanie, domyślnie; sag – ugięcie pod ciężarem;
+          FISHSOFA_ENV=air – domyślnie, water – opór wody i ciężar pozorny)
 Headless: fishsofa.headless (ta sama funkcja build_tail)
 
 Etap 1: sam materiał, bez aktuacji – ogon ugina się pod własnym ciężarem.
@@ -146,6 +147,15 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
     if cfg.hoop_fibers:
         _add_hoop_fibers(tail, cfg)
 
+    # Opór wody (etap 5): siły na węzłach skóry, liczone co krok w Pythonie
+    # (controller.WaterDragController) i wpisywane do tego ConstantForceField.
+    # Skóra ma te same węzły co FEM, więc mapowanie nie jest potrzebne.
+    water_ff = None
+    if cfg.environment == "water" and solver == "dynamic":
+        skin = np.unique(mesh.tri_outer)
+        water_ff = tail.addObject("ConstantForceField", name="water", indices=skin.tolist(),
+                                  forces=np.zeros((len(skin), 3)).tolist())
+
     if solver == "dynamic":
         # Korekcja ograniczeń: mówi solverowi ograniczeń, jak węzły zareagują na siły
         # ograniczeń (używa faktoryzacji solvera liniowego). Przy "warp" link do
@@ -164,8 +174,13 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
         visu.addObject("OglModel", src="@loader", color=[0.95, 0.70, 0.30, 1.0])
         visu.addObject("BarycentricMapping")
 
-    return {"tail": tail, "dofs": dofs, "mesh": mesh, "masses": mm, "folder": folder,
-            "chambers": spcs, "dt": cfg.dt}
+    h = {"tail": tail, "dofs": dofs, "mesh": mesh, "masses": mm, "folder": folder,
+         "chambers": spcs, "dt": cfg.dt, "water": None}
+    if water_ff is not None:
+        from fishsofa.controller import WaterDragController
+        h["water"] = root.addObject(WaterDragController(name="waterDrag", root=root, handles=h,
+                                                        force_field=water_ff, cfg=cfg))
+    return h
 
 
 def add_chamber(tail, folder: str, side: str, mode: str, cfg: TailConfig):
@@ -274,7 +289,7 @@ def createScene(root):
     """
     level = os.environ.get("FISHSOFA_LEVEL", "coarse")
     mode = os.environ.get("FISHSOFA_MODE", "flap")
-    cfg = TailConfig()
+    cfg = TailConfig(environment=os.environ.get("FISHSOFA_ENV", "air"))
     if mode == "sag":
         build_tail(root, cfg, level, gui=True)
     elif mode == "flap":

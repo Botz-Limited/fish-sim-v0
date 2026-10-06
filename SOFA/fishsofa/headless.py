@@ -108,8 +108,13 @@ def _bulge_probe(mesh, cfg: TailConfig, side: int):
 def quasi_static_sweep(cfg: TailConfig, level: str, dV_targets, side: str = "L",
                        mesh_root: str | None = None, dt: float = 0.05, ramp_steps: int = 4,
                        max_hold_steps: int = 60, ke_tol: float = 0.01,
-                       p_stop: float | None = None, max_fraction: float | None = None) -> QuasiStaticCurve:
+                       p_stop: float | None = None, max_fraction: float | None = None,
+                       mode: str = "volume") -> QuasiStaticCurve:
     """Krzywa ciśnienie–objętość–kąt dla jednej komory (druga odpowietrzona), quasi-statycznie.
+
+    mode="volume" (domyślnie): dV_targets to przyrosty objętości [m³] (pompa wymusza objętość).
+    mode="pressure": dV_targets to ciśnienia [Pa] (valueType="pressure", wejście p·dt);
+    etap 6 porównuje oba tryby przy zmianie modułu Younga.
 
     Metoda „pseudo-statyki”: niejawny Euler z dużym krokiem (dt = 50 ms). Bezwładność
     (M/dt²) jest wtedy mała wobec sztywności, więc każdy krok prawie od razu trafia
@@ -132,7 +137,7 @@ def quasi_static_sweep(cfg: TailConfig, level: str, dV_targets, side: str = "L",
     cfg = replace(cfg, dt=dt, linear_solver=exact)
     other = "R" if side == "L" else "L"
     root = Sofa.Core.Node("root")
-    h = build_tail(root, cfg, level, mesh_root, chambers={side: "volume", other: "vented"})
+    h = build_tail(root, cfg, level, mesh_root, chambers={side: mode, other: "vented"})
     Sofa.Simulation.init(root)
     spc, dofs, mesh, m = h["chambers"][side], h["dofs"], h["mesh"], h["masses"].node_mass
     x0 = np.array(dofs.position.value)
@@ -150,7 +155,8 @@ def quasi_static_sweep(cfg: TailConfig, level: str, dV_targets, side: str = "L",
         while True:
             steps += 1
             frac = min(1.0, steps / ramp_steps)
-            spc.value = [target_prev + frac * (target - target_prev)]
+            target_now = target_prev + frac * (target - target_prev)
+            spc.value = [target_now if mode == "volume" else hydraulics.pressure_input(target_now, dt)]
             Sofa.Simulation.animate(root, dt)
             x = np.array(dofs.position.value)
             v = np.array(dofs.velocity.value)
@@ -217,6 +223,8 @@ def run_flapping(cfg: TailConfig, level: str, t_end: float, mesh_root: str | Non
             print(f"  t = {(i + 1) * cfg.dt:.2f} s, {1e3 * el / (i + 1):.0f} ms/krok", flush=True)
     ms = 1e3 * (time.perf_counter() - t0) / n
     log = {k: np.array(v, dtype=float) for k, v in ctrl.log.items()}
+    if h["water"] is not None:   # te same chwile co log pompy (oba kontrolery na początku kroku)
+        log.update({k: np.array(v, dtype=float) for k, v in h["water"].log.items() if k != "t"})
     Sofa.Simulation.unload(root)
     return FlapRun(log, cfg.dt, ms, cycle_metrics(log, cfg))
 

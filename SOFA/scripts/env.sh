@@ -33,7 +33,23 @@ fi
 FISHSOFA_PYLIB="$SOFA_ROOT/../fishsofa-pylib"
 mkdir -p "$FISHSOFA_PYLIB"
 ln -sf "$CONDA_PREFIX/lib/libpython3.12.so.1.0" "$FISHSOFA_PYLIB/libpython3.12.so.1.0"
-export LD_LIBRARY_PATH="$FISHSOFA_PYLIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+# BLAS/LAPACK dla CHOLMOD: OpenBLAS z condy (environment.yml) zamiast systemowego.
+# CHOLMOD supernodalny liczy gęste bloki w BLAS, więc jego jakość decyduje o czasie kroku.
+# Na Archu systemowy libblas.so.3 to wzorcowy (nieoptymalizowany) BLAS z netlib:
+# 470 ms/krok, z OpenBLAS 217 ms/krok (coarse, machanie), wynik identyczny (README,
+# „Wydajność”). Dowiązujemy tylko te biblioteki, z tego samego powodu co libpython.
+for _l in libblas.so.3 liblapack.so.3 libgfortran.so.5 libquadmath.so.0; do
+    [ -e "$CONDA_PREFIX/lib/libopenblas.so.0" ] && [ -e "$CONDA_PREFIX/lib/$_l" ] \
+        && ln -sf "$CONDA_PREFIX/lib/$_l" "$FISHSOFA_PYLIB/$_l"
+done
+unset _l
+# Jeden wątek BLAS na proces: bloki CHOLMOD są małe (4 wątki = ten sam czas), a przeglądy
+# (etap 6) uruchamiają wiele symulacji równolegle – więcej wątków tylko by się przepychało.
+export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
+case ":${LD_LIBRARY_PATH:-}:" in
+    *":$FISHSOFA_PYLIB:"*) ;;
+    *) export LD_LIBRARY_PATH="$FISHSOFA_PYLIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ;;
+esac
 
 # Moduły Pythona dostarczane przez pluginy SOFA.
 for _p in SofaPython3 SoftRobots STLIB; do

@@ -375,3 +375,86 @@ def test_flapping_sign_and_motion(flap_run):
     assert np.corrcoef(vp, th)[0, 1] < -0.5
     assert th.min() < -np.radians(5) and th.max() > np.radians(5)
     assert np.all(np.isfinite(L["p_L"])) and not L["valve_open"].any()
+
+
+# ----------------------------------------------------------------------------- etap 5: woda
+
+def test_drag_dissipates_on_every_triangle(mesh):
+    # Opór zawsze zabiera energię: F·v ≤ 0 na każdym trójkącie, dla dowolnych prędkości.
+    from fishsofa import water
+    rng = np.random.default_rng(0)
+    v = rng.normal(size=mesh.points.shape)
+    f, vt, _, _ = water.triangle_forces(mesh.points, v, mesh.tri_outer, 1000.0, 1.0, 0.01)
+    assert np.all(np.einsum("ij,ij->i", f, vt) <= 1e-15)
+    assert water.drag(mesh.points, v, mesh.tri_outer, 1000.0, 1.0, 0.01).power < 0
+
+
+def test_drag_zero_velocity_gives_zero_force(mesh):
+    from fishsofa import water
+    d = water.drag(mesh.points, np.zeros_like(mesh.points), mesh.tri_outer, 1000.0, 1.0, 0.01)
+    assert np.all(d.node_forces == 0) and np.all(d.node_damping == 0)
+
+
+def test_drag_on_flat_plate():
+    # Cienka płytka 1 m² (dwie strony) ruszająca się prostopadle z 1 m/s: F = ½ρ·(2C_n)·A·v².
+    from fishsofa import water
+    x = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0],
+                  [0, 0, -1e-3], [1, 0, -1e-3], [1, 1, -1e-3], [0, 1, -1e-3]], float)
+    top = [[0, 1, 2], [0, 2, 3]]                 # normalna +z
+    bottom = [[4, 6, 5], [4, 7, 6]]              # normalna −z
+    v = np.tile([0.0, 0.0, 1.0], (8, 1))
+    d = water.drag(x, v, np.array(top + bottom), 1000.0, 1.0, 0.0)
+    np.testing.assert_allclose(d.total, [0, 0, -1000.0], atol=1e-9)
+
+
+@pytest.fixture(scope="session")
+def water_run(mesh_root):
+    from fishsofa import headless
+    # Ten sam rytm co flap_run, ale w wodzie. dt 1 ms: opór jest jawny i przy 5 ms
+    # max(c·dt/m) przekroczyłby 0.5 na płetwie (etap 5, README).
+    cfg = TailConfig(environment="water", prefill_time=0.2, ramp_time=0.2, dt=0.001)
+    return headless.run_flapping(cfg, LEVEL, 0.9, mesh_root=mesh_root), cfg
+
+
+def test_water_reduces_amplitude(flap_run, water_run):
+    # Ta sama komenda objętości: w wodzie ogon wychyla się mniej (opór). Odniesienie
+    # w powietrzu ma dt 5 ms, czyli więcej tłumienia numerycznego – test jest ostrożny.
+    (ra, ca), (rw, cw) = flap_run, water_run
+    amp = lambda r, c: np.abs(r.log["theta"][r.log["t"] > c.prefill_time + c.ramp_time]).max()
+    assert amp(rw, cw) < 0.9 * amp(ra, ca)
+
+
+def test_water_drag_explicit_step_is_stable(water_run):
+    r, _ = water_run
+    assert np.all(np.isfinite(r.log["theta"]))
+    assert r.log["stability"].max() < 0.5
+    assert np.all(r.log["drag_power"] <= 0)
+
+
+# ----------------------------------------------------------------------------- etap 6: moduł Younga
+
+def _qs_point(mesh_root, k, target, mode):
+    """Jeden punkt quasi-statyki (komora L, g = 0) przy E i sztywności włókien ×k.
+    Skalujemy oba, żeby cała konstrukcja była „jednym materiałem” razy k."""
+    from fishsofa import headless
+    base = TailConfig(include_weight=False)
+    cfg = TailConfig(include_weight=False, young_modulus=k * base.young_modulus,
+                     hoop_stiffness=k * base.hoop_stiffness)
+    c = headless.quasi_static_sweep(cfg, LEVEL, [target], mesh_root=mesh_root, mode=mode)
+    return c.p[-1], c.tip_angle[-1]
+
+
+def test_young_x2_same_volume_doubles_pressure_keeps_angle(mesh_root):
+    # Sterowanie objętością: równowaga przy zadanym ΔV nie zależy od skali sztywności,
+    # zmienia się tylko potrzebne ciśnienie (∝ E).
+    p1, th1 = _qs_point(mesh_root, 1.0, 10e-6, "volume")
+    p2, th2 = _qs_point(mesh_root, 2.0, 10e-6, "volume")
+    assert abs(p2 / p1 - 2.0) < 0.2
+    assert abs(th2 / th1 - 1.0) < 0.05
+
+
+def test_young_x2_same_pressure_halves_angle(mesh_root):
+    # Sterowanie ciśnieniem (value = p·dt): ten sam p -> ugięcie ~1/E.
+    _, th1 = _qs_point(mesh_root, 1.0, 4e3, "pressure")
+    _, th2 = _qs_point(mesh_root, 2.0, 4e3, "pressure")
+    assert abs(th2 / th1 - 0.5) < 0.5 * 0.15
