@@ -2,7 +2,7 @@
 
 Edukacyjne demo FEM ogona robota-ryby. Specyfikacja: [SPEC_fish_sofa_demo.md](SPEC_fish_sofa_demo.md). **To nie jest skalibrowany model** – wszystkie parametry to placeholdery.
 
-Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem), 2 (komora L quasi-statycznie), 3 (symetria L/R), 4 (machanie w powietrzu), 5 (woda) i 6 (przeglądy) zakończone; solver CHOLMOD (4–15× szybciej) dodany po etapie 2, OpenBLAS z condy i równoległe przeglądy po etapie 4.** Kolejne etapy: patrz spec, sekcja 8.
+Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem), 2 (komora L quasi-statycznie), 3 (symetria L/R), 4 (machanie w powietrzu), 5 (woda) i 6 (przeglądy) zakończone; solver CHOLMOD (4–15× szybciej) dodany po etapie 2, OpenBLAS z condy i równoległe przeglądy po etapie 4.** Etap 7 (opcjonalny eksport PRBM do MuJoCo) świadomie pominięty (decyzja 6.10.2026); opis metody: spec, sekcja 8.
 
 ## Instalacja (Linux x86_64, sprawdzone na Fedorze 44 i EndeavourOS/Arch)
 
