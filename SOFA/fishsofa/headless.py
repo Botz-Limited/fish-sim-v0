@@ -193,14 +193,18 @@ class FlapRun:
     dt: float
     ms_per_step: float
     cycles: dict                  # metryki z cycle_metrics()
+    frames: dict | None = None    # nagranie do odtwarzania (record_fps), patrz run_flapping
 
 
 def run_flapping(cfg: TailConfig, level: str, t_end: float, mesh_root: str | None = None,
-                 progress_every: int = 0) -> FlapRun:
+                 progress_every: int = 0, record_fps: float | None = None) -> FlapRun:
     """Układ antagonistyczny L↔R: prefill, potem rytm V_ref(t) (hydraulics.TailHydraulics).
 
     Obie komory w trybie volumeGrowth, dynamika (niejawny Euler, cfg.dt), ciężar wg
     cfg.environment. Solver dokładny ("cholmod" albo "ldl") – warp z komorami jest błędny.
+
+    record_fps: zapis pozycji węzłów co 1/record_fps czasu symulacji (float32), do
+    odtwarzania w czasie rzeczywistym (scripts/record.py, tryb replay w scene.py).
     """
     from dataclasses import replace
 
@@ -215,9 +219,17 @@ def run_flapping(cfg: TailConfig, level: str, t_end: float, mesh_root: str | Non
     ctrl = root.addObject(FlapController(name="flap", root=root, handles=h, cfg=cfg))
     Sofa.Simulation.init(root)
     n = int(round(t_end / cfg.dt))
+    every = max(1, int(round(1.0 / (record_fps * cfg.dt)))) if record_fps else 0
+    frames = {"t": [], "x": []} if every else None
+    if every:
+        frames["t"].append(0.0)
+        frames["x"].append(np.array(h["dofs"].position.value, dtype=np.float32))
     t0 = time.perf_counter()
     for i in range(n):
         Sofa.Simulation.animate(root, cfg.dt)
+        if every and (i + 1) % every == 0:
+            frames["t"].append((i + 1) * cfg.dt)
+            frames["x"].append(np.array(h["dofs"].position.value, dtype=np.float32))
         if progress_every and (i + 1) % progress_every == 0:
             el = time.perf_counter() - t0
             print(f"  t = {(i + 1) * cfg.dt:.2f} s, {1e3 * el / (i + 1):.0f} ms/krok", flush=True)
@@ -226,7 +238,9 @@ def run_flapping(cfg: TailConfig, level: str, t_end: float, mesh_root: str | Non
     if h["water"] is not None:   # te same chwile co log pompy (oba kontrolery na początku kroku)
         log.update({k: np.array(v, dtype=float) for k, v in h["water"].log.items() if k != "t"})
     Sofa.Simulation.unload(root)
-    return FlapRun(log, cfg.dt, ms, cycle_metrics(log, cfg))
+    if frames:
+        frames = {"t": np.array(frames["t"]), "x": np.stack(frames["x"])}
+    return FlapRun(log, cfg.dt, ms, cycle_metrics(log, cfg), frames)
 
 
 def cycle_metrics(log: dict, cfg: TailConfig) -> dict:

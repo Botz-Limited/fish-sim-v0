@@ -2,7 +2,8 @@
 
 GUI:      scripts/run_gui.sh [coarse|medium|fine]    (runSofa wywołuje createScene;
           FISHSOFA_MODE=flap – machanie, domyślnie; sag – ugięcie pod ciężarem;
-          FISHSOFA_ENV=air – domyślnie, water – opór wody i ciężar pozorny)
+          FISHSOFA_ENV=air – domyślnie, water – opór wody i ciężar pozorny;
+          FISHSOFA_MODE=replay – odtwarzanie nagrania FISHSOFA_RECORDING w czasie rzeczywistym)
 Headless: fishsofa.headless (ta sama funkcja build_tail)
 
 Etap 1: sam materiał, bez aktuacji – ogon ugina się pod własnym ciężarem.
@@ -298,6 +299,10 @@ def createScene(root):
         for spc in h["chambers"].values():
             spc.drawPressure = True   # SoftRobots rysuje ciśnienie na powierzchni komory
         root.addObject(FlapController(name="flap", root=root, handles=h, cfg=cfg))
+    elif mode == "replay":
+        # Odtwarzanie nagrania z scripts/record.py w czasie rzeczywistym (bez fizyki).
+        from fishsofa import replay
+        replay.build(root, os.environ["FISHSOFA_RECORDING"], float(os.environ.get("FISHSOFA_SPEED", "1")))
     else:
-        raise ValueError(f"FISHSOFA_MODE={mode!r}: dozwolone flap, sag")
+        raise ValueError(f"FISHSOFA_MODE={mode!r}: dozwolone flap, sag, replay")
     return root

@@ -3,3 +3,4 @@ results/*.vtu
 results/*.vtk
 __pycache__/
 .pytest_cache/
+recordings/

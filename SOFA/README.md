@@ -418,3 +418,20 @@ Zmieniany jest tylko silikon (z kręgosłupem, bo jego E to 20× silikon). Włó
 - Sztywność decyduje więc o **wymaganym ciśnieniu**: dobór pompy, zaworu, szczelności, zmęczenie silikonu. Na ruch wpływa dopiero przez obciążenia zewnętrzne: wodę, bezwładność, ciężar.
 - **Przy sterowaniu ciśnieniem jest odwrotnie:** ten sam p daje ugięcie ~1/E (8 kPa: 12.9° / 6.0° / 2.7°, test `test_young_x2_same_pressure_halves_angle`). Nawet szybciej niż 1/E, bo krzywa p–V się usztywnia (etap 2), a miękki ogon wchodzi głębiej w jej nieliniową część.
 - **Dynamicznie w wodzie E jednak zmienia ruch:** sztywniejszy ogon ma wyższą częstość własną, więc przy 2 Hz mniej spóźnia się za objętością (59° vs 96°) i mniej ruchu „gubi” na oporze. Miękki ogon przy tej samej objętości macha mniej, bo woda przy jego wolniejszej odpowiedzi zabiera większą część ruchu.
+
+## Podgląd w czasie rzeczywistym: nagranie, odtwarzanie, wideo
+
+Na żywo ogon w GUI rusza się 100–800× wolniej niż w rzeczywistości (krok liczy się 200–400 ms, a symuluje 0.5–2 ms). Dlatego ruch liczymy offline, zapisujemy i odtwarzamy w prawdziwym tempie:
+
+```bash
+source SOFA/scripts/env.sh
+python SOFA/scripts/record.py               # nagrania powietrze + woda, równolegle (~40 min) -> SOFA/recordings/*.npz
+SOFA/scripts/run_replay.sh                  # GUI SOFA: odtwarzanie wody w czasie rzeczywistym, w pętli
+SOFA/scripts/run_replay.sh SOFA/recordings/air.npz 0.25   # powietrze, 4× zwolnione
+pip install pyvista==0.49.0                 # raz, tylko do wideo
+python SOFA/scripts/render_video.py         # wideo -> SOFA/results/flapping.mp4 (~3 min)
+```
+
+- **Nagranie** (`scripts/record.py`, `headless.run_flapping(record_fps=60)`): pozycje wszystkich węzłów co 1/60 s czasu symulacji, ciśnienia i kąt. ~25 MB na nagranie, katalog `recordings/` jest poza repo. Kroki jak w etapach 4–5: powietrze 1 ms, woda 0.5 ms.
+- **Odtwarzanie w GUI** (`fishsofa/replay.py`, tryb `FISHSOFA_MODE=replay`): scena bez fizyki, same modele wizualne. Kontroler wybiera klatkę według zegara ściennego, więc tempo nie zależy od szybkości rysowania. Skóra jest półprzezroczysta, a komory mają kolor wg ciśnienia (niebieski = najniższe w fazie rytmu, czerwony = najwyższe; skala bez prefillu, bo ruch steruje różnica ±6 kPa na tle wspólnych ~53 kPa). Kamerę obraca się myszą jak zwykle.
+- **Wideo** (`scripts/render_video.py`, PyVista + ffmpeg): powietrze i woda obok siebie, widok z góry, wspólna skala ciśnień, pod spodem θ(t) z kursorem. Najpierw cały przebieg 4.5 s w czasie rzeczywistym, potem ostatni cykl 4× zwolniony.
