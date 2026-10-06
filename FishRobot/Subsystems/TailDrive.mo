@@ -52,7 +52,37 @@ model TailDrive "Napęd ogona: bateria + mostek H + silnik + pompa + przewody + 
   FishRobot.Tail.TailEquivalent tail
     annotation (Placement(transformation(extent={{70,-10},{90,10}})));
 
+  // --- Bilans energii: energia z ogniwa = straty + przyrost energii zmagazynowanej
+  Modelica.Units.SI.Energy E_battery = battery.E_drawn "Energia pobrana z ogniwa baterii";
+  Modelica.Units.SI.Energy E_loss_battery(start=0, fixed=true) "Straty: rezystancja wewnętrzna baterii";
+  Modelica.Units.SI.Energy E_loss_motor_cu(start=0, fixed=true) "Straty: uzwojenie silnika R·i²";
+  Modelica.Units.SI.Energy E_loss_motor_fric(start=0, fixed=true) "Straty: łożyska silnika";
+  Modelica.Units.SI.Energy E_loss_pump_leak(start=0, fixed=true) "Straty: przeciek w pompie";
+  Modelica.Units.SI.Energy E_loss_pump_mech(start=0, fixed=true) "Straty: tarcie w pompie (η_m)";
+  Modelica.Units.SI.Energy E_loss_pipes(start=0, fixed=true) "Straty: przewody";
+  Modelica.Units.SI.Energy E_loss_relief(start=0, fixed=true) "Straty: zawory przelewowe";
+  Modelica.Units.SI.Energy E_loss_tail(start=0, fixed=true) "Rozproszone w wodzie i materiale ogona";
+  Modelica.Units.SI.Energy E_loss_total = E_loss_battery + E_loss_motor_cu + E_loss_motor_fric
+    + E_loss_pump_leak + E_loss_pump_mech + E_loss_pipes + E_loss_relief + E_loss_tail "Suma strat";
+  Modelica.Units.SI.Energy E_stored = 0.5*motor.J*motor.w^2 + 0.5*motor.L*motor.i^2
+    + chamberL.E_elastic + chamberR.E_elastic + tail.E_kin + tail.E_spring
+    "Energia zmagazynowana: wirnik, indukcyjność, ścianki komór, ogon (kinetyczna + sprężysta)";
+  parameter Modelica.Units.SI.Energy E_stored0(fixed=false) "Energia zmagazynowana na starcie";
+  Modelica.Units.SI.Energy E_balance_error = E_battery - E_loss_total - (E_stored - E_stored0)
+    "Błąd bilansu (powinien być ~0)";
+
+initial equation
+  E_stored0 = E_stored;
+
 equation
+  der(E_loss_battery) = battery.P_loss;
+  der(E_loss_motor_cu) = motor.P_cu;
+  der(E_loss_motor_fric) = motor.P_fric;
+  der(E_loss_pump_leak) = pump.P_loss_leak;
+  der(E_loss_pump_mech) = pump.P_loss_mech;
+  der(E_loss_pipes) = pipeL.P_loss + pipeR.P_loss;
+  der(E_loss_relief) = reliefLR.P_loss + reliefRL.P_loss;
+  der(E_loss_tail) = tail.P_water;
   connect(u, bridge.u) annotation (Line(points={{-120,0},{-50,0},{-50,-28}}, color={0,0,127}));
   connect(battery.p, bridge.bat) annotation (Line(points={{-70,-40},{-66,-40},{-66,-36},{-60,-36}}, color={0,0,255}));
   connect(battery.n, bridge.n) annotation (Line(points={{-90,-40},{-94,-40},{-94,-60},{-50,-60},{-50,-50}}, color={0,0,255}));
@@ -90,6 +120,10 @@ eksportowany jako FMU w etapie 8. Wewnątrz: bateria &rarr; mostek H &rarr; siln
 przewody &rarr; komory L/R (z zaworami przelewowymi przeciwsobnymi przy pompie) &rarr; ogon 1 DOF.</p>
 <p>Wszystkie komponenty są publiczne, więc parametry można zmieniać modyfikatorami, np.
 <code>TailDrive drive(motor(R=0.8), tail(k=0.4))</code>, a w OMEdit przez okno parametrów.</p>
+<p><b>Bilans energii</b> (zmienne <code>E_*</code>): każda strata jest całkowana osobno, a
+<code>E_balance_error = E_battery - E_loss_total - (E_stored - E_stored0)</code> sprawdza, czy model nie tworzy
+ani nie gubi energii. Mostek H jest bezstratny, a moc „ciśnienia otoczenia” znosi się w obiegu zamkniętym
+(objętość krąży, nie znika), dlatego nie ma ich na liście.</p>
 <p>Konwencja: <code>u &gt; 0</code> &rArr; pompa tłoczy R &rarr; L &rArr; <code>p_L &gt; p_R</code> &rArr; <code>&theta; &gt; 0</code>.</p>
 </html>"));
 end TailDrive;

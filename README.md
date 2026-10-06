@@ -10,7 +10,7 @@ Uproszczony, **edukacyjny i nieskalibrowany** model robota-ryby w Modelice: siln
 | 2 | `Chamber` (krzywa p–V z tabeli lub CSV), `ReliefValve` + testy | gotowe |
 | 3 | `Battery`, `HBridge`, `DCMotor`, `GearPump` → scenariusz `HydraulicsStep` | gotowe |
 | 4 | `TailEquivalent`, `CPG`, podukład `TailDrive` → `TailFlapping`, `FrequencySweep` (`sweep.py`), `ReliefValveDemo` | gotowe |
-| 5 | Bilans energii → `EnergyBudget` | – |
+| 5 | Bilans energii w `TailDrive` → `EnergyBudget` + test zamknięcia bilansu | gotowe |
 | 6 | Balast + pion → `DepthControl` | – |
 | 7 | Surge → `SwimForward` | – |
 | 8 | FMU + FMPy | – |
@@ -101,6 +101,29 @@ Ich iloczyn `p·V_flow` to moc w watach, więc bilans energii wynika wprost z po
   - Prąd baterii ma podwójną częstotliwość i chwilami jest ujemny. W każdej połówce okresu silnik najpierw rozpędza się, a potem hamuje, oddając energię do baterii.
   - Amplituda rośnie przez 2 okresy, bo CPG zaczyna od łagodnej rampy.
 - **`relief_valve_demo.png`** (scenariusz 4) – pełna komenda przy 0,25 Hz. Różnica ciśnień dochodzi do ±`p_set`, zawory się otwierają, a szczyty kąta ogona się spłaszczają (ok. ±31°). Dolny panel pokazuje, że ponad połowa energii hydraulicznej oddanej przez pompę idzie w ciepło w zaworach.
+
+## Bilans energii (scenariusz 5)
+
+Podukład `TailDrive` całkuje osobno każdą stratę (`E_loss_*`) i liczy energię zmagazynowaną (`E_stored`): wirnik, indukcyjność, ścianki komór, ogon. Zmienna `E_balance_error = E_battery − E_loss_total − ΔE_stored` musi być bliska zeru. `check_tests.py` sprawdza to automatycznie w każdym modelu z podukładem `drive`; błąd wynosi ok. 2e-6 energii z baterii. To test całego modelu: zły znak, brakujący człon albo niespójne równania w dowolnym komponencie rozjechałyby bilans.
+
+Mostek H jest bezstratny. Moc ciśnienia otoczenia znosi się w obiegu zamkniętym, bo objętość krąży, a nie znika. Praca napędu do przodu `T·U` pojawi się w etapie 7. W modelu 1 DOF jest ona częścią mocy oddanej wodzie przez ogon, więc nie będzie dodawana drugi raz.
+
+**`energy_budget.png`** – 60 s machania przy 1 Hz i amplitudzie komendy 0,8. Szacowany czas pracy samego napędu ogona to ok. 9,6 h przy 1,7 W i placeholderowej baterii 16,3 Wh.
+
+| Pozycja | Udział |
+|---|---|
+| silnik: uzwojenie R·i² | 82,6% |
+| silnik: łożyska | 8,9% |
+| przewody | 5,5% |
+| pompa: tarcie | 1,9% |
+| bateria | 0,8% |
+| ogon (woda i materiał) | 0,1% |
+
+**Lekcja: przy odwracalnej pompie energię zjada zawracanie wirnika, a nie woda.** Przy ok. 600 rad/s wirnik ma ok. 0,9 J energii kinetycznej. Dwa razy na okres silnik musi ją wytracić i odbudować, a prąd hamowania i rozpędzania grzeje uzwojenie. Sprawdzenie: przy 10 razy mniejszej bezwładności wirnika energia z baterii spada 5 razy, a udział uzwojenia z 82% do 4%, przy tej samej amplitudzie ogona. Wnioski projektowe do zweryfikowania na prawdziwych parametrach:
+
+- silnik o małej bezwładności (np. bezrdzeniowy),
+- przekładnia i wolniejszy silnik, bo energia kinetyczna rośnie z ω²,
+- pompa jednokierunkowa z zaworem rozdzielającym zamiast zawracania pompy.
 
 ## Przegląd częstotliwości (`results/sweep/`, scenariusz 3)
 

@@ -95,3 +95,24 @@ def panels(t, rows, title, name, subdir="examples", xlabel="czas [s]", marker=No
     axes[-1].set_xlabel(xlabel)
     fig.align_ylabels(axes)
     return save(fig, name, subdir)
+
+
+def hbar(labels, values, title, name, subdir="examples", unit="J", note=None):
+    """Poziome słupki posortowane malejąco, z wartością i udziałem procentowym przy każdym słupku."""
+    order = sorted(range(len(values)), key=lambda i: values[i])
+    labels = [labels[i] for i in order]
+    values = [values[i] for i in order]
+    total = sum(values)
+    fig, ax = plt.subplots(figsize=(9, 0.45 * len(values) + 1.6))
+    ax.barh(labels, values, color=SERIES[0], height=0.6)
+    for y, v in enumerate(values):
+        ax.annotate(f"{v:.2f} {unit}  ({100 * v / total:.1f}%)", (v, y), xytext=(4, 0),
+                    textcoords="offset points", va="center", color=TEXT_2, fontsize=9)
+    ax.set_xlim(0, max(values) * 1.3)
+    ax.grid(axis="y", visible=False)
+    ax.set_xlabel(f"energia [{unit}]")
+    ax.set_title(title, loc="left", fontsize=11)
+    if note:
+        import textwrap
+        fig.text(0.01, -0.02, textwrap.fill(note, 120), color=TEXT_2, fontsize=9, ha="left", va="top")
+    return save(fig, name, subdir)

@@ -46,6 +46,38 @@ def plot_relief_valve_demo(sol):
     ], "ReliefValveDemo: A = 1 przy 0,25 Hz – zawór przelewowy się otwiera", "relief_valve_demo.png")
 
 
+LOSSES = [
+    ("drive.E_loss_motor_cu", "silnik: uzwojenie R·i²"),
+    ("drive.E_loss_motor_fric", "silnik: łożyska"),
+    ("drive.E_loss_battery", "bateria: rezystancja wewnętrzna"),
+    ("drive.E_loss_pump_leak", "pompa: przeciek"),
+    ("drive.E_loss_pump_mech", "pompa: tarcie (η_m)"),
+    ("drive.E_loss_pipes", "przewody"),
+    ("drive.E_loss_relief", "zawory przelewowe"),
+    ("drive.E_loss_tail", "ogon: woda i materiał"),
+]
+
+
+def plot_energy_budget(sol):
+    e_bat = sol["drive.E_battery"][-1]
+    d_stored = sol["drive.E_stored"][-1] - sol["drive.E_stored0"][-1]
+    err = sol["drive.E_balance_error"][-1]
+    runtime_h = sol["t_runtime"][-1] / 3600
+    p_mean = sol["P_battery_mean"][-1]
+    plotting.hbar([label for _, label in LOSSES], [sol[k][-1] for k, _ in LOSSES],
+                  f"EnergyBudget: gdzie idzie energia z baterii (60 s, 1 Hz) – razem {e_bat:.1f} J",
+                  "energy_budget.png",
+                  note=(f"Średnia moc z baterii {p_mean:.2f} W → szacowany czas pracy napędu ogona "
+                        f"{runtime_h:.1f} h (pojemność {sol['capacity_Wh'][-1]:.1f} Wh – placeholder).  "
+                        f"Zmiana energii zmagazynowanej {d_stored * 1e3:.1f} mJ, błąd bilansu {err * 1e3:.3f} mJ."))
+    rows = [(label, sol[k][-1]) for k, label in LOSSES]
+    print(f"  {'pozycja':34} {'energia [J]':>11} {'udział':>7}")
+    for label, v in sorted(rows, key=lambda r: -r[1]):
+        print(f"  {label:34} {v:11.3f} {100 * v / e_bat:6.1f}%")
+    print(f"  {'ΔE zmagazynowana':34} {d_stored:11.4f}\n  {'energia z ogniwa':34} {e_bat:11.3f}"
+          f"\n  błąd bilansu {err:.2e} J ({abs(err) / e_bat:.1e}); czas pracy ≈ {runtime_h:.1f} h przy {p_mean:.2f} W")
+
+
 PLOTS = {
     "FishRobot.Examples.HydraulicsStep": (
         ["time", "bridge.u_lim", "p_L", "p_R", "Q_pump", "Q_relief", "i_motor", "i_battery", "motor.w"],
@@ -57,6 +89,10 @@ PLOTS = {
         ["time", "drive.theta", "drive.p_L", "drive.p_R", "drive.reliefLR.p_set", "drive.pump.V_flow",
          "drive.reliefLR.V_flow", "drive.reliefRL.V_flow", "E_pump_hyd", "E_relief"],
         plot_relief_valve_demo),
+    "FishRobot.Examples.EnergyBudget": (
+        ["time", "drive.E_battery", "drive.E_stored", "drive.E_stored0", "drive.E_balance_error", "t_runtime",
+         "P_battery_mean", "capacity_Wh"] + [k for k, _ in LOSSES],
+        plot_energy_budget),
 }
 
 

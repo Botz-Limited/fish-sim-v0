@@ -221,6 +221,14 @@ def list_models():
     return models
 
 
+def check_energy_closure(sol):
+    """Każdy model z TailDrive: E_bateria = straty + ΔE_zmagazynowana (błąd < 1%)."""
+    e_bat = sol["drive.E_battery"]
+    err = np.max(np.abs(sol["drive.E_balance_error"])) / np.max(np.abs(e_bat))
+    return [("bilans energii zamknięty (< 1% energii z baterii)", err < 0.01,
+             f"max błąd {err:.1e}, E_bat = {e_bat[-1]:.2f} J")]
+
+
 def run_one(model):
     """Sprawdza jeden model; działa w osobnym procesie (osobna sesja omc)."""
     results = []
@@ -237,6 +245,10 @@ def run_one(model):
             names, fn = CHECKS[model]
             sol = dict(zip(names, (np.asarray(x) for x in mod.getSolutions(names))))
             results += fn(sol)
+        # Bilans energii sprawdzamy wszędzie, gdzie jest podukład TailDrive o nazwie "drive".
+        if "drive.E_balance_error" in mod.getSolutions():
+            names = ["drive.E_battery", "drive.E_balance_error"]
+            results += check_energy_closure(dict(zip(names, (np.asarray(x) for x in mod.getSolutions(names)))))
     except Exception as exc:  # błąd kompilacji/symulacji = test niezaliczony
         results.append(("kompilacja/symulacja", False, str(exc).splitlines()[0][:200]))
     return model, results
