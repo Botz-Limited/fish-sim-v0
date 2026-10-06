@@ -29,7 +29,8 @@ def build(root, path: str, speed: float = 1.0):
     rec = np.load(path)
     x0 = rec["x"][0].astype(float)
     root.addObject("RequiredPlugin", pluginName=["Sofa.Component.AnimationLoop", "Sofa.GL.Component.Rendering3D",
-                                                 "Sofa.Component.Visual"])
+                                                 "Sofa.Component.Visual", "Sofa.Component.StateContainer",
+                                                 "Sofa.Component.Mapping.Linear"])
     root.addObject("DefaultAnimationLoop")
     root.addObject("VisualStyle", displayFlags="showVisualModels")
     root.dt = 1.0 / 60
@@ -41,9 +42,15 @@ def build(root, path: str, speed: float = 1.0):
         used = np.unique(tris)          # tylko wierzchołki tej powierzchni (mniej danych na klatkę)
         remap = np.full(len(x0), -1)
         remap[used] = np.arange(len(used))
+        # Pozycje w MechanicalObject, a OglModel dostaje je przez IdentityMapping.
+        # Bezpośredni zapis do OglModel.position nie odświeża geometrii na ekranie
+        # (kolor tak, kształt nie); mapowania SOFA aktualizuje w każdym kroku.
         node = root.addChild(name)
-        models[name] = (node.addObject("OglModel", name="ogl", position=x0[used].tolist(),
-                                       triangles=remap[tris].tolist(), color=color), used)
+        dofs = node.addObject("MechanicalObject", name="dofs", template="Vec3d", position=x0[used].tolist())
+        ogl = node.addObject("OglModel", name="ogl", position=x0[used].tolist(),
+                             triangles=remap[tris].tolist(), color=color)
+        node.addObject("IdentityMapping", input="@dofs", output="@ogl")
+        models[name] = (dofs, ogl, used)
     root.addObject(ReplayController(name="replay", rec=rec, models=models, speed=speed))
     return root
 
@@ -77,8 +84,8 @@ class ReplayController(Sofa.Core.Controller):
         self.last = k
         x = self.x[k]
         lo, hi = self.p_range
-        for name, (ogl, used) in self.models.items():
-            ogl.position.value = x[used]
+        for name, (dofs, ogl, used) in self.models.items():
+            dofs.position.value = x[used]
             if name in self.p:
                 ogl.material.value = _material(_colormap((self.p[name][k] - lo) / (hi - lo)))
 
