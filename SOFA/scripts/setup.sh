@@ -47,12 +47,15 @@ step "1/5 zależności systemowe"
 case " ${ID:-} ${ID_LIKE:-} " in
     *" fedora "*|*" rhel "*)
         PKG="sudo dnf install -y"
-        PKGS="curl unzip git cmake ninja-build gcc-c++ suitesparse-devel eigen3-devel flexiblas-devel \
+        PKGS="curl unzip git cmake ninja-build gcc-c++ suitesparse-devel eigen3-devel flexiblas-devel boost-devel \
 mesa-libGLU libglvnd-opengl libXcursor libXft libXinerama" ;;
     *" debian "*|*" ubuntu "*)
         PKG="sudo apt-get install -y"
-        PKGS="curl unzip git cmake ninja-build g++ libsuitesparse-dev libeigen3-dev libopenblas-dev \
+        PKGS="curl unzip git cmake ninja-build g++ libsuitesparse-dev libeigen3-dev libopenblas-dev libboost-dev \
 libglu1-mesa libopengl0 libxcursor1 libxft2 libxinerama1" ;;
+    *" arch "*)
+        PKG="sudo pacman -S --needed --noconfirm"
+        PKGS="curl unzip git cmake ninja gcc suitesparse eigen boost glu libglvnd libxcursor libxft libxinerama" ;;
     *)
         PKG=""
         PKGS="(nieznana dystrybucja: zainstaluj odpowiedniki pakietów z listy dla Fedory/Ubuntu w tym skrypcie)" ;;
@@ -62,8 +65,13 @@ missing=()
 for c in curl unzip git cmake ninja g++; do command -v "$c" >/dev/null || missing+=("polecenie $c"); done
 [ -f /usr/include/suitesparse/cholmod.h ] || [ -f /usr/include/cholmod.h ] || missing+=("nagłówek cholmod.h (SuiteSparse)")
 [ -f /usr/include/eigen3/Eigen/Core ] || missing+=("Eigen 3 (/usr/include/eigen3)")
+# Boost: nagłówki wymagane przez configi CMake binarki SOFA (Sofa.Type), binarka ich nie ma.
+[ -f /usr/include/boost/version.hpp ] || missing+=("nagłówki Boost (/usr/include/boost)")
+# Lista raz do zmiennej: `ldconfig -p | grep -q` przy pipefail daje SIGPIPE (141), gdy grep
+# skończy przed ldconfig – brak fałszywie zgłaszany przy długiej liście (np. Arch).
+libs="$(ldconfig -p 2>/dev/null || true)"
 for l in libGLU.so.1 libOpenGL.so.0 libXcursor.so.1 libXft.so.2 libXinerama.so.1; do
-    ldconfig -p 2>/dev/null | grep -q "$l" || missing+=("biblioteka $l")
+    grep -qF "$l" <<<"$libs" || missing+=("biblioteka $l")
 done
 if [ ${#missing[@]} -gt 0 ]; then
     printf 'Brakuje: %s\n' "${missing[@]}"

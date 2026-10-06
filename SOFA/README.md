@@ -4,7 +4,7 @@ Edukacyjne demo FEM ogona robota-ryby. Specyfikacja: [SPEC_fish_sofa_demo.md](SP
 
 Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem), 2 (komora L quasi-statycznie), 3 (symetria L/R) i 4 (machanie w powietrzu) zakończone; solver CHOLMOD (4–15× szybciej) dodany po etapie 2.** Kolejne etapy: patrz spec, sekcja 8.
 
-## Instalacja (Linux x86_64, sprawdzone na Fedorze 44)
+## Instalacja (Linux x86_64, sprawdzone na Fedorze 44 i EndeavourOS/Arch)
 
 **Na nowym komputerze wystarczy jedna komenda** (potrzebna wcześniej: conda, np. [Miniforge](https://github.com/conda-forge/miniforge)):
 
@@ -22,7 +22,7 @@ SOFA/scripts/run_gui.sh                  # GUI: ogon macha (Animate)
 4. Buduje wtyczkę CHOLMOD.
 5. Uruchamia `check_sofa.py` i `pytest`.
 
-Inny katalog niż `~/sofa`: `FISHSOFA_HOME=/sciezka` dla `setup.sh` **i** `env.sh`. Test czystej instalacji (5.10.2026, osobny katalog i osobne środowisko conda): 1 min 43 s, 33/33 testów.
+Inny katalog niż `~/sofa`: `FISHSOFA_HOME=/sciezka` dla `setup.sh` **i** `env.sh`. Test czystej instalacji (5.10.2026, osobny katalog i osobne środowisko conda): 1 min 43 s, 33/33 testów. EndeavourOS (6.10.2026, od zera, z Miniforge): 1 min 58 s, 33/33.
 
 | Co | Wersja / źródło |
 |---|---|
@@ -37,7 +37,7 @@ Inny katalog niż `~/sofa`: `FISHSOFA_HOME=/sciezka` dla `setup.sh` **i** `env.s
 - Binarka SOFA jest budowana na Ubuntu. Na Fedorze `ldd` pokazał tylko jeden brak: `libpython3.12.so.1.0`, który bierzemy z condy.
   - `env.sh` tworzy katalog `~/sofa/fishsofa-pylib/` z jednym dowiązaniem do tej biblioteki i dodaje go do `LD_LIBRARY_PATH`.
   - Celowo nie dodajemy całego `$CONDA_PREFIX/lib`, bo wtedy `libstdc++` z condy przesłoniłaby systemową, co grozi błędami sterowników OpenGL w GUI.
-- Pakiety systemowe są potrzebne tylko do wtyczki CHOLMOD (kompilator i nagłówki) oraz do bibliotek graficznych, których używa gmsh z pip.
+- Pakiety systemowe są potrzebne tylko do wtyczki CHOLMOD (kompilator i nagłówki, w tym Boost: wymagają go configi CMake binarki SOFA, a binarka go nie zawiera) oraz do bibliotek graficznych, których używa gmsh z pip.
 
 ## Uruchamianie
 
