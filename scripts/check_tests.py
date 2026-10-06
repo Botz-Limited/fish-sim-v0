@@ -90,6 +90,49 @@ def check_chamber_from_file(sol):
     return [("krzywa z CSV = krzywa z parametru", diff < 1e-6, f"max różnica {diff:.1e} Pa")]
 
 
+def check_dc_motor(sol):
+    w, w_ref = sol["motor.w"], sol["w_analytic"][0]
+    w_err = abs(w[-1] - w_ref) / w_ref
+    p_err = np.max(np.abs(sol["P_balance_error"])) / np.max(np.abs(sol["battery.P_chem"]))
+    plotting.series(sol["time"], [(w, "motor.w")], "prędkość [rad/s]",
+                    "DCMotorNoLoad: rozruch silnika bez obciążenia (u = 0,6)", "dc_motor_no_load.png",
+                    hlines=[(w_ref, "analitycznie")])
+    return [("prędkość ustalona zgodna ze wzorem (< 1%)", w_err < 0.01, f"błąd {w_err:.1e}"),
+            ("bilans mocy w każdej chwili (< 1% mocy szczytowej)", p_err < 0.01, f"max błąd {p_err:.1e}")]
+
+
+def check_gear_pump(sol):
+    w, dp, q, tau = sol["pump.w"], sol["pump.dp_pump"], sol["pump.V_flow"], sol["pump.flange.tau"]
+    D, k_leak, eta = sol["pump.D"][0], sol["pump.k_leak"][0], sol["pump.eta_m"][0]
+    q_err = np.max(np.abs(q - (D * w - k_leak * dp))) / np.max(np.abs(q))
+    pumping = dp > 1e3
+    tau_err = np.max(np.abs(tau[pumping] - D * dp[pumping] / eta) / np.abs(D * dp[pumping] / eta))
+    p_mech_min = sol["pump.P_loss_mech"].min()
+    bal = sol["pump.P_shaft"] - sol["pump.P_hyd"] - sol["pump.P_loss_leak"] - sol["pump.P_loss_mech"]
+    bal_err = np.max(np.abs(bal)) / np.max(np.abs(sol["pump.P_shaft"]))
+    plotting.series(dp / 1e3, [(q * 1e6, "V_flow")], "przepływ [ml/s]",
+                    "GearPumpCharacteristic: przepływ vs przyrost ciśnienia (ω = 300 rad/s)",
+                    "gear_pump_characteristic.png")
+    return [("V_flow = D·ω − k_leak·Δp", q_err < 1e-6, f"błąd {q_err:.1e}"),
+            ("tryb pompy: τ = D·Δp/η_m", tau_err < 1e-3, f"błąd {tau_err:.1e}"),
+            ("straty tarcia ≥ 0 także w trybie silnika", p_mech_min >= -1e-12, f"min {p_mech_min:.2e} W"),
+            ("bilans mocy pompy zamknięty", bal_err < 1e-6, f"błąd {bal_err:.1e}")]
+
+
+def check_hydraulics_step(sol):
+    t, u, pl, pr = sol["time"], sol["bridge.u_lim"], sol["p_L"], sol["p_R"]
+    on = u > 0.25
+    direction_ok = np.all(pl[on] - pr[on] > 0) and np.all(sol["motor.w"][on] > 0)
+    vt = sol["chamberL.V"] + sol["chamberR.V"]
+    drift = np.max(np.abs(vt - vt[0])) / vt[0]
+    dpmax = np.max(pl - pr)
+    limit = sol["reliefLR.p_set"][0] + sol["reliefLR.dp_open"][0]
+    return [("kierunek: u > 0 ⇒ ω > 0 i p_L > p_R", bool(direction_ok), ""),
+            ("V_L + V_R = const (< 1e-9 względnie)", drift < 1e-9, f"max dryf {drift:.1e}"),
+            ("zawór ogranicza p_L − p_R ≤ p_set + dp_open", dpmax <= limit,
+             f"max {dpmax / 1e3:.2f} kPa, granica {limit / 1e3:.1f} kPa")]
+
+
 CHECKS = {
     "FishRobot.Tests.PipeLaminar": (["time", "pipe.dp", "dp_analytic", "pipe.Re"], check_pipe_laminar),
     "FishRobot.Tests.PipeQuadratic": (["time", "pipe.V_flow", "pipe.dp", "dp_exact"], check_pipe_quadratic),
@@ -99,6 +142,15 @@ CHECKS = {
                                           check_chamber_closed_loop),
     "FishRobot.Tests.ChamberTableFromFile": (["time", "chamberTable.p_gauge", "chamberFile.p_gauge"],
                                              check_chamber_from_file),
+    "FishRobot.Tests.DCMotorNoLoad": (["time", "motor.w", "w_analytic", "P_balance_error", "battery.P_chem"],
+                                      check_dc_motor),
+    "FishRobot.Tests.GearPumpCharacteristic": (["time", "pump.w", "pump.dp_pump", "pump.V_flow", "pump.flange.tau",
+                                                "pump.D", "pump.k_leak", "pump.eta_m", "pump.P_loss_mech",
+                                                "pump.P_shaft", "pump.P_hyd", "pump.P_loss_leak"],
+                                               check_gear_pump),
+    "FishRobot.Examples.HydraulicsStep": (["time", "bridge.u_lim", "p_L", "p_R", "motor.w", "chamberL.V",
+                                           "chamberR.V", "reliefLR.p_set", "reliefLR.dp_open"],
+                                          check_hydraulics_step),
     "FishRobot.Tests.ReliefValveLimit": (["time", "chamber.p_gauge", "source.V_flow", "valve.V_flow",
                                           "valve.p_set", "valve.dp_open"], check_relief_valve),
 }

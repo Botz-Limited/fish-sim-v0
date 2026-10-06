@@ -77,3 +77,21 @@ def series(t, curves, ylabel, title, name, hlines=(), bottom=None):
         ax_b.set_ylabel(bottom[1])
         ax_b.set_xlabel("czas [s]")
     return save(fig, name)
+
+
+def panels(t, rows, title, name, subdir="examples"):
+    """Kilka paneli jeden pod drugim, wspólna oś czasu; każda wielkość fizyczna we własnym panelu.
+
+    rows: [(etykieta_osi_Y, [(y, etykieta_serii), ...]), ...]
+    """
+    fig, axes = plt.subplots(len(rows), 1, figsize=(9, 2.1 * len(rows) + 0.6), sharex=True)
+    for ax, (ylabel, curves) in zip(axes, rows):
+        for i, (y, label) in enumerate(curves):
+            ax.plot(t, y, color=SERIES[i], label=label)
+        ax.set_ylabel(ylabel)
+        if len(curves) > 1:
+            ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5))
+    axes[0].set_title(title, loc="left", fontsize=11)
+    axes[-1].set_xlabel("czas [s]")
+    fig.align_ylabels(axes)
+    return save(fig, name, subdir)

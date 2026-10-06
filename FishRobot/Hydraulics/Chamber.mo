@@ -34,8 +34,8 @@ model Chamber "Komora silikonowa: nieliniowa podatność p = f(V) z tabeli"
   Modelica.Blocks.Interfaces.RealOutput V_out(unit="m3") "Objętość komory (np. do modelu ogona)"
     annotation (Placement(transformation(extent={{100,-10},{120,10}})));
 
-  Modelica.Units.SI.Volume V(start=V_prefill, fixed=true) "Objętość cieczy w komorze";
-  Modelica.Units.SI.PressureDifference p_gauge "Nadciśnienie p - p_ambient";
+  Modelica.Units.SI.Volume V(start=V_prefill, fixed=true, nominal=1e-5) "Objętość cieczy w komorze";
+  Modelica.Units.SI.PressureDifference p_gauge(nominal=1e4) "Nadciśnienie p - p_ambient";
   Modelica.Units.SI.Energy E_elastic(start=0, fixed=true)
     "Energia sprężysta zgromadzona w ściankach (względem stanu początkowego)";
 

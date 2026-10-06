@@ -8,7 +8,7 @@ Uproszczony, **edukacyjny i nieskalibrowany** model robota-ryby w Modelice: siln
 |---|---|---|
 | 1 | Złącze hydrauliczne, `Pipe`, `Reservoir`, `VolumeFlowSource` + testy | gotowe |
 | 2 | `Chamber` (krzywa p–V z tabeli lub CSV), `ReliefValve` + testy | gotowe |
-| 3 | Silnik DC + `GearPump` → `HydraulicsStep` | – |
+| 3 | `Battery`, `HBridge`, `DCMotor`, `GearPump` → scenariusz `HydraulicsStep` | gotowe |
 | 4 | `TailEquivalent` → `TailFlapping`, `FrequencySweep`, `ReliefValveDemo` | – |
 | 5 | Bilans energii → `EnergyBudget` | – |
 | 6 | Balast + pion → `DepthControl` | – |
@@ -37,11 +37,12 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 ```bash
 .venv/bin/python scripts/check_tests.py          # wszystkie modele z Tests/ i Examples/
 .venv/bin/python scripts/check_tests.py Pipe     # tylko modele zawierające "Pipe" w nazwie
+.venv/bin/python scripts/run_all.py              # wszystkie scenariusze z Examples/ -> results/examples/
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
 
-Ustawienia wydajności są w `scripts/om_config.py`. Kompilacja kodu C idzie równolegle na wszystkich rdzeniach, a wygenerowany kod jest budowany z `-O2`, co daje ok. 8% szybszą symulację. `-O3`, `-march=native` i ccache nie dały mierzalnego zysku.
+Ustawienia wydajności są w `scripts/om_config.py`. W modelach zmienne hydrauliczne mają atrybuty `nominal` (ciśnienie 1e5 Pa, różnica ciśnień 1e4 Pa, przepływ i objętość 1e-5). Solver skaluje nimi tolerancje, a bez nich wielkości rzędu 1e-5 m³ traktowałby jak wielkości rzędu 1. W testach czysto hydraulicznych poprawiło to dokładność o kilka rzędów (np. inertancja: błąd z 1e-3 do 2e-8). Kompilacja kodu C idzie równolegle na wszystkich rdzeniach, a wygenerowany kod jest budowany z `-O2`, co daje ok. 8% szybszą symulację. `-O3`, `-march=native` i ccache nie dały mierzalnego zysku.
 
 ## Otwieranie w OMEdit
 
@@ -56,9 +57,11 @@ Ustawienia wydajności są w `scripts/om_config.py`. Kompilacja kodu C idzie ró
 
 Ich iloczyn `p·V_flow` to moc w watach, więc bilans energii wynika wprost z połączeń, tak jak `v·i` w elektryce. To najprostszy sposób, żeby zobaczyć, jak działają złącza akauzalne.
 
-**Konwencja znaków:** `V_flow > 0` oznacza przepływ **do** komponentu przez dany port. W elementach dwuportowych `V_flow` (bez prefiksu portu) to przepływ od `port_a` do `port_b`, a `dp = port_a.p − port_b.p`.
+**Konwencja kierunków:** komenda pompy `u > 0` ⇒ wał kręci się w kierunku dodatnim (`ω > 0`) ⇒ pompa tłoczy wodę z komory R do komory L ⇒ `p_L > p_R`. W etapie 4 ten sam znak da dodatni kąt ogona.
 
-## Co pokazują wykresy (etapy 1–2)
+**Konwencja znaków przepływu:** `V_flow > 0` oznacza przepływ **do** komponentu przez dany port. W elementach dwuportowych `V_flow` (bez prefiksu portu) to przepływ od `port_a` do `port_b`, a `dp = port_a.p − port_b.p`.
+
+## Co pokazują wykresy testów (etapy 1–3)
 
 - **`pipe_laminar.png`** – spadek ciśnienia rośnie liniowo z przepływem, zgodnie z prawem Hagena–Poiseuille’a `Δp = 128·μ·l·Q / (π·d⁴)`. Liczba Reynoldsa pozostaje poniżej 2300, więc wzór laminarny obowiązuje. Zwróć uwagę na `d⁴`: dwa razy węższy przewód daje 16 razy większy opór.
 - **`pipe_quadratic.png`** – przy przepływie sinusoidalnym krzywa Δp ma „spłaszczenia” przy zerze (dominuje część liniowa) i ostre szczyty (dominuje część kwadratowa). Dolny panel pokazuje błąd regularyzacji `Q·√(Q² + Q_small²)` zamiast `|Q|·Q`. Jest rzędu 10⁻⁴ Pa, a symulacja przechodzi przez zero bez żadnych zdarzeń.
@@ -66,6 +69,18 @@ Ich iloczyn `p·V_flow` to moc w watach, więc bilans energii wynika wprost z po
 
 - **`chamber_closed_loop.png`** – dwie komory połączone przewodem, na starcie 8 ml i 3 ml. Ciecz przelewa się do komory o niższym ciśnieniu, „przestrzeliwuje” przez bezwładność słupa wody i oscyluje z tłumieniem wokół 5,5 ml. To obwód RLC: komory to pojemność, słup cieczy to indukcyjność, opór rury to rezystancja. Dolny panel pokazuje, że suma objętości zmienia się tylko na poziomie 10⁻¹⁵ ml, czyli w granicach zaokrągleń komputera.
 - **`relief_valve_limit.png`** – komora napełniana coraz szybciej. Nadciśnienie rośnie najpierw powoli (miękki silikon), potem stromo (silikon sztywnieje). Gdy przekroczy `p_set`, zawór przejmuje cały przepływ i ciśnienie zatrzymuje się na `p_set + dp_open`, czyli tam, gdzie zawór przepuszcza przepływ nominalny.
+
+- **`dc_motor_no_load.png`** – rozruch silnika przez mostek H przy `u = 0,6`. Prędkość narasta wykładniczo ze stałą czasową mechaniczną `J·R/k²` do wartości analitycznej. Bilans mocy (ogniwo = straty + przyrost energii kinetycznej i magnetycznej) zamyka się w każdej chwili.
+- **`gear_pump_characteristic.png`** – przepływ pompy przy stałej prędkości maleje liniowo z przyrostem ciśnienia. Nachylenie to przeciek `k_leak`. Przy ujemnym Δp ciecz sama pomaga pompie i pompa działa jak silnik hydrauliczny.
+
+## Scenariusze (`results/examples/`)
+
+- **`hydraulics_step.png`** (scenariusz 1) – komenda pompy rośnie do 0,5, ogon jest zablokowany:
+  - Silnik się rozpędza, a prąd rozruchowy ma krótki szczyt: przy małej prędkości napięcie indukowane jest małe.
+  - Pompa przetłacza wodę z komory R do L. Różnica ciśnień rośnie coraz szybciej, bo silikon sztywnieje.
+  - Przy ok. 51 kPa otwiera się zawór przelewowy. Od tej chwili woda krąży w pętli pompa → zawór, komory stoją, a cała moc pompy idzie w ciepło.
+  - Po zdjęciu komendy mostek zwiera silnik, a napięte komory wypychają wodę z powrotem, głównie przez przeciek pompy. Silnik działa wtedy jak hamulec prądnicowy, stąd ujemny prąd.
+  - Przy placeholderowych parametrach silnik jest mocno przewymiarowany względem pompy. Prąd pod obciążeniem to tylko ok. 0,14 A, więc parametry trzeba zidentyfikować, zanim wyciągnie się wnioski o doborze napędu.
 
 ## Krzywa p–V komory z pliku
 

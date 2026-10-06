@@ -1,7 +1,9 @@
 within FishRobot.Interfaces;
 connector HydraulicPort "Złącze hydrauliczne: ciśnienie (potencjał) i przepływ objętościowy (flow)"
-  Modelica.Units.SI.AbsolutePressure p "Ciśnienie w punkcie połączenia";
-  flow Modelica.Units.SI.VolumeFlowRate V_flow "Przepływ objętościowy DO komponentu przez ten port";
+  // nominal: typowy rząd wielkości – solver skaluje nim tolerancje i iteracje Newtona.
+  // Bez tego przepływ rzędu 1e-5 m3/s byłby traktowany jak wielkość rzędu 1.
+  Modelica.Units.SI.AbsolutePressure p(start=1.01325e5, nominal=1e5) "Ciśnienie w punkcie połączenia";
+  flow Modelica.Units.SI.VolumeFlowRate V_flow(nominal=1e-5) "Przepływ objętościowy DO komponentu przez ten port";
   annotation (Documentation(info="<html>
 <p>Złącze akauzalne dla nieściśliwej cieczy. W węźle, gdzie łączy się kilka portów, Modelica generuje:</p>
 <ul>

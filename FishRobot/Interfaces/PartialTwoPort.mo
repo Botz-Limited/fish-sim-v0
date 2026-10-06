@@ -4,8 +4,9 @@ partial model PartialTwoPort "Element dwuportowy bez magazynowania objętości (
     annotation (Placement(transformation(extent={{-110,-10},{-90,10}})));
   HydraulicPort_b port_b "Port b"
     annotation (Placement(transformation(extent={{90,-10},{110,10}})));
-  Modelica.Units.SI.PressureDifference dp "Spadek ciśnienia dp = port_a.p - port_b.p";
-  Modelica.Units.SI.VolumeFlowRate V_flow "Przepływ od port_a do port_b";
+  // start = 0: układ startuje w spoczynku (to też punkt startowy iteracji Newtona w pętlach algebraicznych).
+  Modelica.Units.SI.PressureDifference dp(start=0, nominal=1e4) "Spadek ciśnienia dp = port_a.p - port_b.p";
+  Modelica.Units.SI.VolumeFlowRate V_flow(start=0, nominal=1e-5) "Przepływ od port_a do port_b";
 equation
   dp = port_a.p - port_b.p;
   V_flow = port_a.V_flow;

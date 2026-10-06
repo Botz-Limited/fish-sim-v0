@@ -4,3 +4,5 @@ PipeInertance
 ChamberClosedLoop
 ChamberTableFromFile
 ReliefValveLimit
+DCMotorNoLoad
+GearPumpCharacteristic
