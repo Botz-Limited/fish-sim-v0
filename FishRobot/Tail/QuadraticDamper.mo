@@ -24,7 +24,7 @@ equation
 <p>Opór wody przy szybkim machnięciu rośnie z kwadratem prędkości (opór ciśnieniowy, jak
 <code>&frac12;&rho;C<sub>d</sub>Av<sup>2</sup></code>). Moment <code>&tau; = c_h·|&omega;|·&omega;</code>
 działa zawsze przeciwnie do ruchu, więc moc <code>c_h·|&omega;|·&omega;<sup>2</sup></code> jest zawsze rozpraszana.</p>
-<p>To jest też część mocy, która w prawdziwej rybie zamienia się w ciąg – w modelu 1 DOF nie da się tego
-rozdzielić, dlatego ciąg w <code>SurgeDynamics</code> jest osobnym, empirycznym placeholderem.</p>
+<p>To opór poprzeczny płetwy: energia idzie w ciepło i wiry, a nie w ciąg. Ciąg i moc, która go wytwarza,
+liczy osobno <code>Propulsion.LighthillFin</code>, podłączany do osi ogona.</p>
 </html>"));
 end QuadraticDamper;

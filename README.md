@@ -12,7 +12,7 @@ Uproszczony, **edukacyjny i nieskalibrowany** model robota-ryby w Modelice: siln
 | 4 | `TailEquivalent`, `CPG`, podukład `TailDrive` → `TailFlapping`, `FrequencySweep` (`sweep.py`), `ReliefValveDemo` | gotowe |
 | 5 | Bilans energii w `TailDrive` → `EnergyBudget` + test zamknięcia bilansu | gotowe |
 | 6 | `BallastSyringe`, `VerticalDynamics`, `DepthPID` (kaskada) → `DepthControl`, test `BallastStatics` | gotowe |
-| 7 | Surge → `SwimForward` | – |
+| 7 | `LighthillFin` (ciąg, placeholder), `SurgeDynamics` → `SwimForward`, `sweep.py --swim`, testy `SurgeTerminalVelocity`, `FinPrescribedMotion` | gotowe |
 | 8 | FMU + FMPy | – |
 
 ## Wersje
@@ -40,6 +40,7 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/run_all.py              # wszystkie scenariusze z Examples/ -> results/examples/
 .venv/bin/python scripts/sweep.py               # przegląd częstotliwości 0,25–4 Hz -> results/sweep/
 .venv/bin/python scripts/sweep.py --A 0.5 --n 30   # inna amplituda komendy, gęstsza siatka
+.venv/bin/python scripts/sweep.py --swim        # prędkość pływania vs częstotliwość -> results/sweep/swim_sweep.*
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -108,6 +109,35 @@ Ich iloczyn `p·V_flow` to moc w watach, więc bilans energii wynika wprost z po
   - Sprzężenie w przód jest celowo niedokładne (5,5 ml zamiast 6 ml). Różnicę usuwa człon całkujący, ale wolno (`Ti = 120 s`): na −1,5 m ryba przez ok. 50 s wisi 2–4 cm za nisko.
   - Prąd silnika strzykawki płynie tylko podczas ruchu tłoka (szczyty ok. 0,2 A). Utrzymanie głębokości przy sztywnym kadłubie nic nie kosztuje.
 
+- **`swim_forward.png`** (scenariusz 7) – CPG 1 Hz, amplituda komendy 0,8, 120 s:
+  - Ciąg pulsuje z podwójną częstotliwością, bo płetwa pcha w obu kierunkach machnięcia. Chwilami spada do zera, gdy ogon zawraca.
+  - Prędkość rośnie powoli i ustala się na ok. 6,4 cm/s, gdy średni ciąg (ok. 3 mN) zrówna się z oporem kadłuba. Stała czasowa to ok. 20 s, bo przy małym ciągu opór długo nie dorównuje mu.
+  - Z 207 J pobranych z baterii płetwa dostaje tylko ok. 40 mJ, a pracę użyteczną (przeciw oporowi kadłuba) daje ok. 20 mJ, czyli 0,01%. Reszta to straty napędu ogona, opisane w scenariuszu 5.
+
+## Pływanie do przodu (scenariusz 7)
+
+**Uwaga: model ciągu to najsłabsze ogniwo całego modelu.** `Propulsion.LighthillFin` ma postać z teorii wydłużonego ciała Lighthilla dla sztywnej płetwy obracanej o kąt θ:
+
+- prędkość wody względem płetwy: `w = L·θ̇ + U·θ`,
+- ciąg: `T = ½·m_a·((L·θ̇)² − U²·θ²)`, gdzie masa dodana na metr to `m_a = C_T·ρ·π·s²/4`,
+- moment hamujący ogon: `τ = m_a·U·L·w`.
+
+Parametry `s_fin` i `C_T` są placeholderami. Trzeba je wyznaczyć z pomiaru ciągu na uwięzi albo z demo CFD/MuJoCo. Liczby prędkości pokazują trendy, a nie wartości do projektowania.
+
+**Spójność energetyczna.** Płetwa nie dodaje ciągu „z powietrza”. Pobiera z ogona moc `P_fin = τ·θ̇` przez złącze mechaniczne `TailDrive.flange_tail`, a w każdej chwili zachodzi `P_fin = T·U + P_wake`, gdzie `P_wake = ½·m_a·U·w² ≥ 0` to energia zostawiona w śladzie wirowym. Bilans całego robota (bateria → straty napędu → ślad → opór kadłuba → energia kinetyczna) zamyka się z błędem ok. 1e-6. Dla sinusa sprawność płetwy wynosi `½·(1 − (U/Lω)²)`, czyli najwyżej 50%. Przy U ≪ L·ω jest ona bliska 50%.
+
+**`swim_sweep.png`** (`sweep.py --swim`, `A = 1`, 0,25–4 Hz, 150 s na punkt):
+
+| f [Hz] | U [cm/s] | θ [°] | θ·f [°·Hz] | P_bat [W] |
+|---|---|---|---|---|
+| 0,25 | 7,8 | 31,4 | 7,9 | 1,0 |
+| 0,5 | 8,6 | 17,2 | 8,6 | 1,1 |
+| 1 | 8,1 | 7,8 | 7,8 | 2,8 |
+| 2 | 7,3 | 3,5 | 6,9 | 7,9 |
+| 4 | 6,7 | 1,6 | 6,2 | 16,6 |
+
+**Lekcja: szybsze machanie nie przyspiesza ryby, gdy ogranicza pompa.** Średni ciąg rośnie z kwadratem prędkości krawędzi spływu, czyli z (θ·f)². Powyżej ok. 0,5 Hz pompa przetłacza w półokresie stałą objętość, więc θ·f jest prawie stałe (patrz scenariusz 3). Ciąg i prędkość stoją w miejscu, a nawet lekko maleją, a moc z baterii rośnie 16 razy, bo silnik coraz częściej zawraca wirnik. Poniżej 0,5 Hz ogranicza zawór przelewowy: amplituda przestaje rosnąć, więc θ·f i prędkość spadają. Przy placeholderowych parametrach optimum to ok. 0,5 Hz. Żeby płynąć szybciej, trzeba zwiększyć przepływ pompy albo `D_tail`, a nie częstotliwość.
+
 ## Balast i pion (scenariusz 6)
 
 Strzykawka (`Buoyancy.BallastSyringe`) to mostek H, silnik DC, przekładnia, śruba pociągowa i tłok z ogranicznikami sprężysto-tłumiącymi. Ciśnienie hydrostatyczne wpycha tłok. `Buoyancy.VerticalDynamics` traktuje rybę jak punkt materialny z masą dodaną i oporem kwadratowym: każdy mililitr ponad objętość neutralną daje ok. 0,01 N siły w górę.
@@ -122,7 +152,7 @@ Strzykawka (`Buoyancy.BallastSyringe`) to mostek H, silnik DC, przekładnia, śr
 
 Podukład `TailDrive` całkuje osobno każdą stratę (`E_loss_*`) i liczy energię zmagazynowaną (`E_stored`): wirnik, indukcyjność, ścianki komór, ogon. Zmienna `E_balance_error = E_battery − E_loss_total − ΔE_stored` musi być bliska zeru. `check_tests.py` sprawdza to automatycznie w każdym modelu z podukładem `drive`; błąd wynosi ok. 2e-6 energii z baterii. To test całego modelu: zły znak, brakujący człon albo niespójne równania w dowolnym komponencie rozjechałyby bilans.
 
-Mostek H jest bezstratny. Moc ciśnienia otoczenia znosi się w obiegu zamkniętym, bo objętość krąży, a nie znika. Praca napędu do przodu `T·U` pojawi się w etapie 7. W modelu 1 DOF jest ona częścią mocy oddanej wodzie przez ogon, więc nie będzie dodawana drugi raz.
+Mostek H jest bezstratny. Moc ciśnienia otoczenia znosi się w obiegu zamkniętym, bo objętość krąży, a nie znika. Energię oddaną przez oś ogona na zewnątrz (np. płetwie w scenariuszu 7) liczy osobny człon `E_mech_out`; bez podłączenia jest zerowa.
 
 **`energy_budget.png`** – 60 s machania przy 1 Hz i amplitudzie komendy 0,8. Szacowany czas pracy samego napędu ogona to ok. 9,6 h przy 1,7 W i placeholderowej baterii 16,3 Wh.
 
@@ -159,4 +189,4 @@ Placeholderową krzywą p–V można zastąpić danymi z demo SOFA albo z pomiar
 
 ## Ograniczenia
 
-Model jest jednowymiarowy, o skupionych parametrach. Parametry nie są zidentyfikowane. Pełna lista ograniczeń i plan kalibracji pojawią się wraz z kolejnymi etapami.
+Model jest jednowymiarowy, o skupionych parametrach. Parametry nie są zidentyfikowane. Ciąg pochodzi z placeholderowego modelu płetwy (wyżej). Ruchy do przodu, w pionie i obrót są niezależne: machanie nie odchyla kadłuba, a balast nie wpływa na pływanie. Pełna lista ograniczeń i plan kalibracji pojawią się wraz z kolejnymi etapami.

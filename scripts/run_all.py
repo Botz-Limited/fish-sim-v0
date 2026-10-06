@@ -89,6 +89,24 @@ def plot_depth_control(sol):
     ], "DepthControl: skoki zadanej głębokości −0,5 → −1,5 → −1,0 m", "depth_control.png")
 
 
+def plot_swim_forward(sol):
+    t = sol["time"]
+    plotting.panels(t, [
+        ("kąt ogona [°]", [(np.degrees(sol["drive.theta"]), "θ")]),
+        ("ciąg [mN]", [(sol["fin.T"] * 1e3, "T (chwilowy)"), (sol["surge.F_drag"] * 1e3, "opór kadłuba")]),
+        ("prędkość [cm/s]", [(sol["surge.U"] * 100, "U")]),
+        ("energia z baterii [J]", [(sol["drive.E_battery"], "z baterii")]),
+        ("energia za ogonem [mJ]", [(sol["drive.E_mech_out"] * 1e3, "oddana płetwie"),
+                                    (sol["E_drag"] * 1e3, "praca przeciw oporowi (użyteczna)"),
+                                    (sol["E_wake"] * 1e3, "ślad wirowy")]),
+    ], "SwimForward: CPG 1 Hz, A = 0,8 – ciąg płetwy i pływanie do przodu (model ciągu: placeholder)",
+        "swim_forward.png")
+    e_bat, e_drag = sol["drive.E_battery"][-1], sol["E_drag"][-1]
+    print(f"  U_końc = {sol['surge.U'][-1] * 100:.1f} cm/s, droga {sol['surge.x'][-1]:.2f} m; "
+          f"energia z baterii {e_bat:.1f} J, do płetwy {sol['drive.E_mech_out'][-1]:.2f} J, "
+          f"użyteczna {e_drag:.2f} J ({e_drag / e_bat:.2%})")
+
+
 PLOTS = {
     "FishRobot.Examples.HydraulicsStep": (
         ["time", "bridge.u_lim", "p_L", "p_R", "Q_pump", "Q_relief", "i_motor", "i_battery", "motor.w"],
@@ -108,6 +126,10 @@ PLOTS = {
         ["time", "fish.z", "controller.refLimiter.y", "depthReference.y[1]", "syringe.V_b", "controller.V_ref",
          "fish.v_z", "syringe.i_motor"],
         plot_depth_control),
+    "FishRobot.Examples.SwimForward": (
+        ["time", "drive.theta", "fin.T", "surge.F_drag", "surge.U", "surge.x", "drive.E_battery", "drive.E_mech_out",
+         "E_drag", "E_wake"],
+        plot_swim_forward),
 }
 
 

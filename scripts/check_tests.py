@@ -203,6 +203,49 @@ def check_depth_control(sol):
              f"x ∈ [{x.min() * 1e3:.1f}, {x.max() * 1e3:.1f}] mm z [0, {x_max * 1e3:.0f}]")]
 
 
+def check_surge_terminal(sol):
+    t, u, ref, u_ss = sol["time"], sol["surge.U"], sol["U_analytic"], sol["U_ss"][0]
+    err = np.max(np.abs(u - ref)) / u_ss
+    plotting.compare(t, u * 100, ref * 100, "U [cm/s]", "SurgeTerminalVelocity: rozpędzanie przy stałym ciągu",
+                     "surge_terminal_velocity.png", sim_label="symulacja surge.U", ref_label="U_ss·tanh(t/τ)")
+    return [("U(t) zgodne z U_ss·tanh(t/τ) (< 0,1% U_ss)", err < 1e-3, f"max błąd {err:.1e}, U_ss = {u_ss * 100:.1f} cm/s")]
+
+
+def check_fin_prescribed(sol):
+    t = sol["time"][-1]
+    t_mean, t_ref = sol["I_T"][-1] / t, sol["T_mean_analytic"][0]
+    eta, eta_ref = sol["E_thrust"][-1] / sol["E_fin"][-1], sol["eta_analytic"][0]
+    bal = np.max(np.abs(sol["E_balance_error"])) / sol["E_fin"][-1]
+    return [("średni ciąg = ¼·m_a·Θ²·(L²ω² − U²) (< 1%)", abs(t_mean / t_ref - 1) < 0.01,
+             f"{t_mean * 1e3:.2f} mN vs {t_ref * 1e3:.2f} mN"),
+            ("sprawność = ½·(1 − (U/Lω)²) (< 1%)", abs(eta / eta_ref - 1) < 0.01, f"{eta:.3f} vs {eta_ref:.3f}"),
+            ("P_fin = T·U + P_wake", bal < 1e-6, f"max błąd {bal:.1e}")]
+
+
+def check_swim_forward(sol):
+    t, u = sol["time"], sol["surge.U"]
+    f = sol["cpg.f"][0]
+    last, prev = t >= t[-1] - 3 / f, (t >= t[-1] - 6 / f) & (t < t[-1] - 3 / f)
+    u_last, u_prev = np.mean(u[last]), np.mean(u[prev])
+    u_bound = sol["fin.L_tail"][0] * 2 * np.pi * f
+    e_bat = sol["drive.E_battery"][-1]
+    sys_err = np.max(np.abs(sol["E_system_error"])) / e_bat
+    fin_err = np.max(np.abs(sol["E_fin_error"])) / sol["drive.E_mech_out"][-1]
+
+    def window_diff(name):
+        x = sol[name]
+        return x[-1] - x[last][0]
+
+    eta = window_diff("E_thrust") / window_diff("drive.E_mech_out")
+    return [("prędkość ustalona (zmiana średniej z 3 okresów < 1%)", abs(u_last / u_prev - 1) < 0.01,
+             f"U = {u_last * 100:.2f} cm/s"),
+            ("U < L·ω (ciąg znika przy prędkości krawędzi spływu)", 0 < u_last < u_bound,
+             f"{u_last * 100:.1f} < {u_bound * 100:.1f} cm/s"),
+            ("sprawność płetwy T·U/P_fin ≤ 50% (sztywna płetwa)", 0 < eta <= 0.5, f"{eta:.1%}"),
+            ("bilans płetwy: energia z ogona = praca ciągu + ślad", fin_err < 1e-4, f"max błąd {fin_err:.1e}"),
+            ("bilans energii całego robota (< 1% energii z baterii)", sys_err < 0.01, f"max błąd {sys_err:.1e}")]
+
+
 CHECKS = {
     "FishRobot.Tests.PipeLaminar": (["time", "pipe.dp", "dp_analytic", "pipe.Re"], check_pipe_laminar),
     "FishRobot.Tests.PipeQuadratic": (["time", "pipe.V_flow", "pipe.dp", "dp_exact"], check_pipe_quadratic),
@@ -231,6 +274,11 @@ CHECKS = {
                                         "fishLight.z", "fishHeavy.z", "fishRigid.z", "fishComp.z"],
                                        check_ballast_statics),
     "FishRobot.Examples.DepthControl": (["time", "fish.z", "syringe.x", "syringe.x_max"], check_depth_control),
+    "FishRobot.Tests.SurgeTerminalVelocity": (["time", "surge.U", "U_analytic", "U_ss"], check_surge_terminal),
+    "FishRobot.Tests.FinPrescribedMotion": (["time", "I_T", "T_mean_analytic", "E_thrust", "E_fin", "eta_analytic",
+                                             "E_balance_error"], check_fin_prescribed),
+    "FishRobot.Examples.SwimForward": (["time", "surge.U", "cpg.f", "fin.L_tail", "drive.E_battery", "E_system_error",
+                                        "E_fin_error", "drive.E_mech_out", "E_thrust"], check_swim_forward),
     "FishRobot.Tests.ReliefValveLimit": (["time", "chamber.p_gauge", "source.V_flow", "valve.V_flow",
                                           "valve.p_set", "valve.dp_open"], check_relief_valve),
 }

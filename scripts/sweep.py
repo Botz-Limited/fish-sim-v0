@@ -1,9 +1,12 @@
-"""Scenariusz 3: przegląd częstotliwości machania (FrequencySweep) na modelu TailFlapping.
+"""Przeglądy częstotliwości machania.
+
+  scenariusz 3 (domyślnie): FrequencySweep na modelu TailFlapping -> results/sweep/frequency_sweep.{png,csv}
+  scenariusz 7 (--swim):    prędkość ustalona vs częstotliwość na SwimForward -> results/sweep/swim_sweep.{png,csv}
 
 Model kompilowany jest raz; każda częstotliwość to osobne uruchomienie pliku wykonywalnego
-(równolegle na wszystkich rdzeniach). Wyniki: results/sweep/frequency_sweep.{png,csv}.
+(równolegle na wszystkich rdzeniach).
 
-Uruchomienie:  .venv/bin/python scripts/sweep.py [--A 1.0] [--fmin 0.5] [--fmax 4] [--n 15]
+Uruchomienie:  .venv/bin/python scripts/sweep.py [--swim] [--A 1.0] [--fmin 0.5] [--fmax 4] [--n 15]
 """
 
 import argparse
@@ -38,14 +41,89 @@ def metrics(sol, f, n_periods=3):
     }
 
 
+SWIM_MODEL = "FishRobot.Examples.SwimForward"
+SWIM_NAMES = ["time", "surge.U", "drive.theta", "drive.E_battery", "drive.E_mech_out", "E_thrust", "E_drag",
+              "fin.L_tail", "surge.m", "drive.reliefLR.V_flow", "drive.reliefRL.V_flow", "drive.pump.V_flow"]
+SWIM_STOP = 150.0  # stała czasowa rozpędzania to ok. 20 s, więc 150 s z zapasem wystarcza do stanu ustalonego
+
+
+def swim_metrics(sol, f, n_periods=3):
+    """Wskaźniki pływania z ostatnich n_periods okresów; zbieżność: porównanie z poprzednim oknem."""
+    t = sol["time"]
+    last = t >= t[-1] - n_periods / f
+    prev = (t >= t[-1] - 2 * n_periods / f) & ~last
+    dt = t[-1] - t[last][0]
+
+    def rate(name):  # średnia moc w oknie z przyrostu energii
+        return (sol[name][-1] - sol[name][last][0]) / dt
+
+    u, u_prev = np.mean(sol["surge.U"][last]), np.mean(sol["surge.U"][prev])
+    p_bat, p_fin, p_thrust, p_drag = (rate(k) for k in ["drive.E_battery", "drive.E_mech_out", "E_thrust", "E_drag"])
+    q_relief = np.abs(sol["drive.reliefLR.V_flow"] - sol["drive.reliefRL.V_flow"])
+    return {
+        "f_Hz": f,
+        "U_cm_s": 100 * u,
+        "U_converged": abs(u / u_prev - 1) < 0.01,
+        "theta_amp_deg": np.degrees(np.ptp(sol["drive.theta"][last]) / 2),
+        "theta_f_deg_Hz": np.degrees(np.ptp(sol["drive.theta"][last]) / 2) * f,
+        "U_bound_cm_s": 100 * sol["fin.L_tail"][0] * 2 * np.pi * f,
+        "P_battery_W": p_bat,
+        "P_fin_mW": 1e3 * p_fin,
+        "eta_fin": p_thrust / p_fin,
+        "eta_total": p_drag / p_bat,
+        "COT": p_bat / (sol["surge.m"][0] * 9.80665 * u),
+        "relief_share": np.mean(q_relief[last]) / np.mean(np.abs(sol["drive.pump.V_flow"][last])),
+    }
+
+
+def swim_sweep(args, t0):
+    work_dir = om_fast.compile_model(SWIM_MODEL)
+    t1 = time.perf_counter()
+    freqs = np.linspace(args.fmin, args.fmax, args.n)
+    cases = [(f"swim{f:.3f}", {"cpg.f": f, "cpg.A": args.A}, {"stopTime": SWIM_STOP, "stepSize": 0.01})
+             for f in freqs]
+    results = om_fast.run_many(work_dir, SWIM_MODEL, cases, SWIM_NAMES)
+    rows = [swim_metrics(sol, f) for sol, f in zip(results, freqs)]
+    t2 = time.perf_counter()
+
+    out = C.RESULTS_DIR / "sweep"
+    out.mkdir(parents=True, exist_ok=True)
+    with open(out / "swim_sweep.csv", "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+
+    col = {k: np.array([r[k] for r in rows]) for k in rows[0]}
+    plotting.panels(col["f_Hz"], [
+        ("prędkość ustalona [cm/s]", [(col["U_cm_s"], "U")]),
+        ("ogon", [(col["theta_amp_deg"], "amplituda θ [°]"), (col["theta_f_deg_Hz"], "θ·f [°·Hz]")]),
+        ("moc z baterii [W]", [(col["P_battery_W"], "średnia")]),
+        ("sprawność całkowita [%]", [(100 * col["eta_total"], "P_opór / P_bat")]),
+    ], f"SwimForward: prędkość ustalona vs częstotliwość (A = {args.A}; model ciągu: placeholder)",
+        "swim_sweep.png", subdir="sweep", xlabel="częstotliwość machania [Hz]", marker="o")
+
+    print(f"{'f [Hz]':>7} {'U [cm/s]':>9} {'θ [°]':>7} {'θ·f':>6} {'P_bat [W]':>9} {'P_fin [mW]':>10} "
+          f"{'η_płetwa':>8} {'η_całość':>9} {'COT':>6} {'zawory':>7}")
+    for r in rows:
+        flag = "" if r["U_converged"] else "  (niezbieżne!)"
+        print(f"{r['f_Hz']:7.2f} {r['U_cm_s']:9.2f} {r['theta_amp_deg']:7.1f} {r['theta_f_deg_Hz']:6.1f} "
+              f"{r['P_battery_W']:9.2f} {r['P_fin_mW']:10.3f} {100 * r['eta_fin']:7.1f}% "
+              f"{100 * r['eta_total']:8.3f}% {r['COT']:6.0f} {100 * r['relief_share']:6.1f}%{flag}")
+    print(f"\nkompilacja {t1 - t0:.1f} s, {len(freqs)} symulacji równolegle {t2 - t1:.1f} s -> {out}")
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--swim", action="store_true", help="scenariusz 7: pływanie (SwimForward) zamiast samego ogona")
     ap.add_argument("--A", type=float, default=1.0, help="amplituda komendy CPG")
     ap.add_argument("--fmin", type=float, default=0.25)
     ap.add_argument("--fmax", type=float, default=4.0)
     ap.add_argument("--n", type=int, default=16)
     args = ap.parse_args()
 
+    t0 = time.perf_counter()
+    if args.swim:
+        return swim_sweep(args, t0)
     t0 = time.perf_counter()
     work_dir = om_fast.compile_model(MODEL)
     t1 = time.perf_counter()

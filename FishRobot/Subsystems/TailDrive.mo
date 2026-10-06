@@ -21,6 +21,9 @@ model TailDrive "Napęd ogona: bateria + mostek H + silnik + pompa + przewody + 
     annotation (Placement(transformation(extent={{100,-50},{120,-30}})));
   Modelica.Blocks.Interfaces.RealOutput i_motor(unit="A") "Prąd silnika pompy"
     annotation (Placement(transformation(extent={{100,-80},{120,-60}})));
+  Modelica.Mechanics.Rotational.Interfaces.Flange_b flange_tail
+    "Oś ogona na zewnątrz, np. do płetwy (LighthillFin). Niepodłączona = brak obciążenia"
+    annotation (Placement(transformation(extent={{-10,-110},{10,-90}})));
 
   // --- Elektryka
   FishRobot.Electrical.Battery battery
@@ -64,11 +67,13 @@ model TailDrive "Napęd ogona: bateria + mostek H + silnik + pompa + przewody + 
   Modelica.Units.SI.Energy E_loss_tail(start=0, fixed=true) "Rozproszone w wodzie i materiale ogona";
   Modelica.Units.SI.Energy E_loss_total = E_loss_battery + E_loss_motor_cu + E_loss_motor_fric
     + E_loss_pump_leak + E_loss_pump_mech + E_loss_pipes + E_loss_relief + E_loss_tail "Suma strat";
+  Modelica.Units.SI.Energy E_mech_out(start=0, fixed=true)
+    "Energia oddana przez oś ogona na zewnątrz (flange_tail), np. płetwie";
   Modelica.Units.SI.Energy E_stored = 0.5*motor.J*motor.w^2 + 0.5*motor.L*motor.i^2
     + chamberL.E_elastic + chamberR.E_elastic + tail.E_kin + tail.E_spring
     "Energia zmagazynowana: wirnik, indukcyjność, ścianki komór, ogon (kinetyczna + sprężysta)";
   parameter Modelica.Units.SI.Energy E_stored0(fixed=false) "Energia zmagazynowana na starcie";
-  Modelica.Units.SI.Energy E_balance_error = E_battery - E_loss_total - (E_stored - E_stored0)
+  Modelica.Units.SI.Energy E_balance_error = E_battery - E_loss_total - E_mech_out - (E_stored - E_stored0)
     "Błąd bilansu (powinien być ~0)";
 
 initial equation
@@ -83,6 +88,9 @@ equation
   der(E_loss_pipes) = pipeL.P_loss + pipeR.P_loss;
   der(E_loss_relief) = reliefLR.P_loss + reliefRL.P_loss;
   der(E_loss_tail) = tail.P_water;
+  // Moc wpływająca do komponentu przez złącze to tau·w, więc moc wypływająca to -tau·w.
+  der(E_mech_out) = -flange_tail.tau*tail.w;
+  connect(tail.flange, flange_tail) annotation (Line(points={{90,0},{94,0},{94,-90},{0,-90},{0,-100}}));
   connect(u, bridge.u) annotation (Line(points={{-120,0},{-50,0},{-50,-28}}, color={0,0,127}));
   connect(battery.p, bridge.bat) annotation (Line(points={{-70,-40},{-66,-40},{-66,-36},{-60,-36}}, color={0,0,255}));
   connect(battery.n, bridge.n) annotation (Line(points={{-90,-40},{-94,-40},{-94,-60},{-50,-60},{-50,-50}}, color={0,0,255}));
@@ -121,9 +129,10 @@ przewody &rarr; komory L/R (z zaworami przelewowymi przeciwsobnymi przy pompie) 
 <p>Wszystkie komponenty są publiczne, więc parametry można zmieniać modyfikatorami, np.
 <code>TailDrive drive(motor(R=0.8), tail(k=0.4))</code>, a w OMEdit przez okno parametrów.</p>
 <p><b>Bilans energii</b> (zmienne <code>E_*</code>): każda strata jest całkowana osobno, a
-<code>E_balance_error = E_battery - E_loss_total - (E_stored - E_stored0)</code> sprawdza, czy model nie tworzy
+<code>E_balance_error = E_battery - E_loss_total - E_mech_out - (E_stored - E_stored0)</code> sprawdza, czy model nie tworzy
 ani nie gubi energii. Mostek H jest bezstratny, a moc „ciśnienia otoczenia” znosi się w obiegu zamkniętym
-(objętość krąży, nie znika), dlatego nie ma ich na liście.</p>
+(objętość krąży, nie znika), dlatego nie ma ich na liście. <code>E_mech_out</code> to energia oddana przez złącze <code>flange_tail</code>
+(np. płetwie, która zamienia ją na ciąg); bez podłączenia jest zerowa.</p>
 <p>Konwencja: <code>u &gt; 0</code> &rArr; pompa tłoczy R &rarr; L &rArr; <code>p_L &gt; p_R</code> &rArr; <code>&theta; &gt; 0</code>.</p>
 </html>"));
 end TailDrive;

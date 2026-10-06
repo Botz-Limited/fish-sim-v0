@@ -9,3 +9,5 @@ GearPumpCharacteristic
 TailStaticEnergy
 TailDriveDirection
 BallastStatics
+SurgeTerminalVelocity
+FinPrescribedMotion
