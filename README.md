@@ -13,7 +13,7 @@ Uproszczony, **edukacyjny i nieskalibrowany** model robota-ryby w Modelice: siln
 | 5 | Bilans energii w `TailDrive` → `EnergyBudget` + test zamknięcia bilansu | gotowe |
 | 6 | `BallastSyringe`, `VerticalDynamics`, `DepthPID` (kaskada) → `DepthControl`, test `BallastStatics` | gotowe |
 | 7 | `LighthillFin` (ciąg, placeholder), `SurgeDynamics` → `SwimForward`, `sweep.py --swim`, testy `SurgeTerminalVelocity`, `FinPrescribedMotion` | gotowe |
-| 8 | FMU + FMPy | – |
+| 8 | `TailDriveFMU` → FMU 2.0 CS (`export_fmu.py`), pętla FMPy i porównanie z OpenModelica (`fmu_demo.py`) | gotowe |
 
 ## Wersje
 
@@ -41,6 +41,8 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/sweep.py               # przegląd częstotliwości 0,25–4 Hz -> results/sweep/
 .venv/bin/python scripts/sweep.py --A 0.5 --n 30   # inna amplituda komendy, gęstsza siatka
 .venv/bin/python scripts/sweep.py --swim        # prędkość pływania vs częstotliwość -> results/sweep/swim_sweep.*
+.venv/bin/python scripts/export_fmu.py          # FMU napędu ogona -> results/fmu/TailDrive.fmu
+.venv/bin/python scripts/fmu_demo.py            # FMU w pętli FMPy vs OpenModelica -> results/fmu/fmu_vs_om.png
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -182,6 +184,28 @@ Mostek H jest bezstratny. Moc ciśnienia otoczenia znosi się w obiegu zamknięt
 - **Prąd rośnie z częstotliwością, choć amplituda maleje.** Silnik musi coraz częściej zawracać wirnik, a energia kinetyczna wirnika przy każdym zawróceniu w dużej części idzie w ciepło w uzwojeniu (`R·i²`). Szybkie machanie małą pompą jest więc nieefektywne. Lepsza byłaby większa pompa albo przekładnia.
 
 **Rampa CPG a pompa jako integrator.** Pompa całkuje przepływ do objętości. Sinus włączony od zera dałby więc przesunięcie objętości `(1 − cos ωt)/ω`, a ogon machałby wokół wychylonego położenia przez wiele okresów, bo przesunięcie wycieka tylko przez przeciek pompy. Dlatego CPG narasta łagodnie przez 2 okresy (`n_ramp`).
+
+## FMU (etap 8)
+
+`export_fmu.py` eksportuje `Subsystems.TailDriveFMU` jako **FMU 2.0 Co-Simulation**: bateria, mostek H, silnik, pompa, przewody, komory, zawory i ogon. Wejście to komenda `u`, a wyjścia to `theta`, `w_tail`, `tau_tail`, `p_L`, `p_R` i `i_motor`. `TailDriveFMU` to cienkie opakowanie `TailDrive`. Złącza mechanicznego `flange_tail` (kąt i moment jako zmienna przepływowa) nie da się wystawić jako zwykłego wejścia lub wyjścia FMU, więc zostaje w środku niepodłączone.
+
+**Solver w FMU: CVODE** (`--fmiFlags=s:cvode`). Domyślnie OpenModelica wkłada do FMU CS jawną metodę Eulera z krokiem równym krokowi komunikacji. Przy sztywnej hydraulice i kroku 2 ms taki FMU pada po ok. 0,1 s. CVODE dobiera kroki wewnątrz każdego kroku komunikacji, a biblioteki sundials są spakowane do FMU (1,7 MB).
+
+`fmu_demo.py` uruchamia FMU w pętli Pythona przez FMPy (`FMU2Slave`) z krokiem 2 ms. Komendę CPG liczy Python tym samym wzorem co `Control.CPG`. Wynik porównuje ze scenariuszem `TailFlapping` policzonym w OpenModelica (`fmu_vs_om.png`):
+
+- komenda próbkowana **w środku kroku** `u(t + h/2)`: max różnica kąta 0,023% amplitudy,
+- komenda próbkowana **na początku kroku** `u(t)`: 0,64% amplitudy.
+
+**Lekcja: w co-simulation wejście jest stałe w kroku komunikacji** (ZOH). Próbkowane na początku kroku spóźnia się średnio o h/2 = 1 ms, a przy 1 Hz daje to błąd fazy rzędu 2π·f·h/2 ≈ 0,6%. Próbkowanie w środku kroku usuwa to opóźnienie. Przy sprzężeniu dwóch symulatorów takiego triku nie ma, bo wejście pochodzi z drugiego symulatora. Wtedy krok trzeba dobrać do najszybszej dynamiki sprzężenia.
+
+**FMU działa tylko na systemie, na którym go zbudowano.** Zawiera skompilowane binaria (`binaries/linux64`, glibc i sundials z tej maszyny). Na innym systemie trzeba go zbudować od nowa (`export_fmu.py`).
+
+**Jak w przyszłości podpiąć FMU pod demo MuJoCo** (niezaimplementowane):
+
+1. W `TailDriveFMU` dodać wejście momentu obciążenia ogona: `Rotational.Sources.Torque` na `drive.flange_tail`. Wtedy FMU dostaje od MuJoCo reakcję wody i bezwładność reszty ryby, a nie tylko rusza ogonem w próżni.
+2. W pętli MuJoCo w każdym kroku: `fmu.setReal(u, tau_load)` → `fmu.doStep(t, h)` → odczyt `tau_tail` → `data.ctrl[przegub_ogona] = tau_tail` (aktuator momentowy na przegubie ogona) → `mujoco.mj_step`. Moment obciążenia na kolejny krok to moment, jakim woda i reszta ciała działają na przegub ogona w MuJoCo (konkretne pola `mjData` zależą od tego, jak demo modeluje płyn).
+3. Krok komunikacji równy krokowi MuJoCo (np. 2 ms) albo jego wielokrotność. Sprzężenie jest jawne (wartości z poprzedniego kroku), więc przy sztywnym ogonie krok musi być mały w porównaniu z okresem drgań własnych ogona (poniżej 0,17 s: 5,8 Hz bez hydrauliki, a sztywność komór jeszcze tę częstotliwość podnosi).
+4. Hydraulika w FMU, a ruch ciała w MuJoCo. Wtedy `J_added`, `c_h` i `LighthillFin` nie powinny być liczone podwójnie, bo te efekty da wtedy model płynu w MuJoCo.
 
 ## Krzywa p–V komory z pliku
 
