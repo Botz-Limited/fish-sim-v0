@@ -14,6 +14,7 @@ Uproszczony, **edukacyjny i nieskalibrowany** model robota-ryby w Modelice: siln
 | 6 | `BallastSyringe`, `VerticalDynamics`, `DepthPID` (kaskada) → `DepthControl`, test `BallastStatics` | gotowe |
 | 7 | `LighthillFin` (ciąg, placeholder), `SurgeDynamics` → `SwimForward`, `sweep.py --swim`, testy `SurgeTerminalVelocity`, `FinPrescribedMotion` | gotowe |
 | 8 | `TailDriveFMU` → FMU 2.0 CS (`export_fmu.py`), pętla FMPy i porównanie z OpenModelica (`fmu_demo.py`) | gotowe |
+| 9 | (opcja) `HydraulicsFluid` na złączach `Modelica.Fluid` → `HydraulicsMSLFluid`, porównanie (`compare_fluid.py`) | gotowe |
 
 ## Wersje
 
@@ -43,6 +44,7 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/sweep.py --swim        # prędkość pływania vs częstotliwość -> results/sweep/swim_sweep.*
 .venv/bin/python scripts/export_fmu.py          # FMU napędu ogona -> results/fmu/TailDrive.fmu
 .venv/bin/python scripts/fmu_demo.py            # FMU w pętli FMPy vs OpenModelica -> results/fmu/fmu_vs_om.png
+.venv/bin/python scripts/compare_fluid.py       # własna hydraulika vs Modelica.Fluid -> results/fluid/fluid_vs_own.png
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -73,6 +75,8 @@ Ta sama stała w obu równaniach sprawia, że moc hydrauliczna jest z definicji 
 
 Ich iloczyn `p·V_flow` to moc w watach, więc bilans energii wynika wprost z połączeń, tak jak `v·i` w elektryce. To najprostszy sposób, żeby zobaczyć, jak działają złącza akauzalne.
 
+Ten sam obwód zbudowany na `Modelica.Fluid` i porównanie obu wersji opisuje sekcja [Modelica.Fluid zamiast własnego pakietu](#modelicafluid-zamiast-własnego-pakietu-etap-9).
+
 **Konwencja kierunków:** komenda pompy `u > 0` ⇒ wał kręci się w kierunku dodatnim (`ω > 0`) ⇒ pompa tłoczy wodę z komory R do komory L ⇒ `p_L > p_R`. W etapie 4 ten sam znak da dodatni kąt ogona.
 
 **Konwencja znaków przepływu:** `V_flow > 0` oznacza przepływ **do** komponentu przez dany port. W elementach dwuportowych `V_flow` (bez prefiksu portu) to przepływ od `port_a` do `port_b`, a `dp = port_a.p − port_b.p`.
@@ -97,6 +101,8 @@ Ich iloczyn `p·V_flow` to moc w watach, więc bilans energii wynika wprost z po
   - Przy ok. 51 kPa otwiera się zawór przelewowy. Od tej chwili woda krąży w pętli pompa → zawór, komory stoją, a cała moc pompy idzie w ciepło.
   - Po zdjęciu komendy mostek zwiera silnik, a napięte komory wypychają wodę z powrotem, głównie przez przeciek pompy. Silnik działa wtedy jak hamulec prądnicowy, stąd ujemny prąd.
   - Przy placeholderowych parametrach silnik jest mocno przewymiarowany względem pompy. Prąd pod obciążeniem to tylko ok. 0,14 A, więc parametry trzeba zidentyfikować, zanim wyciągnie się wnioski o doborze napędu.
+
+- **`hydraulics_msl_fluid.png`** (scenariusz 8, opcjonalny) – ten sam przebieg co `hydraulics_step.png`, policzony na komponentach `Modelica.Fluid`. Na oko wykresy są identyczne. Różnice pokazuje `results/fluid/fluid_vs_own.png` (sekcja niżej).
 
 - **`tail_flapping.png`** (scenariusz 2) – sinus 1 Hz, ogon swobodny:
   - Kąt ogona jest opóźniony względem komendy, bo pompa najpierw musi przetłoczyć ciecz.
@@ -207,10 +213,44 @@ Mostek H jest bezstratny. Moc ciśnienia otoczenia znosi się w obiegu zamknięt
 3. Krok komunikacji równy krokowi MuJoCo (np. 2 ms) albo jego wielokrotność. Sprzężenie jest jawne (wartości z poprzedniego kroku), więc przy sztywnym ogonie krok musi być mały w porównaniu z okresem drgań własnych ogona (poniżej 0,17 s: 5,8 Hz bez hydrauliki, a sztywność komór jeszcze tę częstotliwość podnosi).
 4. Hydraulika w FMU, a ruch ciała w MuJoCo. Wtedy `J_added`, `c_h` i `LighthillFin` nie powinny być liczone podwójnie, bo te efekty da wtedy model płynu w MuJoCo.
 
+## Modelica.Fluid zamiast własnego pakietu (etap 9)
+
+`Examples.HydraulicsMSLFluid` to obwód z `HydraulicsStep` (bateria, mostek H, silnik, pompa, przewody, komory, zawory) z hydrauliką na złączach `Modelica.Fluid` i medium `Modelica.Media.Water.ConstantPropertyLiquidWater`. Komponenty są w `FishRobot.HydraulicsFluid`. `compare_fluid.py` liczy oba modele i porównuje je (`results/fluid/fluid_vs_own.png`).
+
+**Co wzięto z biblioteki, a co trzeba było dopisać:**
+
+| Element | Własny pakiet | Wersja Modelica.Fluid |
+|---|---|---|
+| Przewód | `Hydraulics.Pipe` | z biblioteki: `Pipes.StaticPipe` (`DetailedPipeFlow`) + `Fittings.SimpleGenericOrifice` |
+| Zawór przelewowy | `Hydraulics.ReliefValve` | złożony z biblioteki: `Valves.ValveLinear` + `Sensors.RelativePressure` jako linia sterująca |
+| Pompa zębata | `Hydraulics.GearPump` | **dopisana** na `Interfaces.PartialTwoPortTransport`. MSL ma tylko pompy wirowe |
+| Komora podatna | `Hydraulics.Chamber` | **dopisana** na `Vessels.BaseClasses.PartialLumpedVessel`. Naczynia MSL mają stałą objętość albo swobodne lustro cieczy |
+
+**Złożoność** (wynik `compare_fluid.py`, 24 rdzenie):
+
+| | własny pakiet | Modelica.Fluid |
+|---|---|---|
+| równania po spłaszczeniu (w tym trywialne) | 177 (109) | 425 (222) |
+| stany ciągłe | 8 | 8 |
+| kompilacja | ok. 1,1 s | ok. 1,4 s |
+| symulacja 3 s | ok. 0,02 s | ok. 0,15 s (ok. 6× dłużej) |
+
+Liczba stanów jest równa przypadkiem. Wersja Fluid ma dodatkowo temperaturę wody w każdej komorze, a nie ma całek energii sprężystej `E_elastic`, które dodaliśmy we własnej komorze do bilansu energii. Temperatura zmienia się o mniej niż 0,01 K, więc przy wodzie o stałych właściwościach niczego nie wnosi, ale solver i tak musi ją liczyć.
+
+**Wyniki:** ciśnienia, przepływ pompy i prąd silnika różnią się o 0,7–3,8% maksimum przebiegu. Prawie całą różnicę daje przewód. Przy szybkim pompowaniu przepływ dochodzi do 16 ml/s, a liczba Reynoldsa w przewodzie 4 mm do ok. 5200. `DetailedPipeFlow` liczy wtedy opór turbulentny (przejście między Re = 2000 a 4000, chropowatość ścianki), a własny `Hydraulics.Pipe` cały czas stosuje wzór laminarny. Spadek ciśnienia na przewodzie wynosi 3,1 kPa zamiast 1,8 kPa. Zawory różnią się charakterystyką o kilka procent (opis w `HydraulicsFluid.ReliefValve`). Ustalony przepływ przez nie jest taki sam (różnica 0,1%), ale zbocze otwarcia jest przesunięte o kilka milisekund, więc chwilowa różnica przepływu na zboczu dochodzi do 11%.
+
+**Lekcje:**
+
+- **Biblioteka pokazała słabość naszego modelu.** Wzór Hagena–Poiseuille’a obowiązuje do Re ≈ 2300, a w scenariuszu 1 przepływ jest już turbulentny. Własny przewód zaniża tam opór o ok. 40%. W tym obwodzie to mało ważne, bo spadek na przewodach jest mały w porównaniu z ciśnieniem w komorach, ale przy węższych przewodach albo większej pompie trzeba by to poprawić.
+- **Progi regularyzacji trzeba sprawdzać per komponent.** Domyślne `system.m_flow_small = 0,01 kg/s` jest dobrane do instalacji przemysłowych, a u nas to cały przepływ pompy. W modelu jest zmniejszone do 1e-5 kg/s, ale sprawdziłem, że w tym obwodzie nie ma to wpływu: `SimpleGenericOrifice` wygładza charakterystykę w okolicy zera według `system.dp_small = 1 Pa`, a `DetailedPipeFlow` według liczby Reynoldsa. `m_flow_small` działa w innych komponentach (np. `Fittings` z `from_dp = false`) i w diagnostyce. Przy małych przepływach trzeba więc zajrzeć do kodu komponentu, który próg go dotyczy.
+- **Złącze Fluid przenosi więcej:** masowe natężenie przepływu i zmienne strumieniowe (entalpia, skład, `inStream()`). Każdy dopisany komponent musi określić, co wypływa z każdego portu. Do każdego portu naczynia można też podłączyć tylko jeden element (`nPorts`).
+- **Ostrzeżenia o aliasach** przy kompilacji (`The model contains alias variables with redundant start and/or conflicting nominal values`) pochodzą z wartości startowych wewnątrz MSL (np. `medium.T` i `state.T`). Są nieszkodliwe.
+- **Kiedy brać `Modelica.Fluid`:** gdy liczy się temperatura (nagrzewanie oleju, wymiana ciepła), ściśliwość albo przepływ dwufazowy, albo gdy model ma się łączyć z innymi bibliotekami opartymi na `Modelica.Media`. W tym projekcie (nieściśliwa woda, kilka komponentów, bilans energii jako test) lekki pakiet jest prostszy i ok. 6× szybszy.
+
 ## Krzywa p–V komory z pliku
 
 Placeholderową krzywą p–V można zastąpić danymi z demo SOFA albo z pomiaru bez zmiany kodu. Ustaw w `Chamber` parametr `tableOnFile = true`, a `fileName` wskaż przez `Modelica.Utilities.Files.loadResource("modelica://FishRobot/Resources/Data/<plik>.csv")`. Plik ma mieć jedną linię nagłówka i kolumny `V [m³], p − p_ambient [Pa]`, a krzywa musi być rosnąca. Wzór: `FishRobot/Resources/Data/chamber_pV_placeholder.csv` i test `ChamberTableFromFile`.
 
 ## Ograniczenia
 
-Model jest jednowymiarowy, o skupionych parametrach. Parametry nie są zidentyfikowane. Ciąg pochodzi z placeholderowego modelu płetwy (wyżej). Ruchy do przodu, w pionie i obrót są niezależne: machanie nie odchyla kadłuba, a balast nie wpływa na pływanie. Pełna lista ograniczeń i plan kalibracji pojawią się wraz z kolejnymi etapami.
+Model jest jednowymiarowy, o skupionych parametrach. Parametry nie są zidentyfikowane. Przewód liczy opór tylko ze wzoru laminarnego, choć przy szybkim pompowaniu Re dochodzi do ok. 5200 (porównanie z `Modelica.Fluid` wyżej). Ciąg pochodzi z placeholderowego modelu płetwy (wyżej). Ruchy do przodu, w pionie i obrót są niezależne: machanie nie odchyla kadłuba, a balast nie wpływa na pływanie. Pełna lista ograniczeń i plan kalibracji pojawią się wraz z kolejnymi etapami.

@@ -264,6 +264,10 @@ CHECKS = {
     "FishRobot.Examples.HydraulicsStep": (["time", "bridge.u_lim", "p_L", "p_R", "motor.w", "chamberL.V",
                                            "chamberR.V", "reliefLR.p_set", "reliefLR.dp_open"],
                                           check_hydraulics_step),
+    # Ten sam obwód na Modelica.Fluid: te same asercje (porównanie z własnym pakietem: compare_fluid.py).
+    "FishRobot.Examples.HydraulicsMSLFluid": (["time", "bridge.u_lim", "p_L", "p_R", "motor.w", "chamberL.V",
+                                               "chamberR.V", "reliefLR.p_set", "reliefLR.dp_open"],
+                                              check_hydraulics_step),
     "FishRobot.Tests.TailStaticEnergy": (["time", "tail.theta", "theta_analytic", "E_balance_error", "E_hyd"],
                                          check_tail_static_energy),
     "FishRobot.Tests.TailDriveDirection": (["time", "drive.theta", "drive.p_L", "drive.p_R", "drive.tau_tail",

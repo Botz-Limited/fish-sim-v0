@@ -12,7 +12,8 @@ import om_config as C
 import plotting
 
 
-def plot_hydraulics_step(sol):
+def plot_hydraulics_step(sol, title="HydraulicsStep: rampa komendy pompy, ogon zablokowany",
+                         name="hydraulics_step.png"):
     t = sol["time"]
     plotting.panels(t, [
         ("komenda u [-]", [(sol["bridge.u_lim"], "u")]),
@@ -20,7 +21,7 @@ def plot_hydraulics_step(sol):
         ("przepływ [ml/s]", [(sol["Q_pump"] * 1e6, "pompa R→L"), (sol["Q_relief"] * 1e6, "zawory L→R")]),
         ("prąd [A]", [(sol["i_motor"], "silnik"), (sol["i_battery"], "bateria")]),
         ("prędkość [rad/s]", [(sol["motor.w"], "wał silnika")]),
-    ], "HydraulicsStep: rampa komendy pompy, ogon zablokowany", "hydraulics_step.png")
+    ], title, name)
 
 
 def plot_tail_flapping(sol):
@@ -111,6 +112,10 @@ PLOTS = {
     "FishRobot.Examples.HydraulicsStep": (
         ["time", "bridge.u_lim", "p_L", "p_R", "Q_pump", "Q_relief", "i_motor", "i_battery", "motor.w"],
         plot_hydraulics_step),
+    "FishRobot.Examples.HydraulicsMSLFluid": (
+        ["time", "bridge.u_lim", "p_L", "p_R", "Q_pump", "Q_relief", "i_motor", "i_battery", "motor.w"],
+        lambda sol: plot_hydraulics_step(sol, "HydraulicsMSLFluid: ten sam obwód na Modelica.Fluid",
+                                         "hydraulics_msl_fluid.png")),
     "FishRobot.Examples.TailFlapping": (
         ["time", "cpg.y", "drive.theta", "drive.p_L", "drive.p_R", "drive.i_motor", "drive.battery.i"],
         plot_tail_flapping),
