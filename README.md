@@ -45,6 +45,8 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/export_fmu.py          # FMU napędu ogona -> results/fmu/TailDrive.fmu
 .venv/bin/python scripts/fmu_demo.py            # FMU w pętli FMPy vs OpenModelica -> results/fmu/fmu_vs_om.png
 .venv/bin/python scripts/compare_fluid.py       # własna hydraulika vs Modelica.Fluid -> results/fluid/fluid_vs_own.png
+.venv/bin/python scripts/calibrate.py           # identyfikacja silnika DC (pomiar syntetyczny) -> results/calibration/
+.venv/bin/python scripts/calibrate.py --data pomiar.csv --U 6 --t-step 0.01   # to samo na prawdziwym pomiarze
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -285,3 +287,29 @@ Parametry najlepiej identyfikować od źródła energii w stronę wody. Każdy k
 | 11 | Balast i pion | ważenie w wodzie przy kilku położeniach tłoka; wybieg w pionie po skoku pęcherza; zależność wyporu od głębokości | `V_b_neutral`, `V_air0`, `m_added_z`, `C_dz·A_z`, `lead`, `gear_ratio` |
 
 Po każdym kroku warto powtórzyć odpowiedni test z `FishRobot.Tests` z nowymi parametrami i porównać przebieg z pomiarem. Kroki 1–8 dotyczą samego napędu ogona i można je wykonać na stole bez wody (oprócz kroku 8). Kroki 9–11 wymagają basenu.
+
+### Identyfikacja silnika (krok 2): `calibrate.py`
+
+Na stole wystarczy jeden rozruch: skok napięcia z zasilacza na silnik z wolnym wałem, zapis prądu i prędkości. Model stanowiska to `FishRobot.Calibration.MotorStep`. Każdy z pięciu parametrów kształtuje inną część przebiegu, więc wszystkie da się wyznaczyć naraz:
+
+- `R` – szczyt prądu (wirnik jeszcze stoi),
+- `L` – narastanie prądu do szczytu,
+- `k` – prędkość ustalona,
+- `b` – prąd ustalony,
+- `J` – czas rozpędzania.
+
+`calibrate.py` kompiluje model raz i dopasowuje parametry metodą najmniejszych kwadratów (`scipy.optimize.least_squares`). Każde wywołanie to uruchomienie gotowego pliku wykonywalnego z `-override`, a kolumny jakobianu liczą się równolegle. Parametry są dopasowywane w skali logarytmicznej, bo wszystkie są dodatnie i różnią się o 6 rzędów wielkości. Plik pomiaru to CSV z nagłówkiem i kolumnami `time [s], i [A], w [rad/s]`. Wynik zawiera gotowy modyfikator do wklejenia w model, niepewność 1σ każdego parametru i macierz korelacji (`results/calibration/motor_step_fit.{txt,png}`).
+
+Bez `--data` skrypt sprawdza samą procedurę. Tworzy „pomiar” z modelu o znanych parametrach (inne niż placeholdery o 25–100%), dodaje szum czujników (0,03 A i 2 rad/s) i dopasowuje, startując od placeholderów. Całość zajmuje ok. 1,5 s. Wszystkie parametry wracają z błędem poniżej 1,5σ. W 20 powtórzeniach z innym szumem rozrzut wyników zgadza się z podawaną niepewnością, a średni błąd jest bliski zera:
+
+| Parametr | Niepewność 1σ | Rozrzut w 20 powtórzeniach |
+|---|---|---|
+| `R` | 0,09% | 0,09% |
+| `L` | 1,0% | 0,9% |
+| `k` | 0,03% | 0,03% |
+| `J` | 0,11% | 0,10% |
+| `b` | 1,2% | 1,4% |
+
+**Lekcja: wagi sygnałów decydują o niepewności.** Prąd i prędkość mają różne jednostki i różny szum, więc reszty trzeba podzielić przez szum każdego czujnika. Szumu zwykle nie znamy, dlatego skrypt po pierwszym dopasowaniu szacuje go z reszt każdego sygnału osobno i dopasowuje jeszcze raz. Pierwsza wersja ważyła sygnały przez 1% zakresu. Prąd był wtedy względnie dwa razy bardziej zaszumiony niż prędkość, a wspólna wariancja reszt to ukrywała. Niepewność `b`, wyznaczanego głównie z prądu ustalonego, wychodziła przez to za mała: 1,0% przy rzeczywistym rozrzucie 1,6%.
+
+Macierz korelacji pokazuje, czego eksperyment nie rozróżnia dobrze. `k` i `b` są skorelowane (−0,84), bo oba ustalają punkt pracy w stanie ustalonym, a `R` i `J` (−0,77), bo razem dają mechaniczną stałą czasową `J·R/k²`. Niepewność `b` i `L` jest największa: prąd ustalony to tylko ok. 0,08 A, a narastanie prądu trwa ok. 0,5 ms, czyli kilka próbek przy 5 kHz. Na prawdziwym stole pomaga dłuższy zapis stanu ustalonego (uśrednianie prądu) i szybsze próbkowanie prądu. Kolejne kroki planu (pompa, ogon) można dodać do skryptu jako kolejne modele stanowisk w `FishRobot.Calibration`.
