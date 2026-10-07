@@ -23,14 +23,24 @@ szkieletowej, a wynik zapisywany jako CSV dla Chamber(tableOnFile=true) i sprawd
   .venv/bin/python scripts/calibrate.py pipe [--data punkty.csv --l 0.2]
   .venv/bin/python scripts/calibrate.py chamber [--data cykle.csv --V-rest 5e-6]
   .venv/bin/python scripts/calibrate.py valve [--data punkty.csv]
+  .venv/bin/python scripts/calibrate.py tail-static [--data punkty.csv --k small]
+  .venv/bin/python scripts/calibrate.py tail-dynamic [--data-air a.csv --data-water w.csv]
 
 Krok 6, zawór przelewowy (calibrate.py valve): charakterystyka Q(Δp) przy rosnącym i malejącym przepływie,
 dopasowanie jak w kroku 4, osobno dla obu gałęzi (histereza grzybka) i wspólnie.
 
+Krok 7, ogon statycznie (calibrate.py tail-static): moment na zablokowanym ogonie i kąt swobodnego ogona
+przy zadanym Δp; regresja liniowa daje D_tail i k, test członu Δp³ wykrywa nieliniową sztywność.
+
+Krok 8, ogon dynamicznie (calibrate.py tail-dynamic): drgania swobodne w powietrzu (J, c) i w wodzie
+(J_added, c, c_h), dopasowanie symulacji TailDecay przy k z kroku 7 (z samego θ(t) wynikają tylko ilorazy przez J).
+
 Pliki pomiaru: CSV z nagłówkiem; silnik: time [s], i [A], w [rad/s]; pompa: U [V], i [A], w [rad/s],
 dp [Pa], Q [m³/s];
 przewód: Q [m³/s], dp [Pa]; komora (w kolejności czasu): dV [m³], p [Pa];
-zawór: dp [Pa], Q [m³/s], up (1 = przepływ rośnie). Wyniki -> results/calibration/.
+zawór: dp [Pa], Q [m³/s], up (1 = przepływ rośnie);
+ogon statycznie: dp_blocked [Pa], tau [N·m], dp_free [Pa], theta [rad]; ogon dynamicznie: time [s], theta [rad].
+Wyniki -> results/calibration/.
 """
 
 import argparse
@@ -637,6 +647,180 @@ def valve_main(args):
     print(plotting.save(fig, "valve_fit.png", "calibration"))
 
 
+# --- Krok 7: ogon statycznie ------------------------------------------------------------------------
+
+TAIL_STATIC = {
+    # „prawdziwy” ogon: sztywność rośnie z kątem k·(1 + beta·θ²), czego model (stałe k) nie ma
+    "true": {"D_tail": 1.6e-5, "k": 2.6, "beta": 0.6},
+    "dp": np.linspace(-40e3, 40e3, 17).tolist(),
+    "noise": {"tau": 2e-3, "theta": 0.0035, "dp": 100.0},  # siłomierz [N·m], kąt [rad] (0,2°), Δp [Pa]
+}
+
+
+def tail_static_synthetic(seed=6):
+    c = TAIL_STATIC
+    D, k, beta = c["true"]["D_tail"], c["true"]["k"], c["true"]["beta"]
+    dp = np.array(c["dp"])
+    tau = D * dp
+    theta = np.array([np.roots([k * beta, 0, k, -D * x])[-1].real for x in dp])  # k·θ·(1 + β·θ²) = D·Δp
+    rng = np.random.default_rng(seed)
+    noisy = lambda y, n: y + rng.normal(0, c["noise"][n], y.size)
+    return noisy(dp, "dp"), noisy(tau, "tau"), noisy(dp, "dp"), noisy(theta, "theta")
+
+
+def tail_static_fit(dp_b, tau, dp_f, theta):
+    """Zablokowany ogon: τ = D_tail·Δp. Swobodny ogon: θ = (D_tail/k)·Δp. Obie proste przez zero."""
+    def slope(x, y):
+        s = y @ x / (x @ x)
+        r = y - s * x
+        return s, np.sqrt(r @ r / (len(x) - 1) / (x @ x)) / abs(s), r
+
+    D, rel_D, r_tau = slope(dp_b, tau)
+    sl, rel_s, r_theta = slope(dp_f, theta)
+    # Test nieliniowości: współczynnik przy Δp³ w θ = a·Δp + b·Δp³ i jego statystyka t
+    X = np.column_stack([dp_f, dp_f ** 3])
+    ab, *_ = np.linalg.lstsq(X, theta, rcond=None)
+    r3 = theta - X @ ab
+    cov3 = np.linalg.inv(X.T @ X) * (r3 @ r3 / (len(theta) - 2))
+    return {"D_tail": D, "rel_D": rel_D, "k": D / sl, "rel_k": np.hypot(rel_D, rel_s),
+            "k0": D / ab[0], "rel_k0": np.hypot(rel_D, np.sqrt(cov3[0, 0]) / ab[0]), "t_cubic": ab[1] / np.sqrt(cov3[1, 1]), "r_tau": r_tau, "r_theta": r_theta,
+            "slope": sl, "ab": ab}
+
+
+def tail_static_main(args):
+    if args.data:
+        b = np.genfromtxt(args.data, delimiter=",", names=True)
+        dp_b, tau, dp_f, theta = b["dp_blocked"], b["tau"], b["dp_free"], b["theta"]
+        truth = None
+    else:
+        dp_b, tau, dp_f, theta = tail_static_synthetic()
+        truth = TAIL_STATIC["true"]
+        np.savetxt(OUT / "tail_static_synthetic.csv", np.column_stack([dp_b, tau, dp_f, theta]), delimiter=",",
+                   header="dp_blocked,tau,dp_free,theta", comments="", fmt="%.6g")
+    r = tail_static_fit(dp_b, tau, dp_f, theta)
+    lines = [f"D_tail = {r['D_tail']:.5g} m³/rad ± {100 * r['rel_D']:.2f}%"
+             + (f"   (prawdziwe {truth['D_tail']:.5g}, błąd {100 * (r['D_tail'] / truth['D_tail'] - 1):+.2f}%)" if truth else ""),
+             f"k      = {r['k']:.5g} N·m/rad ± {100 * r['rel_k']:.2f}%   (prosta w całym zakresie ±{np.degrees(np.abs(theta).max()):.0f}°)"
+             + (f"   (prawdziwe przy θ → 0: {truth['k']:.5g})" if truth else ""),
+             f"test nieliniowości θ(Δp): t = {r['t_cubic']:.1f} dla członu Δp³"]
+    if abs(r["t_cubic"]) > 3:
+        lines.append(f"  -> charakterystyka nieliniowa (sztywność {'rośnie' if r['ab'][1] < 0 else 'maleje'} z kątem); "
+                     f"przy małych kątach k = {r['k0']:.4g} N·m/rad ± {100 * r['rel_k0']:.1f}%. Model ma stałe k: wybierz wartość dla zakresu pracy.")
+    lines.append(f"do modelu: FishRobot.Tail.TailEquivalent tail(D_tail={r['D_tail']:.5g}, k={r['k']:.5g});")
+    text = "\n".join(lines)
+    print(text)
+    k_out = [r["k0"], r["rel_k0"]] if args.k == "small" else [r["k"], r["rel_k"]]
+    text += f"\ndo kroku 8 idzie k = {k_out[0]:.5g} ± {100 * k_out[1]:.2f}% ({'małe kąty' if args.k == 'small' else 'prosta w całym zakresie'})"
+    print(text.splitlines()[-1])
+    (OUT / "tail_params.json").write_text(json.dumps({"D_tail": [r["D_tail"], r["rel_D"]], "k": k_out}, indent=1))
+    (OUT / "tail_static_fit.txt").write_text(text + "\n")
+
+    fig, axes = plotting.plt.subplots(2, 2, figsize=(10, 6), sharex="col", gridspec_kw={"height_ratios": [3, 1.3]})
+    line = np.linspace(min(dp_b.min(), dp_f.min()), max(dp_b.max(), dp_f.max()), 50)
+    axes[0, 0].plot(dp_b / 1e3, tau * 1e3, "o", color=plotting.SERIES[0], markersize=5, label="pomiar")
+    axes[0, 0].plot(line / 1e3, r["D_tail"] * line * 1e3, color=plotting.TEXT_2, linewidth=1.2, label="D_tail·Δp")
+    axes[0, 0].set_ylabel("moment [mN·m]")
+    axes[0, 0].set_title("ogon zablokowany", loc="left", fontsize=10)
+    axes[0, 1].plot(dp_f / 1e3, np.degrees(theta), "o", color=plotting.SERIES[1], markersize=5, label="pomiar")
+    axes[0, 1].plot(line / 1e3, np.degrees(r["slope"] * line), color=plotting.TEXT_2, linewidth=1.2,
+                    label="D_tail·Δp/k")
+    axes[0, 1].set_ylabel("kąt [°]")
+    axes[0, 1].set_title("ogon swobodny", loc="left", fontsize=10)
+    axes[1, 0].plot(dp_b / 1e3, r["r_tau"] * 1e3, "o", color=plotting.SERIES[0], markersize=4)
+    axes[1, 0].set_ylabel("reszty [mN·m]")
+    axes[1, 1].plot(dp_f / 1e3, np.degrees(r["r_theta"]), "o", color=plotting.SERIES[1], markersize=4)
+    axes[1, 1].set_ylabel("reszty [°]")
+    for ax in axes[1]:
+        ax.axhline(0, color=plotting.TEXT_2, linewidth=0.8)
+        ax.set_xlabel("Δp = p_L − p_R [kPa]")
+    for ax in axes[0]:
+        ax.legend(loc="upper left")
+    src = "pomiar syntetyczny" if truth else args.data
+    fig.suptitle(f"Kalibracja ogona statycznie ({src})", x=0.01, ha="left", fontsize=11)
+    fig.tight_layout()
+    print(plotting.save(fig, "tail_static_fit.png", "calibration"))
+
+
+# --- Krok 8: ogon dynamicznie (drgania swobodne) ----------------------------------------------------
+
+TAIL_DECAY = {
+    "model": "FishRobot.Calibration.TailDecay",
+    "signals": {"theta": ("rad", "kąt ogona")},
+    "component": "FishRobot.Tail.TailEquivalent tail",
+    "air": {"params": {"tail.J": (5e-4, "kg·m²"), "tail.c": (5e-3, "N·m·s/rad"), "theta0": (0.3, "rad")},
+            "true": {"tail.J": 4e-4, "tail.c": 3e-3, "theta0": 0.35},
+            "fixed": {"tail.J_added": 0.0, "tail.c_h": 0.0}},
+    "water": {"params": {"tail.J_added": (1e-3, "kg·m²"), "tail.c": (5e-3, "N·m·s/rad"),
+                         "tail.c_h": (1e-2, "N·m·s²/rad²"), "theta0": (0.3, "rad")},
+              "true": {"tail.J_added": 1.4e-3, "tail.c": 6e-3, "tail.c_h": 2e-2, "theta0": 0.5},
+              "fixed": {}},
+    "k_true": 2.6,
+    "dt": 2e-3, "t_end": 1.5, "noise": 0.003,  # enkoder/kamera 500 Hz, szum 0,17°
+}
+
+
+def tail_dynamic_main(args):
+    c = TAIL_DECAY
+    tail_file = OUT / "tail_params.json"
+    if not tail_file.exists():
+        raise SystemExit("brak results/calibration/tail_params.json – najpierw uruchom krok 7: calibrate.py tail-static")
+    k, rel_k = json.loads(tail_file.read_text())["k"]
+    work_dir = om_fast.compile_model(c["model"])
+    t = np.arange(0, c["t_end"] + c["dt"] / 2, c["dt"])
+    results = {}
+    lines = []
+    J_air = None
+    for medium in ("air", "water"):
+        e = c[medium]
+        exp = {"model": c["model"], "signals": c["signals"], "params": e["params"], "component": c["component"]}
+        setup = {"tail.k": k} | e["fixed"] | ({"tail.J": J_air[0]} if medium == "water" else {})
+        if getattr(args, f"data_{medium}"):
+            d = np.genfromtxt(getattr(args, f"data_{medium}"), delimiter=",", names=True)
+            tt, meas = d["time"], {"theta": d["theta"]}
+            truth = None
+        else:
+            truth = e["true"]
+            # „prawdziwy” ogon ma prawdziwe k i J, a nie te z kalibracji
+            true_setup = setup | {"tail.k": c["k_true"]} | ({"tail.J": c["air"]["true"]["tail.J"]} if medium == "water" else {})
+            clean = simulate(work_dir, exp, [truth[n] for n in exp["params"]], f"true_{medium}", true_setup, t)
+            tt = t
+            meas = {"theta": clean["theta"] + np.random.default_rng(7 if medium == "air" else 8).normal(0, c["noise"], t.size)}
+            np.savetxt(OUT / f"tail_decay_{medium}_synthetic.csv", np.column_stack([tt, meas["theta"]]), delimiter=",",
+                       header="time,theta", comments="", fmt="%.6g")
+        p_fit, sigma, cov, res, noise = fit(work_dir, exp, tt, meas, setup)
+        results[medium] = (exp, p_fit, sigma)
+        title = {"air": "w powietrzu", "water": "w wodzie"}[medium]
+        lines += [f"=== drgania swobodne {title} (k = {k:.4g} N·m/rad z kroku 7) ===",
+                  report(exp, p_fit, sigma, cov, res, noise, truth), ""]
+        if medium == "air":
+            J_air = (p_fit[0], sigma[0])
+        sim_fit = simulate(work_dir, exp, p_fit, f"fit_{medium}", setup, tt)
+        sim_start = simulate(work_dir, exp, [v for v, _ in exp["params"].values()], f"start_{medium}", setup, tt)
+        src = "pomiar syntetyczny" if truth else getattr(args, f"data_{medium}")
+        print(plot(exp, tt, meas, sim_fit, sim_start, f"Kalibracja ogona: drgania swobodne {title} ({src})",
+                   f"tail_decay_{medium}.png"))
+
+    # Niepewność całkowita: wszystkie parametry dynamiczne skalują się z k (z przebiegu wynikają tylko
+    # ilorazy przez bezwładność), a J_added dodatkowo dziedziczy błąd J z pomiaru w powietrzu.
+    lines.append("niepewność całkowita (dopasowanie ⊕ k z kroku 7 ⊕ J z powietrza dla J_added):")
+    for medium in ("air", "water"):
+        exp, p_fit, sigma = results[medium]
+        for j, n in enumerate(exp["params"]):
+            if n == "theta0":
+                continue
+            tot = np.hypot(sigma[j], rel_k)
+            if n == "tail.J_added":
+                tot = np.hypot(tot, J_air[0] * J_air[1] / p_fit[j])
+            lines.append(f"  {medium:<6}{n:<14}{p_fit[j]:>12.5g}  ±{100 * sigma[j]:.2f}% z dopasowania, ±{100 * tot:.2f}% całkowicie")
+    J, c_air = results["air"][1][0], results["air"][1][1]
+    Ja, c_w, c_h = results["water"][1][:3]
+    lines.append(f"do modelu: FishRobot.Tail.TailEquivalent tail(k={k:.5g}, J={J:.5g}, J_added={Ja:.5g}, "
+                 f"c={c_w:.5g}, c_h={c_h:.5g});  (c z wody; w powietrzu c = {c_air:.4g})")
+    text = "\n".join(lines)
+    print(text)
+    (OUT / "tail_dynamic_fit.txt").write_text(text + "\n")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="step", required=True)
@@ -658,9 +842,17 @@ def main():
                    help="odstęp węzłów od punktów zawrócenia strzykawki [m³] (czubki pętli histerezy)")
     v = sub.add_parser("valve", help="krok 6: zawór przelewowy z charakterystyki Q(Δp)")
     v.add_argument("--data", help="CSV z punktami (dp [Pa], Q [m³/s], up: 1 przy rosnącym przepływie, 0 przy malejącym)")
+    ts = sub.add_parser("tail-static", help="krok 7: D_tail i k z momentu i kąta przy zadanym Δp")
+    ts.add_argument("--data", help="CSV (dp_blocked, tau, dp_free, theta) w jednostkach SI; bez tej opcji: syntetyczny")
+    ts.add_argument("--k", choices=["line", "small"], default="line",
+                    help="które k zapisać dla kroku 8: prosta w całym zakresie albo sztywność przy małych kątach")
+    td = sub.add_parser("tail-dynamic", help="krok 8: J, c, J_added, c_h z drgań swobodnych (wymaga kroku 7)")
+    td.add_argument("--data-air", help="CSV (time, theta) – drgania w powietrzu")
+    td.add_argument("--data-water", help="CSV (time, theta) – drgania w wodzie")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
-    {"motor": motor_main, "pump": pump_main, "pipe": pipe_main, "chamber": chamber_main, "valve": valve_main}[args.step](args)
+    {"motor": motor_main, "pump": pump_main, "pipe": pipe_main, "chamber": chamber_main, "valve": valve_main,
+     "tail-static": tail_static_main, "tail-dynamic": tail_dynamic_main}[args.step](args)
 
 
 if __name__ == "__main__":

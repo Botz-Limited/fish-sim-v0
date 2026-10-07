@@ -51,6 +51,8 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/calibrate.py pipe [--data punkty.csv --l 0.2]   # identyfikacja przewodu z Δp(Q)
 .venv/bin/python scripts/calibrate.py chamber [--data cykle.csv --V-rest 5e-6]   # krzywa p–V komory -> CSV dla Chamber
 .venv/bin/python scripts/calibrate.py valve [--data punkty.csv]   # zawór przelewowy z Q(Δp), z histerezą grzybka
+.venv/bin/python scripts/calibrate.py tail-static [--data punkty.csv --k small]   # D_tail i k ogona
+.venv/bin/python scripts/calibrate.py tail-dynamic [--data-air a.csv --data-water w.csv]   # J, c, J_added, c_h
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -392,3 +394,27 @@ Pomiar syntetyczny: zawór ze słabszą sprężyną (`p_set` = 46 kPa zamiast 50
 Histereza wyznaczona z różnicy gałęzi: 1,89 kPa przy prawdziwych 2 kPa.
 
 **Lekcja: reszty pokazują, czego model nie umie.** Przy wspólnym dopasowaniu reszty układają się w dwa pasma przeciwnego znaku (dolny panel wykresu). Szum oszacowany z reszt wychodzi 1,9 ml/s, czyli prawie 40 razy więcej niż szum przepływomierza. To nie szum, tylko histereza, której model z jednym `p_set` nie ma. Niepewność wspólnego `p_set` (±0,72 kPa) jest przez to 7 razy większa niż każdej gałęzi z osobna, ale to uczciwa miara: tyle wynosi rozjazd modelu z zaworem. Przy histerezie 2 kPa (4% `p_set`) jedno `p_set` ze środka wystarcza do bilansu energii. Jeśli zawór ma ograniczać ciśnienie w komorach z zapasem, liczy się gałąź otwierania. `dp_smooth` jest wyznaczane słabo (±51%), bo zależy tylko od kilku punktów przy samym otwarciu. Wpływa jednak tylko na kształt kolanka charakterystyki. Jego „ogon” poniżej `p_set` działa w modelu jak dodatkowy przeciek (ok. 0,2 ml/s przy 35 kPa), więc osobno mierzony przeciek zamkniętego zaworu (`G_leak`, np. zbieranie kropel przez kilka minut) ma sens tylko wtedy, gdy jest większy.
+
+### Ogon statycznie (krok 7): `calibrate.py tail-static`
+
+Dwa pomiary przy różnicy ciśnień zadanej strzykawkami i mierzonej czujnikiem różnicowym:
+
+- **ogon zablokowany**, siłomierz na ramieniu: `τ = D_tail·Δp`, prosta przez zero daje `D_tail`,
+- **ogon swobodny**, kąt z kamery lub enkodera: `k·θ = D_tail·Δp`, nachylenie daje `D_tail/k`, a z `D_tail` wynika `k`.
+
+Plik pomiaru to CSV z kolumnami `dp_blocked, tau, dp_free, theta` (SI). Skrypt sprawdza też, czy kąt jest liniowy w Δp: dopasowuje dodatkowo człon `Δp³` i podaje jego statystykę t. Model ma stałe `k`, a prawdziwy silikon zwykle sztywnieje przy dużych kątach.
+
+### Ogon dynamicznie (krok 8): `calibrate.py tail-dynamic`
+
+Ogon wychylony i puszczony z bezruchu, komory otwarte do zbiornika, więc hydraulika nie dokłada sztywności ani tłumienia (`FishRobot.Calibration.TailDecay`). Najpierw w powietrzu, gdzie dopasowujemy `J` i `c`, potem w wodzie, gdzie dopasowujemy `J_added`, `c` i `c_h` przy `J` z powietrza. Wychylenie początkowe dopasowujemy jako parametr pomocniczy. Pliki pomiaru to CSV z kolumnami `time, theta`.
+
+**Z drgań swobodnych nie da się wyznaczyć bezwładności bez sztywności.** Równanie podzielone przez `J` zawiera tylko `k/J`, `c/J` i `c_h/J`, więc dwa razy większe wszystkie parametry dają ten sam przebieg θ(t). Dlatego `k` pochodzi z kroku 7, a jego błąd przenosi się 1:1 na wszystkie parametry dynamiczne. Skrypt podaje osobno niepewność z dopasowania i całkowitą (z `k` i, dla `J_added`, z `J` z powietrza). W wodzie tłumienie liniowe `c` i kwadratowe `c_h` są skorelowane (−0,75). Rozróżnia je tylko zależność zaniku od amplitudy, więc `c` wychodzi z niepewnością ok. 7%. Pomogłyby dodatkowe drgania z małego wychylenia, gdzie dominuje `c`.
+
+Pomiar syntetyczny: ogon z `D_tail` = 1,6e-5 m³/rad, sztywnością 2,6 N·m/rad przy małych kątach, rosnącą z kątem (`k·(1 + 0,6·θ²)`), i dynamiką liniową z tą sztywnością. 17 punktów statycznych do ±40 kPa (±14°), drgania próbkowane 500 Hz z szumem 0,17°. Wyniki (`results/calibration/tail_*`):
+
+| `--k` | `k` do kroku 8 | `J`: błąd | `J`: niepewność całkowita |
+|---|---|---|---|
+| `line` (prosta w całym zakresie) | 2,657 (+2,2%) | +2,2% | ±0,72% |
+| `small` (małe kąty, z członem Δp³) | 2,546 (−2,1%) | −2,1% | ±1,30% |
+
+**Lekcja: niezgodność modelu daje błąd, którego nie widać w σ.** Prosta w całym zakresie ma obciążenie: w 500 powtórzeniach średnio +2,3% przy rozrzucie tylko 0,6%. Jej σ jest małe, ale fałszywe, bo błąd `J` jest 3 razy większy od podanej niepewności. Sztywność przy małych kątach nie ma obciążenia (średnio 2,605 przy prawdziwych 2,6), ale ma większy rozrzut (1,5%). Tu błąd mieści się w σ. Który wariant wybrać, zależy od zakresu pracy: przy 1 Hz ogon macha o ok. 8°, a przy zaworze otwartym o ok. 31°. Ogólna zasada: jeśli test nieliniowości alarmuje, `k` trzeba mierzyć w zakresie kątów, w którym ogon naprawdę pracuje. Jeśli zakres jest duży, `TailEquivalent` potrzebuje nieliniowej sprężyny. Nieliniowości prawie nie widać na wykresie reszt, a test ją wykrywa (t = −3,5).
