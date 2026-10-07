@@ -108,13 +108,13 @@ def main():
     err_start = np.max(np.abs(fmu_start["theta"] - th_ref)) / amp
 
     plotting.panels(t, [
-        ("kąt ogona [°]", [(np.degrees(th_ref), "OpenModelica (TailFlapping)"),
-                           (np.degrees(fmu_mid["theta"]), "FMU + FMPy, krok 2 ms")]),
-        ("różnica θ [% amplitudy]", [(100 * (fmu_mid["theta"] - th_ref) / amp, "u w środku kroku"),
-                                     (100 * (fmu_start["theta"] - th_ref) / amp, "u na początku kroku")]),
-        ("prąd silnika [A]", [(np.interp(t, ref["time"], ref["drive.i_motor"]), "OpenModelica"),
+        ("tail angle [°]", [(np.degrees(th_ref), "OpenModelica (TailFlapping)"),
+                           (np.degrees(fmu_mid["theta"]), "FMU + FMPy, 2 ms step")]),
+        ("θ difference [% of amplitude]", [(100 * (fmu_mid["theta"] - th_ref) / amp, "u at step midpoint"),
+                                     (100 * (fmu_start["theta"] - th_ref) / amp, "u at step start")]),
+        ("motor current [A]", [(np.interp(t, ref["time"], ref["drive.i_motor"]), "OpenModelica"),
                               (fmu_mid["i_motor"], "FMU")]),
-    ], "FMU napędu ogona (FMPy, co-simulation 2 ms) vs OpenModelica", "fmu_vs_om.png", subdir="fmu")
+    ], "Tail drive FMU (FMPy, co-simulation 2 ms) vs OpenModelica", "fmu_vs_om.png", subdir="fmu")
 
     ok = err_mid < 0.01
     print(f"amplituda θ = {np.degrees(amp):.2f}°")

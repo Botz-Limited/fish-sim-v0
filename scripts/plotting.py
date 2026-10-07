@@ -33,7 +33,7 @@ def save(fig, name, subdir="tests"):
     return out / name
 
 
-def compare(t, sim, ref, ylabel, title, name, sim_label="symulacja", ref_label="analitycznie"):
+def compare(t, sim, ref, ylabel, title, name, sim_label="simulation", ref_label="analytical"):
     """Dwa panele o wspólnej osi czasu: przebiegi (symulacja vs wzorzec) i błąd sim − ref."""
     fig, (ax, ax_err) = plt.subplots(2, 1, figsize=(8, 5.5), sharex=True,
                                      gridspec_kw={"height_ratios": [3, 1.3]})
@@ -44,8 +44,8 @@ def compare(t, sim, ref, ylabel, title, name, sim_label="symulacja", ref_label="
     ax.set_title(title, loc="left", fontsize=11, pad=26)
     ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2, borderaxespad=0.2)
     ax_err.plot(t, sim - ref, color=SERIES[0])
-    ax_err.set_ylabel(f"błąd\n{ylabel}")
-    ax_err.set_xlabel("czas [s]")
+    ax_err.set_ylabel(f"error\n{ylabel}")
+    ax_err.set_xlabel("time [s]")
     return save(fig, name)
 
 
@@ -71,15 +71,15 @@ def series(t, curves, ylabel, title, name, hlines=(), bottom=None):
     if len(curves) > 1:
         ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=len(curves), borderaxespad=0.2)
     if bottom is None:
-        ax.set_xlabel("czas [s]")
+        ax.set_xlabel("time [s]")
     else:
         ax_b.plot(t, bottom[0], color=SERIES[0])
         ax_b.set_ylabel(bottom[1])
-        ax_b.set_xlabel("czas [s]")
+        ax_b.set_xlabel("time [s]")
     return save(fig, name)
 
 
-def panels(t, rows, title, name, subdir="examples", xlabel="czas [s]", marker=None):
+def panels(t, rows, title, name, subdir="examples", xlabel="time [s]", marker=None):
     """Kilka paneli jeden pod drugim, wspólna oś czasu; każda wielkość fizyczna we własnym panelu.
 
     rows: [(etykieta_osi_Y, [(y, etykieta_serii), ...]), ...]
@@ -110,7 +110,7 @@ def hbar(labels, values, title, name, subdir="examples", unit="J", note=None):
                     textcoords="offset points", va="center", color=TEXT_2, fontsize=9)
     ax.set_xlim(0, max(values) * 1.3)
     ax.grid(axis="y", visible=False)
-    ax.set_xlabel(f"energia [{unit}]")
+    ax.set_xlabel(f"energy [{unit}]")
     ax.set_title(title, loc="left", fontsize=11)
     if note:
         import textwrap

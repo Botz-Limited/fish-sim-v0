@@ -1,144 +1,144 @@
-# SPEC: Demo OpenModelica – model systemowy robota-ryby (elektryka + hydraulika + mechanika + balast)
+# SPEC: OpenModelica demo – system model of a robotic fish (electrics + hydraulics + mechanics + ballast)
 
-> Instrukcja dla Claude Code. Umieść ten plik w pustym folderze projektu i napisz:
-> „Przeczytaj SPEC_fish_openmodelica_demo.md i zrealizuj go etapami. Zacznij od planu.”
+> Instructions for Claude Code. Put this file in an empty project folder and write:
+> "Read SPEC_fish_openmodelica_demo.md and implement it in stages. Start with a plan."
 
-## 0. Cel i kontekst
+## 0. Goal and context
 
-Zbuduj **uproszczony, edukacyjny** model systemowy robota-ryby w języku Modelica, uruchamiany w OpenModelica. Ma pokazać to, w czym Modelica jest najlepsza, a czego nie dają MuJoCo, SOFA ani CFD:
-- **modelowanie wielodziedzinowe i akauzalne**: silnik DC → pompa → przewody → komory → ogon, połączone złączami fizycznymi (napięcie/prąd, moment/prędkość, ciśnienie/przepływ), a nie strzałkami sygnałów,
-- **bilans energii**: gdzie ucieka energia z baterii (straty w silniku, pompie, przewodach, zaworze, wodzie),
-- **dynamika hydrauliki**: pasmo pompy, sztywność komór, działanie zaworu przelewowego,
-- **system balastowy**: tłok/strzykawka napędzana silnikiem i śrubą, regulacja głębokości,
-- **eksport FMU**, żeby model hydrauliki dało się podpiąć do innych symulatorów (np. demo MuJoCo).
+Build a **simplified, educational** system model of a robotic fish in the Modelica language, run in OpenModelica. It should show what Modelica does best and what MuJoCo, SOFA and CFD do not offer:
+- **multi-domain, acausal modelling**: DC motor → pump → pipes → chambers → tail, connected by physical connectors (voltage/current, torque/speed, pressure/flow), not by signal arrows,
+- **energy balance**: where the battery energy goes (losses in the motor, pump, pipes, valve, water),
+- **hydraulic dynamics**: pump bandwidth, chamber stiffness, relief valve operation,
+- **ballast system**: a piston/syringe driven by a motor and a lead screw, depth control,
+- **FMU export**, so the hydraulic model can be plugged into other simulators (e.g. the MuJoCo demo).
 
-Geometria i hydrodynamika są tu **mocno uproszczone** (modele 1D o skupionych parametrach). Ten model odpowiada na pytania typu „czy pompa i bateria wystarczą”, a nie „jak dokładnie płynie woda”.
+Geometry and hydrodynamics are **heavily simplified** here (1D lumped-parameter models). This model answers questions like "are the pump and battery sufficient", not "how exactly does the water flow".
 
-To **nie jest** skalibrowany model. Parametry to placeholdery i mają być tak oznaczone.
+This is **not** a calibrated model. Parameters are placeholders and must be marked as such.
 
-Użytkownik to młody inżynier mechatronik, który się uczy. **Komentarze i opisy po polsku**: komentarze w kodzie Modelica (`//` i stringi opisowe parametrów) oraz adnotacje `Documentation` w każdym modelu wyjaśniające równania fizyczne.
+The user is a young mechatronics engineer who is learning. **Comments and descriptions in Polish**: comments in the Modelica code (`//` and parameter description strings) and `Documentation` annotations in every model explaining the physical equations.
 
-## 1. Zasady pracy (ważne)
+## 1. Working rules (important)
 
-1. Pracuj etapami (sekcja 7). Po każdym etapie: `checkModel` bez błędów (liczba równań = liczba niewiadomych), symulacja, wykres, test. Dopiero potem dalej.
-2. Na starcie ustal wersje: OpenModelica (`omc --version`), Modelica Standard Library (MSL), OMPython. Jednostki SI z MSL 4.x to `Modelica.Units.SI`; w starszym MSL 3.2.x było `Modelica.SIunits`. **API OMPython zmieniało się ostatnio** (klasy sesji), więc sprawdź dokumentację zainstalowanej wersji, zamiast kopiować starsze przykłady.
-3. **Nie używaj komercyjnych bibliotek** (np. Modelon Hydraulics). Tylko MSL + własny lekki pakiet.
-4. Hydraulikę napisz jako **własny mały pakiet** (`FishHydraulics`) z prostym złączem (ciśnienie `p` jako potencjał, przepływ objętościowy `V_flow` jako zmienna przepływowa `flow`). Uzasadnienie w README: `Modelica.Fluid` jest potężne, ale ciężkie (media, inicjalizacja, entalpia) dla małego układu z nieściśliwą wodą, a własny pakiet uczy, jak działają złącza akauzalne. Opcjonalnie (etap 8): ten sam obwód na `Modelica.Fluid` do porównania.
-5. Dobre praktyki numeryczne: dla `|x|·x` używaj `smooth`/`noEvent` lub regularyzacji w pobliżu zera (opisz dlaczego: zdarzenia i nieróżniczkowalność spowalniają solver). Jawne `initial equation`. Unikaj niepotrzebnych pętli algebraicznych.
-6. Nie wymyślaj „realistycznych” wartości. Każdy parametr ma w opisie `PLACEHOLDER – do identyfikacji`.
+1. Work in stages (section 7). After each stage: `checkModel` without errors (number of equations = number of unknowns), simulation, plot, test. Only then move on.
+2. Pin the versions at the start: OpenModelica (`omc --version`), Modelica Standard Library (MSL), OMPython. SI units in MSL 4.x are `Modelica.Units.SI`; in the older MSL 3.2.x they were `Modelica.SIunits`. **The OMPython API has changed recently** (session classes), so check the documentation of the installed version instead of copying older examples.
+3. **Do not use commercial libraries** (e.g. Modelon Hydraulics). Only MSL + an own lightweight package.
+4. Write the hydraulics as an **own small package** (`FishHydraulics`) with a simple connector (pressure `p` as the potential, volume flow `V_flow` as the `flow` variable). Justification in the README: `Modelica.Fluid` is powerful but heavy (media, initialization, enthalpy) for a small system with incompressible water, and an own package teaches how acausal connectors work. Optionally (stage 8): the same circuit on `Modelica.Fluid` for comparison.
+5. Good numerical practice: for `|x|·x` use `smooth`/`noEvent` or regularization near zero (explain why: events and non-differentiability slow the solver down). Explicit `initial equation`. Avoid unnecessary algebraic loops.
+6. Do not invent "realistic" values. Every parameter has `PLACEHOLDER – do identyfikacji` in its description.
 
-## 2. Struktura projektu
+## 2. Project structure
 
 ```
 fish_modelica_demo/
   README.md
-  FishRobot/                    # pakiet Modelica (struktura katalogowa: package.mo + package.order)
+  FishRobot/                    # Modelica package (directory structure: package.mo + package.order)
     package.mo
-    Interfaces/                 # złącze HydraulicPort, bazowe klasy 2-portowe
-    Hydraulics/                 # GearPump, Chamber, Pipe, ReliefValve, CheckValve (opcja), Reservoir
-    Tail/                       # TailEquivalent (1 DOF, rotacyjny)
+    Interfaces/                 # HydraulicPort connector, base 2-port classes
+    Hydraulics/                 # GearPump, Chamber, Pipe, ReliefValve, CheckValve (optional), Reservoir
+    Tail/                       # TailEquivalent (1 DOF, rotational)
     Buoyancy/                   # BallastSyringe, VerticalDynamics
-    Propulsion/                 # SurgeDynamics (1D ruch do przodu)
-    Control/                    # CPG (sinus), DepthPID z anti-windup
-    Examples/                   # modele scenariuszy (każdy z annotation experiment(...))
-    Tests/                      # małe modele testowe komponentów
+    Propulsion/                 # SurgeDynamics (1D forward motion)
+    Control/                    # CPG (sine), DepthPID with anti-windup
+    Examples/                   # scenario models (each with annotation experiment(...))
+    Tests/                      # small component test models
   scripts/
-    run_all.py                  # OMPython: kompilacja, symulacja, wykresy -> results/
-    sweep.py                    # przeglądy parametrów
-    export_fmu.py               # eksport FMU podukładu hydraulika+ogon
-    fmu_demo.py                 # FMPy: uruchomienie FMU z Pythona (pętla co-sim)
-    check_tests.py              # automatyczne asercje na wynikach
+    run_all.py                  # OMPython: compile, simulate, plot -> results/
+    sweep.py                    # parameter sweeps
+    export_fmu.py               # FMU export of the hydraulics+tail subsystem
+    fmu_demo.py                 # FMPy: run the FMU from Python (co-sim loop)
+    check_tests.py              # automatic assertions on the results
   results/
 ```
 
-## 3. Komponenty
+## 3. Components
 
-### 3.1 Elektryka i napęd pompy (MSL)
-- Bateria jako źródło napięcia z rezystancją wewnętrzną (placeholder), mostek H jako idealne sterowane źródło napięcia `u·U_bat`, `u ∈ [−1, 1]`.
-- Silnik DC z MSL (np. `Modelica.Electrical.Machines` lub obwód R-L + `Modelica.Electrical.Analog.Basic.RotationalEMF` + inercja wirnika). Wybierz prostszy wariant i uzasadnij.
+### 3.1 Electrics and pump drive (MSL)
+- Battery as a voltage source with internal resistance (placeholder), H-bridge as an ideal controlled voltage source `u·U_bat`, `u ∈ [−1, 1]`.
+- DC motor from MSL (e.g. `Modelica.Electrical.Machines` or an R-L circuit + `Modelica.Electrical.Analog.Basic.RotationalEMF` + rotor inertia). Pick the simpler option and justify it.
 
-### 3.2 Hydraulika (`FishHydraulics`, własne)
-- `GearPump`: wyporowa, odwracalna. `V_flow = D·ω − k_leak·Δp`, moment `τ = D·Δp/η_m`. Złącze rotacyjne z MSL po stronie wału.
-- `Chamber`: komora silikonowa z **nieliniową podatnością** `p = f(V)` z tabeli (`Modelica.Blocks.Tables.CombiTable1Ds`). Tabelę placeholderową zrób tak, żeby dało się ją podmienić na krzywą p–V z demo SOFA albo z pomiaru. Wyjście: objętość `V` (do modelu ogona).
-- `Pipe`: strata ciśnienia laminarno-turbulentna (`Δp = R_lam·V_flow + R_turb·|V_flow|·V_flow`, regularyzowane), opcjonalnie inertancja słupa cieczy.
-- `ReliefValve`: zawór przelewowy z charakterystyką gładką (bez twardego przełączania), ciśnienie otwarcia `p_set`.
-- Układ zamknięty jak w SoFi (MIT): pompa przepompowuje wodę między komorą L i R. Komory startują wstępnie napełnione (`V_prefill`).
+### 3.2 Hydraulics (`FishHydraulics`, own)
+- `GearPump`: positive displacement, reversible. `V_flow = D·ω − k_leak·Δp`, torque `τ = D·Δp/η_m`. MSL rotational connector on the shaft side.
+- `Chamber`: silicone chamber with **nonlinear compliance** `p = f(V)` from a table (`Modelica.Blocks.Tables.CombiTable1Ds`). Make the placeholder table so that it can be replaced by a p–V curve from the SOFA demo or from a measurement. Output: volume `V` (for the tail model).
+- `Pipe`: laminar-turbulent pressure loss (`Δp = R_lam·V_flow + R_turb·|V_flow|·V_flow`, regularized), optionally the inertance of the liquid column.
+- `ReliefValve`: relief valve with a smooth characteristic (no hard switching), opening pressure `p_set`.
+- Closed circuit as in SoFi (MIT): the pump moves water between chamber L and R. The chambers start pre-filled (`V_prefill`).
 
-### 3.3 Ogon (`TailEquivalent`, 1 DOF)
-- Równoważny ruch obrotowy kąta ogona θ: `(J + J_added)·θ̈ = τ_hyd − k·θ − c·θ̇ − c_h·|θ̇|·θ̇`.
-- `τ_hyd = A_eff·r_eff·(p_L − p_R)` **lub** (lepiej, opisz różnicę) `θ` wynika z różnicy objętości komór przez sztywność układu. Wybierz jedno sformułowanie, zachowaj spójność energetyczną (praca hydrauliczna = praca mechaniczna) i wyjaśnij to w dokumentacji.
-- Złącze `Modelica.Mechanics.Rotational`, żeby moc była liczona automatycznie.
-- Masa dodana `J_added` i tłumienie hydrodynamiczne `c_h` to placeholdery.
+### 3.3 Tail (`TailEquivalent`, 1 DOF)
+- Equivalent rotational motion of the tail angle θ: `(J + J_added)·θ̈ = τ_hyd − k·θ − c·θ̇ − c_h·|θ̇|·θ̇`.
+- `τ_hyd = A_eff·r_eff·(p_L − p_R)` **or** (better, describe the difference) `θ` follows from the difference of the chamber volumes through the system stiffness. Pick one formulation, keep it energy-consistent (hydraulic work = mechanical work) and explain it in the documentation.
+- `Modelica.Mechanics.Rotational` connector, so power is computed automatically.
+- Added mass `J_added` and hydrodynamic damping `c_h` are placeholders.
 
-### 3.4 Napęd do przodu (`SurgeDynamics`, 1D)
+### 3.4 Forward propulsion (`SurgeDynamics`, 1D)
 - `(m + m_added_x)·dU/dt = T − ½·ρ·C_d·A·|U|·U`.
-- Ciąg `T`: **jawnie oznaczony placeholderowy model empiryczny** w funkcji prędkości bocznej końcówki ogona (np. kwadratowy w `L·θ̇`). Opisz w Documentation, że to najsłabsze ogniwo modelu i że jego parametr trzeba wyznaczyć z pomiaru ciągu na uwięzi lub z demo CFD/MuJoCo.
+- Thrust `T`: an **explicitly marked placeholder empirical model** as a function of the lateral speed of the tail tip (e.g. quadratic in `L·θ̇`). State in Documentation that this is the weakest link of the model and that its parameter must be determined from a tethered thrust measurement or from the CFD/MuJoCo demo.
 
-### 3.5 Balast (`BallastSyringe` + `VerticalDynamics`)
-- Strzykawka/tłok: silnik DC → śruba pociągowa (`Modelica.Mechanics.Rotational` → `Translational` przez `IdealGearR2T`) → objętość pęcherza `V_b = A_tłoka·x`, ograniczniki skrajnych położeń.
-- Ruch pionowy: `(m + m_added_z)·z̈ = ρ·g·(V_hull + V_b) − m·g − ½·ρ·C_dz·A_z·|ż|·ż`.
-- Opcjonalnie: ściśliwość kadłuba/powietrza z głębokością (zmiana `V_hull` z ciśnieniem) jako lekcja, dlaczego nieskompensowany balast jest niestabilny w pionie. Jeśli dodasz, zrób przełącznik.
+### 3.5 Ballast (`BallastSyringe` + `VerticalDynamics`)
+- Syringe/piston: DC motor → lead screw (`Modelica.Mechanics.Rotational` → `Translational` via `IdealGearR2T`) → bladder volume `V_b = A_piston·x`, end stops.
+- Vertical motion: `(m + m_added_z)·z̈ = ρ·g·(V_hull + V_b) − m·g − ½·ρ·C_dz·A_z·|ż|·ż`.
+- Optionally: compressibility of the hull/air with depth (`V_hull` changing with pressure) as a lesson in why uncompensated ballast is vertically unstable. If you add it, make it switchable.
 
-### 3.6 Sterowanie (`Control`)
-- CPG: `u(t) = A·sin(2π f t) + bias` z nasyceniem i rampą startową.
-- `DepthPID`: `z_ref → prędkość silnika strzykawki`, anti-windup, nasycenie. Możesz użyć `Modelica.Blocks.Continuous.LimPID` i opisać jego parametry.
+### 3.6 Control (`Control`)
+- CPG: `u(t) = A·sin(2π f t) + bias` with saturation and a start-up ramp.
+- `DepthPID`: `z_ref → syringe motor speed`, anti-windup, saturation. You may use `Modelica.Blocks.Continuous.LimPID` and describe its parameters.
 
-## 4. Bilans energii (kluczowa funkcja demo)
+## 4. Energy balance (key feature of the demo)
 
-Dodaj w modelu scenariusza zmienne mocy i energii (całki): energia z baterii, straty w rezystancji silnika, straty pompy (przecieki + η_m), straty w przewodach, w zaworze przelewowym, moc rozproszona w wodzie przez ogon (`c·θ̇² + c_h·|θ̇|·θ̇²`), praca napędu do przodu `T·U`. Sprawdź zamknięcie bilansu (suma strat + zmiana energii zmagazynowanej = energia z baterii) z błędem numerycznym < 1%. To jest test poprawności całego modelu.
+Add power and energy variables (integrals) to the scenario model: energy from the battery, losses in the motor resistance, pump losses (leakage + η_m), losses in the pipes, in the relief valve, power dissipated into the water by the tail (`c·θ̇² + c_h·|θ̇|·θ̇²`), forward propulsion work `T·U`. Check that the balance closes (sum of losses + change of stored energy = energy from the battery) with a numerical error < 1%. This is the correctness test of the whole model.
 
-## 5. Scenariusze (`Examples/`)
+## 5. Scenarios (`Examples/`)
 
-1. `HydraulicsStep`: skok (rampa) komendy pompy, ogon zablokowany → ciśnienia, przepływ, prąd silnika.
-2. `TailFlapping`: sinus komendy, ogon swobodny → kąt ogona, ciśnienia, prąd.
-3. `FrequencySweep` (przez `sweep.py`): f = 0.5…4 Hz → amplituda ogona, szczytowe ciśnienie, średni prąd. **Lekcja**: gdzie pasmo jest ograniczone przez przepływ pompy, a gdzie przez zawór przelewowy.
-4. `ReliefValveDemo`: za duża amplituda komendy → zawór się otwiera, widać stratę energii.
-5. `EnergyBudget`: 60 s pływania → wykres kołowy/słupkowy rozkładu energii + szacowany czas pracy na baterii (pojemność to placeholder).
-6. `DepthControl`: skoki zadanej głębokości (−0.5 → −1.5 → −1.0 m) → głębokość, objętość pęcherza, prąd silnika strzykawki.
-7. `SwimForward`: CPG + surge → prędkość ustalona vs częstotliwość (z jawnym zastrzeżeniem o modelu ciągu).
-8. **(Opcjonalnie)** `HydraulicsMSLFluid`: obwód z etapu 1 zbudowany z `Modelica.Fluid` + `Modelica.Media.Water.ConstantPropertyLiquidWater`, porównanie wyników i złożoności.
+1. `HydraulicsStep`: step (ramp) of the pump command, tail locked → pressures, flow, motor current.
+2. `TailFlapping`: sine command, tail free → tail angle, pressures, current.
+3. `FrequencySweep` (via `sweep.py`): f = 0.5…4 Hz → tail amplitude, peak pressure, mean current. **Lesson**: where the bandwidth is limited by the pump flow and where by the relief valve.
+4. `ReliefValveDemo`: command amplitude too large → the valve opens, the energy loss is visible.
+5. `EnergyBudget`: 60 s of swimming → pie/bar chart of the energy breakdown + estimated battery run time (capacity is a placeholder).
+6. `DepthControl`: steps of the depth setpoint (−0.5 → −1.5 → −1.0 m) → depth, bladder volume, syringe motor current.
+7. `SwimForward`: CPG + surge → steady speed vs frequency (with an explicit caveat about the thrust model).
+8. **(Optional)** `HydraulicsMSLFluid`: the stage 1 circuit built from `Modelica.Fluid` + `Modelica.Media.Water.ConstantPropertyLiquidWater`, comparison of results and complexity.
 
 ## 6. FMU
 
-- `export_fmu.py`: wyeksportuj podukład „mostek H + silnik + pompa + komory + ogon” jako **FMU 2.0 Co-Simulation** (wejście: komenda `u`; wyjścia: kąt i prędkość ogona, moment, `p_L`, `p_R`, prąd).
-- `fmu_demo.py`: uruchom FMU przez **FMPy** w pętli Pythona z krokiem 2 ms i porównaj z wynikiem z OpenModelica (powinny się pokrywać).
-- Zanotuj w README: FMU zawiera skompilowane binaria i **działa tylko na systemie, na którym go zbudowano**. Opisz, jak w przyszłości podpiąć go pod demo MuJoCo (moment z FMU → aktuator przegubu), ale samego podpięcia nie implementuj, chyba że użytkownik poprosi.
+- `export_fmu.py`: export the "H-bridge + motor + pump + chambers + tail" subsystem as an **FMU 2.0 Co-Simulation** (input: command `u`; outputs: tail angle and speed, torque, `p_L`, `p_R`, current).
+- `fmu_demo.py`: run the FMU through **FMPy** in a Python loop with a 2 ms step and compare with the OpenModelica result (they should match).
+- Note in the README: the FMU contains compiled binaries and **only works on the system it was built on**. Describe how to plug it into the MuJoCo demo in the future (torque from the FMU → joint actuator), but do not implement the hookup itself unless the user asks.
 
-## 7. Etapy realizacji
+## 7. Implementation stages
 
-1. Szkielet pakietu, złącze hydrauliczne, `Pipe` + `Reservoir` + test (prawo Hagena–Poiseuille’a dla laminarnej części: sprawdź spadek ciśnienia analitycznie).
-2. `Chamber` + `ReliefValve` + testy (zachowanie objętości w układzie zamkniętym, `p ≤ p_set + tolerancja`).
-3. Silnik DC + `GearPump` → scenariusz 1.
-4. `TailEquivalent` → scenariusze 2–4.
-5. Bilans energii → scenariusz 5 (test zamknięcia bilansu).
-6. Balast + pion → scenariusz 6.
-7. Surge → scenariusz 7.
+1. Package skeleton, hydraulic connector, `Pipe` + `Reservoir` + test (Hagen–Poiseuille law for the laminar part: check the pressure drop analytically).
+2. `Chamber` + `ReliefValve` + tests (volume conservation in a closed circuit, `p ≤ p_set + tolerance`).
+3. DC motor + `GearPump` → scenario 1.
+4. `TailEquivalent` → scenarios 2–4.
+5. Energy balance → scenario 5 (balance closure test).
+6. Ballast + vertical motion → scenario 6.
+7. Surge → scenario 7.
 8. FMU + FMPy.
-9. (Opcjonalnie) wariant `Modelica.Fluid`.
+9. (Optional) `Modelica.Fluid` variant.
 
-## 8. Testy (`scripts/check_tests.py`)
+## 8. Tests (`scripts/check_tests.py`)
 
-- Każdy model z `Examples/` i `Tests/` przechodzi `checkModel` (zbilansowany) i się symuluje.
-- Rura: Δp zgodne z wzorem analitycznym (< 1%).
-- Układ zamknięty: `V_L + V_R = const` (< 1e-9 względnie).
-- Zawór: ciśnienie nie przekracza `p_set` o więcej niż założona tolerancja charakterystyki.
-- Statyka balastu: przy `V_b` neutralnym ż → 0; większe `V_b` → wynurzanie.
-- Bilans energii zamknięty < 1%.
-- FMU vs OpenModelica: różnica kąta ogona < 1% amplitudy.
-- Kierunki: dodatnia komenda pompy → dodatni kąt ogona (konwencja opisana w README).
+- Every model in `Examples/` and `Tests/` passes `checkModel` (balanced) and simulates.
+- Pipe: Δp matches the analytical formula (< 1%).
+- Closed circuit: `V_L + V_R = const` (< 1e-9 relative).
+- Valve: pressure does not exceed `p_set` by more than the assumed characteristic tolerance.
+- Ballast statics: at neutral `V_b` ż → 0; larger `V_b` → ascent.
+- Energy balance closed < 1%.
+- FMU vs OpenModelica: tail angle difference < 1% of the amplitude.
+- Directions: positive pump command → positive tail angle (convention described in the README).
 
-## 9. README – obowiązkowe sekcje
+## 9. README – mandatory sections
 
-- Wersje (OpenModelica, MSL, OMPython, FMPy) i instalacja.
-- Jak otworzyć pakiet w **OMEdit** i zobaczyć diagramy połączeń (to najlepszy sposób, żeby zrozumieć model akauzalny). Proste ikony komponentów, żeby diagram był czytelny.
-- Jak uruchomić `run_all.py`, `sweep.py`, `export_fmu.py`.
-- Co pokazuje każdy wykres, 2–3 zdania dla osoby uczącej się.
-- **Ograniczenia**: ogon jako 1 DOF, ciąg z empirycznego placeholderu, brak sprzężenia ruchów (surge, pion i obrót niezależne), brak hydrodynamiki przestrzennej, parametry niezidentyfikowane.
-- **Plan kalibracji**: które parametry zmierzyć na stole (rezystancja i stała silnika, wydajność pompy vs ciśnienie, krzywa p–V komory, moment/kąt ogona, ciąg na uwięzi) i w jakiej kolejności.
+- Versions (OpenModelica, MSL, OMPython, FMPy) and installation.
+- How to open the package in **OMEdit** and see the connection diagrams (the best way to understand an acausal model). Simple component icons so the diagram is readable.
+- How to run `run_all.py`, `sweep.py`, `export_fmu.py`.
+- What each plot shows, 2–3 sentences for a learner.
+- **Limitations**: tail as 1 DOF, thrust from an empirical placeholder, no coupling between motions (surge, vertical and rotation independent), no spatial hydrodynamics, unidentified parameters.
+- **Calibration plan**: which parameters to measure on the bench (motor resistance and constant, pump flow vs pressure, chamber p–V curve, tail torque/angle, tethered thrust) and in what order.
 
 ## 10. Definition of done
 
-- `python scripts/run_all.py` kompiluje i symuluje wszystkie scenariusze, zapisuje wykresy w `results/`.
-- `python scripts/check_tests.py` przechodzi.
-- FMU działa w FMPy.
-- Pakiet otwiera się w OMEdit z czytelnymi diagramami.
+- `python scripts/run_all.py` compiles and simulates all scenarios, saves plots in `results/`.
+- `python scripts/check_tests.py` passes.
+- The FMU runs in FMPy.
+- The package opens in OMEdit with readable diagrams.

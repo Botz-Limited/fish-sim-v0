@@ -95,12 +95,12 @@ def swim_sweep(args, t0):
 
     col = {k: np.array([r[k] for r in rows]) for k in rows[0]}
     plotting.panels(col["f_Hz"], [
-        ("prędkość ustalona [cm/s]", [(col["U_cm_s"], "U")]),
-        ("ogon", [(col["theta_amp_deg"], "amplituda θ [°]"), (col["theta_f_deg_Hz"], "θ·f [°·Hz]")]),
-        ("moc z baterii [W]", [(col["P_battery_W"], "średnia")]),
-        ("sprawność całkowita [%]", [(100 * col["eta_total"], "P_opór / P_bat")]),
-    ], f"SwimForward: prędkość ustalona vs częstotliwość (A = {args.A}; model ciągu: placeholder)",
-        "swim_sweep.png", subdir="sweep", xlabel="częstotliwość machania [Hz]", marker="o")
+        ("steady speed [cm/s]", [(col["U_cm_s"], "U")]),
+        ("tail", [(col["theta_amp_deg"], "θ amplitude [°]"), (col["theta_f_deg_Hz"], "θ·f [°·Hz]")]),
+        ("battery power [W]", [(col["P_battery_W"], "mean")]),
+        ("overall efficiency [%]", [(100 * col["eta_total"], "P_drag / P_bat")]),
+    ], f"SwimForward: steady speed vs frequency (A = {args.A}; thrust model: placeholder)",
+        "swim_sweep.png", subdir="sweep", xlabel="flapping frequency [Hz]", marker="o")
 
     print(f"{'f [Hz]':>7} {'U [cm/s]':>9} {'θ [°]':>7} {'θ·f':>6} {'P_bat [W]':>9} {'P_fin [mW]':>10} "
           f"{'η_płetwa':>8} {'η_całość':>9} {'COT':>6} {'zawory':>7}")
@@ -143,13 +143,13 @@ def main():
 
     col = {k: np.array([r[k] for r in rows]) for k in rows[0]}
     plotting.panels(col["f_Hz"], [
-        ("amplituda ogona [°]", [(col["theta_amp_deg"], "θ")]),
-        ("szczytowe |p_L − p_R| [kPa]", [(col["dp_peak_kPa"], "Δp"),
-                                         (np.full_like(freqs, rows[0]["p_set_kPa"]), "p_set zaworu")]),
-        ("prąd [A]", [(col["i_battery_mean_A"], "bateria (średni)"), (col["i_motor_rms_A"], "silnik (RMS)")]),
-        ("udział zaworów [%]", [(100 * col["relief_share"], "przepływ zaworów / przepływ pompy")]),
-    ], f"FrequencySweep: odpowiedź napędu ogona vs częstotliwość (A = {args.A})", "frequency_sweep.png",
-        subdir="sweep", xlabel="częstotliwość machania [Hz]", marker="o")
+        ("tail amplitude [°]", [(col["theta_amp_deg"], "θ")]),
+        ("peak |p_L − p_R| [kPa]", [(col["dp_peak_kPa"], "Δp"),
+                                         (np.full_like(freqs, rows[0]["p_set_kPa"]), "valve p_set")]),
+        ("current [A]", [(col["i_battery_mean_A"], "battery (mean)"), (col["i_motor_rms_A"], "motor (RMS)")]),
+        ("valve share [%]", [(100 * col["relief_share"], "valve flow / pump flow")]),
+    ], f"FrequencySweep: tail drive response vs frequency (A = {args.A})", "frequency_sweep.png",
+        subdir="sweep", xlabel="flapping frequency [Hz]", marker="o")
 
     print(f"{'f [Hz]':>7} {'θ [°]':>7} {'Δp [kPa]':>9} {'I_bat [A]':>9} {'zawory':>7}")
     for r in rows:
