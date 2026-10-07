@@ -53,6 +53,7 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/calibrate.py valve [--data punkty.csv]   # zawór przelewowy z Q(Δp), z histerezą grzybka
 .venv/bin/python scripts/calibrate.py tail-static [--data punkty.csv --k small]   # D_tail i k ogona
 .venv/bin/python scripts/calibrate.py tail-dynamic [--data-air a.csv --data-water w.csv]   # J, c, J_added, c_h
+.venv/bin/python scripts/calibrate.py thrust [--data punkty.csv --noise-abs 1e-4 --noise-rel 0.05]   # C_T płetwy
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -418,3 +419,21 @@ Pomiar syntetyczny: ogon z `D_tail` = 1,6e-5 m³/rad, sztywnością 2,6 N·m/rad
 | `small` (małe kąty, z członem Δp³) | 2,546 (−2,1%) | −2,1% | ±1,30% |
 
 **Lekcja: niezgodność modelu daje błąd, którego nie widać w σ.** Prosta w całym zakresie ma obciążenie: w 500 powtórzeniach średnio +2,3% przy rozrzucie tylko 0,6%. Jej σ jest małe, ale fałszywe, bo błąd `J` jest 3 razy większy od podanej niepewności. Sztywność przy małych kątach nie ma obciążenia (średnio 2,605 przy prawdziwych 2,6), ale ma większy rozrzut (1,5%). Tu błąd mieści się w σ. Który wariant wybrać, zależy od zakresu pracy: przy 1 Hz ogon macha o ok. 8°, a przy zaworze otwartym o ok. 31°. Ogólna zasada: jeśli test nieliniowości alarmuje, `k` trzeba mierzyć w zakresie kątów, w którym ogon naprawdę pracuje. Jeśli zakres jest duży, `TailEquivalent` potrzebuje nieliniowej sprężyny. Nieliniowości prawie nie widać na wykresie reszt, a test ją wykrywa (t = −3,5).
+
+### Ciąg płetwy (krok 9): `calibrate.py thrust`
+
+Ryba przymocowana do siłomierza, w basenie (`U = 0`, na uwięzi) i w miarę możliwości w tunelu wodnym przy kilku prędkościach przepływu. W każdym punkcie mierzy się średni ciąg i amplitudę kąta ogona. W tunelu siłomierz widzi ciąg minus opór kadłuba, więc przy każdej prędkości trzeba też zmierzyć siłę przy nieruchomym ogonie (tara) i ją odjąć. Plik pomiaru to CSV z kolumnami `Theta [rad], f [Hz], U [m/s], T [N]`.
+
+Średni ciąg dla zadanego sinusa kąta liczy `FishRobot.Calibration.ThrustBench` (`C_T = 1`). Ciąg jest liniowy w `C_T`, więc `C_T` wyznacza regresja przez zero. `s_fin` występuje w modelu tylko w iloczynie `C_T·s_fin²`, dlatego `s_fin` i `L_tail` mierzy się linijką. Skrypt sprawdza też postać modelu: dopasowuje osobno człon statyczny i karę za prędkość (`T = a·T(0) − b·(T(0) − T(U))`). W teorii Lighthilla `b/a = 1`.
+
+**Wagi z modelu szumu czujnika.** Szum siłomierza ma część stałą (`--noise-abs`, tu 0,1 mN) i względną (`--noise-rel`, tu 5%). Przy połowie amplitudy ciąg to ok. 0,3 mN, więc dominuje część stała, a przy pełnej amplitudzie (ok. 3 mN) względna. W 2000 powtórzeniach zwykła regresja zaniżała niepewność `C_T` z uwięzi (σ 2,95% przy rozrzucie 3,86%). Regresja ważona tylko szumem względnym była jeszcze gorsza (rozrzut 5,1%). Dopiero wagi z pełnego modelu szumu dają σ zgodne z rozrzutem (3,64% i 3,64%).
+
+Pomiar syntetyczny: płetwa z `C_T = 0,6` i karą za prędkość 1,5 razy większą niż w teorii (np. przez oderwanie przepływu). Amplitudy jak w przeglądzie częstotliwości (pompa ogranicza θ·f), pełna i połowa komendy, 4 częstotliwości × 4 prędkości (0–10 cm/s), razem 32 punkty. Wyniki z 2000 powtórzeń (`results/calibration/thrust_fit.{txt,png}`):
+
+| Estymator | Średnio | Rozrzut | σ |
+|---|---|---|---|
+| `C_T`, wszystkie punkty | 0,584 (−2,6%) | 2,0% | 2,3% |
+| `C_T`, tylko na uwięzi | 0,600 (0,0%) | 3,6% | 3,6% |
+| kara za prędkość `b/a` | 1,50 | 0,12 | 0,14 |
+
+**Lekcja: model o złej postaci daje obciążony parametr, ale nie zawsze ma to znaczenie.** `C_T` ze wszystkich punktów jest obciążone, bo model źle opisuje spadek ciągu z prędkością. `C_T` z samej uwięzi tego problemu nie ma, ale ma większy rozrzut. Skrypt wpisuje do modelu `C_T` z uwięzi, bo robot pływa wolno: przy 1 Hz krawędź spływu porusza się z prędkością ok. 63 cm/s, a robot płynie 6 cm/s. Kara za prędkość to tam ok. 0,1% ciągu, a jej błąd o 50% zmienia ciąg o 0,4%. Ma ona znaczenie dopiero dla prędkości maksymalnej: ciąg znika przy `L·ω/√1,5` ≈ 51 cm/s zamiast 63 cm/s. Test postaci wykrywa `b/a = 1,5` (powyżej 3σ) tylko w 74% powtórzeń. Rozstrzygają go nieliczne punkty o dużym `U²/(L·ω)²`, czyli przy małej częstotliwości i dużej prędkości przepływu (prawy wykres), a nie liczba punktów.

@@ -25,6 +25,7 @@ szkieletowej, a wynik zapisywany jako CSV dla Chamber(tableOnFile=true) i sprawd
   .venv/bin/python scripts/calibrate.py valve [--data punkty.csv]
   .venv/bin/python scripts/calibrate.py tail-static [--data punkty.csv --k small]
   .venv/bin/python scripts/calibrate.py tail-dynamic [--data-air a.csv --data-water w.csv]
+  .venv/bin/python scripts/calibrate.py thrust [--data punkty.csv --noise-abs 1e-4 --noise-rel 0.05]
 
 Krok 6, zawór przelewowy (calibrate.py valve): charakterystyka Q(Δp) przy rosnącym i malejącym przepływie,
 dopasowanie jak w kroku 4, osobno dla obu gałęzi (histereza grzybka) i wspólnie.
@@ -35,11 +36,15 @@ przy zadanym Δp; regresja liniowa daje D_tail i k, test członu Δp³ wykrywa n
 Krok 8, ogon dynamicznie (calibrate.py tail-dynamic): drgania swobodne w powietrzu (J, c) i w wodzie
 (J_added, c, c_h), dopasowanie symulacji TailDecay przy k z kroku 7 (z samego θ(t) wynikają tylko ilorazy przez J).
 
+Krok 9, ciąg płetwy (calibrate.py thrust): średni ciąg na siłomierzu przy kilku f, Θ i U; ThrustBench liczy ciąg
+dla C_T = 1, a C_T wynika z regresji ważonej modelem szumu siłomierza. Test postaci: kara za U² vs teoria.
+
 Pliki pomiaru: CSV z nagłówkiem; silnik: time [s], i [A], w [rad/s]; pompa: U [V], i [A], w [rad/s],
 dp [Pa], Q [m³/s];
 przewód: Q [m³/s], dp [Pa]; komora (w kolejności czasu): dV [m³], p [Pa];
 zawór: dp [Pa], Q [m³/s], up (1 = przepływ rośnie);
-ogon statycznie: dp_blocked [Pa], tau [N·m], dp_free [Pa], theta [rad]; ogon dynamicznie: time [s], theta [rad].
+ogon statycznie: dp_blocked [Pa], tau [N·m], dp_free [Pa], theta [rad]; ogon dynamicznie: time [s], theta [rad];
+ciąg: Theta [rad], f [Hz], U [m/s], T [N].
 Wyniki -> results/calibration/.
 """
 
@@ -821,6 +826,129 @@ def tail_dynamic_main(args):
     (OUT / "tail_dynamic_fit.txt").write_text(text + "\n")
 
 
+# --- Krok 9: ciąg płetwy ----------------------------------------------------------------------------
+
+THRUST = {
+    "model": "FishRobot.Calibration.ThrustBench",
+    # amplitudy jak w przeglądzie częstotliwości (pompa ogranicza θ·f), pełna i połowa komendy
+    "f": [0.25, 0.5, 1.0, 2.0], "Theta_deg": [31.0, 17.0, 7.8, 3.5], "amp": [1.0, 0.5],
+    "U": [0.0, 0.03, 0.06, 0.1],
+    # „prawdziwa” płetwa: C_T = 0,6 i kara za prędkość kappa·U² zamiast U² (kappa = 1 w teorii Lighthilla)
+    "true": {"C_T": 0.6, "kappa": 1.5},
+    "noise_abs": 1e-4, "noise_rel": 0.05,  # siłomierz po uśrednieniu: 0,1 mN + 5% odczytu
+}
+
+
+def thrust_model(points, periods=4):
+    """Średni ciąg z ThrustBench dla C_T = 1 w punktach (Theta, f, U), oraz ten sam ruch przy U = 0."""
+    exp = THRUST
+    work_dir = om_fast.compile_model(exp["model"])
+    cases = []
+    for j, (Th, f, U) in enumerate(points):
+        for tag, u in (("U", U), ("0", 0.0)):
+            cases.append((f"p{j}_{tag}", {"Theta": Th, "f": f, "U0": u, "fin.C_T": 1.0}, {"stopTime": periods / f}))
+    sols = om_fast.run_many(work_dir, exp["model"], cases, ["time", "T_mean"])
+    T = np.array([sol["T_mean"][-1] for sol in sols]).reshape(-1, 2)
+    return T[:, 0], T[:, 1]  # T1(U), T1(0)
+
+
+def thrust_main(args):
+    c = THRUST
+    if args.data:
+        d = np.genfromtxt(args.data, delimiter=",", names=True)
+        points = np.column_stack([d["Theta"], d["f"], d["U"]])
+        T_meas = d["T"]
+        truth = None
+    else:
+        points = np.array([(np.radians(th) * a, f, U) for f, th in zip(c["f"], c["Theta_deg"])
+                           for a in c["amp"] for U in c["U"]])
+        truth = c["true"]
+    T1, T10 = thrust_model(points)
+    if truth:
+        T_true = truth["C_T"] * (T10 - truth["kappa"] * (T10 - T1))
+        rng = np.random.default_rng(9)
+        T_meas = T_true + rng.normal(0, 1, T_true.size) * (c["noise_abs"] + c["noise_rel"] * np.abs(T_true))
+        np.savetxt(OUT / "thrust_synthetic.csv", np.column_stack([points, T_meas]), delimiter=",",
+                   header="Theta,f,U,T", comments="", fmt="%.6g")
+    U = points[:, 2]
+
+    # Regresja ważona: szum siłomierza σ_i = szum stały + szum względny·T (specyfikacja czujnika).
+    # Przy małym ciągu dominuje część stała, przy dużym względna; zwykła regresja traktowałaby wszystkie
+    # punkty jednakowo i źle oceniała niepewność. σ_i liczymy z przewidywania modelu, a nie z pomiaru.
+    def weights(x):
+        return 1.0 / (args.noise_abs + args.noise_rel * np.abs(x * np.median(T_meas / T1))) ** 2
+
+    def through_origin(x, y):
+        w = weights(x)
+        k = (w * x) @ y / ((w * x) @ x)
+        r = y - k * x
+        return k, np.sqrt((w * r) @ r / (len(x) - 1) / ((w * x) @ x)), r
+
+    C_T, s_C, r_model = through_origin(T1, T_meas)
+    tether = U == 0
+    C_T0, s_C0, _ = through_origin(T1[tether], T_meas[tether]) if tether.sum() > 2 else (np.nan, np.nan, None)
+    # Test postaci: T = a·T1(0) − b·(T1(0) − T1(U)); teoria Lighthilla: b = a
+    sw = np.sqrt(weights(T1))
+    X = np.column_stack([T10, -(T10 - T1)]) * sw[:, None]
+    ab, *_ = np.linalg.lstsq(X, T_meas * sw, rcond=None)
+    r_ab = T_meas * sw - X @ ab
+    cov = np.linalg.inv(X.T @ X) * (r_ab @ r_ab / (len(T_meas) - 2))
+    kappa = ab[1] / ab[0]
+    s_kappa = kappa * np.sqrt(cov[1, 1] / ab[1] ** 2 + cov[0, 0] / ab[0] ** 2 - 2 * cov[0, 1] / (ab[0] * ab[1]))
+
+    tr = (lambda v, ref: f"   (prawdziwe {ref:g}, błąd {100 * (v / ref - 1):+.1f}%)") if truth else (lambda v, ref: "")
+    lines = [f"punkty: {len(T_meas)} (na uwięzi: {tether.sum()}), U do {U.max() * 100:.0f} cm/s",
+             f"C_T (model Lighthilla, wszystkie punkty) = {C_T:.4f} ± {100 * s_C / C_T:.1f}%" + (tr(C_T, truth['C_T']) if truth else ""),
+             f"C_T (tylko na uwięzi, U = 0)           = {C_T0:.4f} ± {100 * s_C0 / C_T0:.1f}%" + (tr(C_T0, truth['C_T']) if truth else ""),
+             f"test postaci: kara za U² = {kappa:.2f} ± {s_kappa:.2f} × teoria (Lighthill: 1)"
+             + (f"   (prawdziwe {truth['kappa']:g})" if truth else "")]
+    if abs(kappa - 1) > 3 * s_kappa:
+        lines.append("  -> postać modelu nie pasuje do pomiaru: ciąg maleje z prędkością inaczej niż w teorii Lighthilla.")
+    # Konsekwencja dla pływania: przy jakiej prędkości ciąg znika (f = 1 Hz, L = L_tail z modelu)
+    L = 0.1
+    lines.append(f"ciąg znika przy U = L·ω/√kappa: przy 1 Hz {100 * L * 2 * np.pi / np.sqrt(max(kappa, 1e-9)):.0f} cm/s "
+                 f"(teoria: {100 * L * 2 * np.pi:.0f} cm/s); robot pływa z ok. 6 cm/s, więc tam różnica w ciągu "
+                 f"to {100 * (kappa - 1) * 0.064 ** 2 / ((L * 2 * np.pi) ** 2 - 0.064 ** 2):.1f}%")
+    # Do modelu: C_T z uwięzi, jeśli jest. Robot pływa wolno (U << L·ω), a tam liczy się właśnie ciąg statyczny;
+    # C_T ze wszystkich punktów jest obciążone, gdy postać zależności od U nie pasuje.
+    best = C_T0 if np.isfinite(C_T0) else C_T
+    lines.append(f"do modelu: FishRobot.Propulsion.LighthillFin fin(C_T={best:.4g});  "
+                 f"({'z punktów na uwięzi' if np.isfinite(C_T0) else 'ze wszystkich punktów'}; s_fin i L_tail zmierzone linijką)")
+    text = "\n".join(lines)
+    print(text)
+    (OUT / "thrust_fit.txt").write_text(text + "\n")
+
+    fig, (ax, ax_r) = plotting.plt.subplots(1, 2, figsize=(10.5, 4.4))
+    # Udział kary za prędkość w ciągu Lighthilla: x = U²/(L·ω)² (L z modelu, 0,1 m)
+    x = U ** 2 / (L * 2 * np.pi * points[:, 1]) ** 2
+    T_fit = C_T * T1
+    sig = args.noise_abs + args.noise_rel * np.abs(T_fit)
+    for j, u in enumerate(sorted(set(U))):
+        sel = U == u
+        ax.plot(T_fit[sel] * 1e3, T_meas[sel] * 1e3, "o", color=plotting.SERIES[j], markersize=5,
+                label=f"U = {u * 100:g} cm/s")
+        ax_r.errorbar(x[sel], 100 * r_model[sel] / T_fit[sel], yerr=100 * sig[sel] / T_fit[sel], fmt="o",
+                      color=plotting.SERIES[j], markersize=5, elinewidth=0.8, capsize=0)
+    lim = [0, max(T_meas.max(), T_fit.max()) * 1e3 * 1.08]
+    ax.plot(lim, lim, color=plotting.TEXT_2, linewidth=1)
+    ax.set_xlabel("model, C_T dopasowane [mN]")
+    ax.set_ylabel("pomiar [mN]")
+    ax.set_title("średni ciąg", loc="left", fontsize=10)
+    ax.legend(loc="upper left")
+    xx = np.linspace(0, x.max() * 1.05, 100)
+    ax_r.plot(xx, -100 * (kappa - 1) * xx / (1 - xx), color=plotting.TEXT_2, linewidth=1.2,
+              label=f"kara × {kappa:.2f}")
+    ax_r.axhline(0, color=plotting.TEXT_2, linewidth=0.8, linestyle=(0, (2, 2)))
+    ax_r.set_xlabel("U² / (L·ω)²  (udział kary za prędkość)")
+    ax_r.set_ylabel("(pomiar − model)/model [%]")
+    ax_r.set_title("reszty względem kary za prędkość", loc="left", fontsize=10)
+    ax_r.legend(loc="upper right")
+    src = "pomiar syntetyczny" if truth else args.data
+    fig.suptitle(f"Kalibracja ciągu płetwy ({src})", x=0.01, ha="left", fontsize=11)
+    fig.tight_layout()
+    print(plotting.save(fig, "thrust_fit.png", "calibration"))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="step", required=True)
@@ -849,10 +977,14 @@ def main():
     td = sub.add_parser("tail-dynamic", help="krok 8: J, c, J_added, c_h z drgań swobodnych (wymaga kroku 7)")
     td.add_argument("--data-air", help="CSV (time, theta) – drgania w powietrzu")
     td.add_argument("--data-water", help="CSV (time, theta) – drgania w wodzie")
+    th = sub.add_parser("thrust", help="krok 9: C_T płetwy ze średniego ciągu na siłomierzu")
+    th.add_argument("--data", help="CSV (Theta [rad], f [Hz], U [m/s], T [N]); T po odjęciu tary przy nieruchomym ogonie")
+    th.add_argument("--noise-abs", type=float, default=THRUST["noise_abs"], help="szum stały siłomierza [N]")
+    th.add_argument("--noise-rel", type=float, default=THRUST["noise_rel"], help="szum względny siłomierza [–]")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     {"motor": motor_main, "pump": pump_main, "pipe": pipe_main, "chamber": chamber_main, "valve": valve_main,
-     "tail-static": tail_static_main, "tail-dynamic": tail_dynamic_main}[args.step](args)
+     "tail-static": tail_static_main, "tail-dynamic": tail_dynamic_main, "thrust": thrust_main}[args.step](args)
 
 
 if __name__ == "__main__":
