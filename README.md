@@ -45,8 +45,9 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/export_fmu.py          # FMU napędu ogona -> results/fmu/TailDrive.fmu
 .venv/bin/python scripts/fmu_demo.py            # FMU w pętli FMPy vs OpenModelica -> results/fmu/fmu_vs_om.png
 .venv/bin/python scripts/compare_fluid.py       # własna hydraulika vs Modelica.Fluid -> results/fluid/fluid_vs_own.png
-.venv/bin/python scripts/calibrate.py           # identyfikacja silnika DC (pomiar syntetyczny) -> results/calibration/
-.venv/bin/python scripts/calibrate.py --data pomiar.csv --U 6 --t-step 0.01   # to samo na prawdziwym pomiarze
+.venv/bin/python scripts/calibrate.py motor     # identyfikacja silnika DC (pomiar syntetyczny) -> results/calibration/
+.venv/bin/python scripts/calibrate.py motor --data pomiar.csv --U 6 --t-step 0.01   # to samo na prawdziwym pomiarze
+.venv/bin/python scripts/calibrate.py pump      # identyfikacja pompy (wymaga wyniku kroku motor)
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -288,7 +289,7 @@ Parametry najlepiej identyfikować od źródła energii w stronę wody. Każdy k
 
 Po każdym kroku warto powtórzyć odpowiedni test z `FishRobot.Tests` z nowymi parametrami i porównać przebieg z pomiarem. Kroki 1–8 dotyczą samego napędu ogona i można je wykonać na stole bez wody (oprócz kroku 8). Kroki 9–11 wymagają basenu.
 
-### Identyfikacja silnika (krok 2): `calibrate.py`
+### Identyfikacja silnika (krok 2): `calibrate.py motor`
 
 Na stole wystarczy jeden rozruch: skok napięcia z zasilacza na silnik z wolnym wałem, zapis prądu i prędkości. Model stanowiska to `FishRobot.Calibration.MotorStep`. Każdy z pięciu parametrów kształtuje inną część przebiegu, więc wszystkie da się wyznaczyć naraz:
 
@@ -312,4 +313,23 @@ Bez `--data` skrypt sprawdza samą procedurę. Tworzy „pomiar” z modelu o zn
 
 **Lekcja: wagi sygnałów decydują o niepewności.** Prąd i prędkość mają różne jednostki i różny szum, więc reszty trzeba podzielić przez szum każdego czujnika. Szumu zwykle nie znamy, dlatego skrypt po pierwszym dopasowaniu szacuje go z reszt każdego sygnału osobno i dopasowuje jeszcze raz. Pierwsza wersja ważyła sygnały przez 1% zakresu. Prąd był wtedy względnie dwa razy bardziej zaszumiony niż prędkość, a wspólna wariancja reszt to ukrywała. Niepewność `b`, wyznaczanego głównie z prądu ustalonego, wychodziła przez to za mała: 1,0% przy rzeczywistym rozrzucie 1,6%.
 
-Macierz korelacji pokazuje, czego eksperyment nie rozróżnia dobrze. `k` i `b` są skorelowane (−0,84), bo oba ustalają punkt pracy w stanie ustalonym, a `R` i `J` (−0,77), bo razem dają mechaniczną stałą czasową `J·R/k²`. Niepewność `b` i `L` jest największa: prąd ustalony to tylko ok. 0,08 A, a narastanie prądu trwa ok. 0,5 ms, czyli kilka próbek przy 5 kHz. Na prawdziwym stole pomaga dłuższy zapis stanu ustalonego (uśrednianie prądu) i szybsze próbkowanie prądu. Kolejne kroki planu (pompa, ogon) można dodać do skryptu jako kolejne modele stanowisk w `FishRobot.Calibration`.
+Macierz korelacji pokazuje, czego eksperyment nie rozróżnia dobrze. `k` i `b` są skorelowane (−0,84), bo oba ustalają punkt pracy w stanie ustalonym, a `R` i `J` (−0,77), bo razem dają mechaniczną stałą czasową `J·R/k²`. Niepewność `b` i `L` jest największa: prąd ustalony to tylko ok. 0,08 A, a narastanie prądu trwa ok. 0,5 ms, czyli kilka próbek przy 5 kHz. Na prawdziwym stole pomaga dłuższy zapis stanu ustalonego (uśrednianie prądu) i szybsze próbkowanie prądu. Krok zapisuje parametry silnika z kowariancją do `results/calibration/motor_params.json`, z którego korzysta krok 3.
+
+### Identyfikacja pompy (krok 3): `calibrate.py pump`
+
+Silnik z kroku 2 kręci pompą, która tłoczy wodę ze zbiornika przez zawór dławiący z powrotem do zbiornika (`FishRobot.Calibration.PumpBench`). Punkt pracy ustawia się napięciem zasilacza i nastawą zaworu, a w każdym punkcie, po ustaleniu prędkości, mierzy się `U, i, w, Δp, Q`. Plik pomiaru to CSV z tymi kolumnami (jednostki SI). Równania pompy są liniowe w szukanych parametrach, więc zamiast dopasowywać symulację wystarcza regresja liniowa:
+
+- `Q = D·ω − k_leak·Δp` daje `D_rev = 2π·D` i `k_leak`,
+- `k·i − b·ω = D·Δp/η_m` daje `η_m`. Lewa strona to moment na wale policzony z prądu, czyli silnik działa jako czujnik momentu.
+
+Model stanowiska służy tu tylko do wygenerowania pomiaru syntetycznego: 3 napięcia × 5 nastaw zaworu, „prawdziwy” silnik z kroku 2 i pompa różna od placeholderów, plus szum uśrednionych wartości. Wynik (`results/calibration/pump_fit.{txt,png}`):
+
+| Parametr | Niepewność 1σ | Rozrzut w 2000 powtórzeniach | Średni błąd |
+|---|---|---|---|
+| `D_rev` | 0,14% | 0,14% | 0,00% |
+| `k_leak` | 4,1% | 4,0% | −0,1% |
+| `eta_m` | 0,77% | 0,65% | −0,33% |
+
+**Lekcja: błąd czujnika nie uśrednia się.** `eta_m` ma stały błąd −0,33%, także bez żadnego szumu. Bierze się z parametrów silnika z kroku 2 (`b` wyszło tam o 1,2% za małe), a ten sam błąd momentu jest w każdym punkcie pracy. Więcej punktów zmniejsza tylko część niepewności pochodzącą z rozrzutu (0,63%), a część od silnika (0,36%) zostaje. Dlatego skrypt podaje obie części osobno i uwzględnia korelację `k` i `b` z kroku 2. Tarcie silnika `b·ω` to od 15% (przy najwyższym Δp) do ponad 80% (zawór otwarty) momentu z prądu, więc dokładne `b` jest tu ważniejsze, niż sugerowałby sam krok 2. Druga pułapka: tarcie lepkie pompy (proporcjonalne do ω) byłoby nie do odróżnienia od `b` silnika, bo w tym stanowisku zawsze występują razem. Jeśli prawdziwa pompa takie tarcie ma, pokaże się jako stały moment przy `Δp ≈ 0` na prawym wykresie.
+
+Najmniej dokładny jest przeciek (ok. 4%): przy 85 kPa to tylko 2,5 ml/s wobec ok. 30 ml/s wyparcia, a szum przepływomierza to 0,1 ml/s. Pomaga więcej punktów przy wysokim Δp i niskiej prędkości, gdzie przeciek stanowi większą część przepływu.
