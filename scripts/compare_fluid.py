@@ -71,6 +71,10 @@ def main():
         ok = err < tol
         failed += not ok
         print(f"  [{'OK ' if ok else 'BŁĄD'}] {name}: max różnica {err:.2%} maksimum (granica {tol:.0%})")
+    # Zawory: bez asercji, bo zbocza otwarcia są przesunięte (różne charakterystyki, opis w README).
+    q_rel = own["sol"]["Q_relief"]
+    print(f"  Q_relief (informacyjnie): max różnica "
+          f"{np.max(np.abs(on_own['Q_relief'] - q_rel)) / np.max(np.abs(q_rel)):.1%} maksimum")
 
     s, f = own["sol"], on_own
     plotting.panels(t, [
@@ -79,7 +83,7 @@ def main():
                                 (s["p_R"] / 1e3, "R własny"), (f["p_R"] / 1e3, "R Fluid")]),
         ("przepływ [ml/s]", [(s["Q_pump"] * 1e6, "pompa własny"), (f["Q_pump"] * 1e6, "pompa Fluid"),
                              (s["Q_relief"] * 1e6, "zawory własny"), (f["Q_relief"] * 1e6, "zawory Fluid")]),
-        ("spadek ciśn.\nprzewód L [kPa]", [(s["pipeL.dp"] / 1e3, "własny (laminarny)"),
+        ("spadek ciśn.\nprzewód L [kPa]", [(s["pipeL.dp"] / 1e3, "własny (Haaland)"),
                                            (f["pipeL.dp"] / 1e3, "Fluid (DetailedPipeFlow)")]),
         ("prąd silnika [A]", [(s["i_motor"], "własny"), (f["i_motor"], "Fluid")]),
     ], "HydraulicsStep: własny pakiet vs Modelica.Fluid", "fluid_vs_own.png", subdir="fluid")

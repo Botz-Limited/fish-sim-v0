@@ -38,8 +38,23 @@ def check_pipe_quadratic(sol):
     mask = np.abs(q) > 100 * 1e-8  # 100 * V_flow_small
     err = np.max(np.abs(dp[mask] - ref[mask]) / np.abs(ref[mask]))
     plotting.compare(sol["time"], dp, ref, "Δp [Pa]", "PipeQuadratic: Δp przy przepływie zmieniającym kierunek",
-                     "pipe_quadratic.png", sim_label="symulacja (regularyzowana)", ref_label="R_lam·Q + R_turb·|Q|·Q")
+                     "pipe_quadratic.png", sim_label="symulacja (regularyzowana)", ref_label="R_lam·Q + R_local·|Q|·Q")
     return [("Δp zgodne z charakterystyką bez regularyzacji (< 1%)", err < 0.01, f"max błąd względny {err:.2e}")]
+
+
+def check_pipe_turbulent(sol):
+    re_, dp, ref = sol["pipe.Re"], sol["pipe.dp"], sol["dp_msl"]
+    err = np.abs(dp - ref) / np.maximum(np.abs(ref), 1e-12)
+    # MSL (WallFriction.Detailed) kończy zakres laminarny przy Re1 = (745·e)^0,97 ≈ 1600 (dla ε/d ≤ 0,0065).
+    lam, trans, turb = (re_ > 100) & (re_ < 1500), (re_ >= 1500) & (re_ <= 4000), re_ > 4000
+    plotting.compare(sol["time"], dp / 1e3, ref / 1e3, "Δp [kPa]",
+                     "PipeTurbulentVsMSL: Δp w rurze, Re od 0 do ok. 12 700", "pipe_turbulent_vs_msl.png",
+                     sim_label="Hydraulics.Pipe (Haaland)", ref_label="Modelica.Fluid StaticPipe (Colebrook)")
+    return [("Re < 1500: zgodne z MSL (< 1%)", err[lam].max() < 0.01, f"max różnica {err[lam].max():.2%}"),
+            ("Re 1500–4000 (przejście): zgodne z MSL (< 10%)", err[trans].max() < 0.10,
+             f"max różnica {err[trans].max():.2%}"),
+            ("Re > 4000: zgodne z MSL (< 3%)", err[turb].max() < 0.03,
+             f"max różnica {err[turb].max():.2%}, Re_max = {re_.max():.0f}")]
 
 
 def check_pipe_inertance(sol):
@@ -249,6 +264,7 @@ def check_swim_forward(sol):
 CHECKS = {
     "FishRobot.Tests.PipeLaminar": (["time", "pipe.dp", "dp_analytic", "pipe.Re"], check_pipe_laminar),
     "FishRobot.Tests.PipeQuadratic": (["time", "pipe.V_flow", "pipe.dp", "dp_exact"], check_pipe_quadratic),
+    "FishRobot.Tests.PipeTurbulentVsMSL": (["time", "pipe.Re", "pipe.dp", "dp_msl"], check_pipe_turbulent),
     "FishRobot.Tests.PipeInertance": (["time", "pipe.V_flow", "Q_analytic"], check_pipe_inertance),
     "FishRobot.Tests.ChamberClosedLoop": (["time", "chamberL.V", "chamberR.V", "V_total", "chamberL.port.p",
                                            "chamberR.port.p", "E_stored", "E_dissipated"],

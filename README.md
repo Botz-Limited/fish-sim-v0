@@ -85,6 +85,7 @@ Ten sam obwód zbudowany na `Modelica.Fluid` i porównanie obu wersji opisuje se
 
 - **`pipe_laminar.png`** – spadek ciśnienia rośnie liniowo z przepływem, zgodnie z prawem Hagena–Poiseuille’a `Δp = 128·μ·l·Q / (π·d⁴)`. Liczba Reynoldsa pozostaje poniżej 2300, więc wzór laminarny obowiązuje. Zwróć uwagę na `d⁴`: dwa razy węższy przewód daje 16 razy większy opór.
 - **`pipe_quadratic.png`** – przy przepływie sinusoidalnym krzywa Δp ma „spłaszczenia” przy zerze (dominuje część liniowa) i ostre szczyty (dominuje część kwadratowa). Dolny panel pokazuje błąd regularyzacji `Q·√(Q² + Q_small²)` zamiast `|Q|·Q`. Jest rzędu 10⁻⁴ Pa, a symulacja przechodzi przez zero bez żadnych zdarzeń.
+- **`pipe_turbulent_vs_msl.png`** – przepływ rośnie od zera do Re ≈ 12 700, a ten sam przepływ płynie przez `Hydraulics.Pipe` i przez `Modelica.Fluid.Pipes.StaticPipe` (`DetailedPipeFlow`). Do Re ≈ 1500 obie krzywe to prosta Hagena–Poiseuille’a (różnica 0,00%). Powyżej Re ≈ 4000 opór rośnie prawie z kwadratem przepływu, a wzór Haalanda różni się od Colebrooka w MSL o mniej niż 0,5%. W zakresie przejściowym modele interpolują inaczej (MSL zaczyna przejście wcześniej) i różnią się do ok. 6%.
 - **`pipe_inertance.png`** – po skoku różnicy ciśnień przepływ nie zmienia się skokowo, bo słup wody ma masę. Narasta wykładniczo ze stałą czasową `τ = L/R ≈ 0,5 s`, dokładnie jak prąd w obwodzie RL.
 
 - **`chamber_closed_loop.png`** – dwie komory połączone przewodem, na starcie 8 ml i 3 ml. Ciecz przelewa się do komory o niższym ciśnieniu, „przestrzeliwuje” przez bezwładność słupa wody i oscyluje z tłumieniem wokół 5,5 ml. To obwód RLC: komory to pojemność, słup cieczy to indukcyjność, opór rury to rezystancja. Dolny panel pokazuje, że suma objętości zmienia się tylko na poziomie 10⁻¹⁵ ml, czyli w granicach zaokrągleń komputera.
@@ -230,18 +231,20 @@ Mostek H jest bezstratny. Moc ciśnienia otoczenia znosi się w obiegu zamknięt
 
 | | własny pakiet | Modelica.Fluid |
 |---|---|---|
-| równania po spłaszczeniu (w tym trywialne) | 177 (109) | 425 (222) |
+| równania po spłaszczeniu (w tym trywialne) | 185 (109) | 425 (222) |
 | stany ciągłe | 8 | 8 |
 | kompilacja | ok. 1,1 s | ok. 1,4 s |
 | symulacja 3 s | ok. 0,02 s | ok. 0,15 s (ok. 6× dłużej) |
 
 Liczba stanów jest równa przypadkiem. Wersja Fluid ma dodatkowo temperaturę wody w każdej komorze, a nie ma całek energii sprężystej `E_elastic`, które dodaliśmy we własnej komorze do bilansu energii. Temperatura zmienia się o mniej niż 0,01 K, więc przy wodzie o stałych właściwościach niczego nie wnosi, ale solver i tak musi ją liczyć.
 
-**Wyniki:** ciśnienia, przepływ pompy i prąd silnika różnią się o 0,7–3,8% maksimum przebiegu. Prawie całą różnicę daje przewód. Przy szybkim pompowaniu przepływ dochodzi do 16 ml/s, a liczba Reynoldsa w przewodzie 4 mm do ok. 5200. `DetailedPipeFlow` liczy wtedy opór turbulentny (przejście między Re = 2000 a 4000, chropowatość ścianki), a własny `Hydraulics.Pipe` cały czas stosuje wzór laminarny. Spadek ciśnienia na przewodzie wynosi 3,1 kPa zamiast 1,8 kPa. Zawory różnią się charakterystyką o kilka procent (opis w `HydraulicsFluid.ReliefValve`). Ustalony przepływ przez nie jest taki sam (różnica 0,1%), ale zbocze otwarcia jest przesunięte o kilka milisekund, więc chwilowa różnica przepływu na zboczu dochodzi do 11%.
+**Wyniki:** ciśnienia, przepływ pompy i prąd silnika różnią się o 0,03–0,5% maksimum przebiegu, przepływ przez zawory o 0,9%. Przy szybkim pompowaniu przepływ dochodzi do 16 ml/s, a liczba Reynoldsa w przewodzie 4 mm do ok. 5200, więc przepływ jest turbulentny. Spadek ciśnienia na przewodzie: 3,08 kPa we własnym pakiecie, 3,07 kPa we Fluid. Zawory różnią się charakterystyką o kilka procent (opis w `HydraulicsFluid.ReliefValve`), ale w tym obwodzie prawie tego nie widać.
+
+Pierwsza wersja `Hydraulics.Pipe` liczyła tarcie tylko ze wzoru laminarnego. Dawała wtedy 1,8 kPa zamiast 3,1 kPa, ciśnienia różniły się od Fluid o 0,7–3,8%, a przesunięte zbocze otwarcia zaworów dawało chwilowo do 11% różnicy przepływu. Teraz przewód ma tarcie turbulentne (wzór Haalanda, chropowatość ścianki) i gładkie przejście między Re = 2000 a 4000. Osobno sprawdza to test `PipeTurbulentVsMSL`.
 
 **Lekcje:**
 
-- **Biblioteka pokazała słabość naszego modelu.** Wzór Hagena–Poiseuille’a obowiązuje do Re ≈ 2300, a w scenariuszu 1 przepływ jest już turbulentny. Własny przewód zaniża tam opór o ok. 40%. W tym obwodzie to mało ważne, bo spadek na przewodach jest mały w porównaniu z ciśnieniem w komorach, ale przy węższych przewodach albo większej pompie trzeba by to poprawić.
+- **Biblioteka pokazała słabość naszego modelu.** Wzór Hagena–Poiseuille’a obowiązuje do Re ≈ 2300, a w scenariuszu 1 przepływ jest już turbulentny. Pierwsza wersja przewodu zaniżała tam opór o ok. 40%. Porównanie z niezależną implementacją wskazało błąd, którego testy własnego pakietu nie mogły złapać, bo sprawdzały model z jego własnymi założeniami. Testy, które zakładają opór liniowy (`PipeQuadratic`, `PipeInertance`), mają teraz jawnie `useTurbulent = false`.
 - **Progi regularyzacji trzeba sprawdzać per komponent.** Domyślne `system.m_flow_small = 0,01 kg/s` jest dobrane do instalacji przemysłowych, a u nas to cały przepływ pompy. W modelu jest zmniejszone do 1e-5 kg/s, ale sprawdziłem, że w tym obwodzie nie ma to wpływu: `SimpleGenericOrifice` wygładza charakterystykę w okolicy zera według `system.dp_small = 1 Pa`, a `DetailedPipeFlow` według liczby Reynoldsa. `m_flow_small` działa w innych komponentach (np. `Fittings` z `from_dp = false`) i w diagnostyce. Przy małych przepływach trzeba więc zajrzeć do kodu komponentu, który próg go dotyczy.
 - **Złącze Fluid przenosi więcej:** masowe natężenie przepływu i zmienne strumieniowe (entalpia, skład, `inStream()`). Każdy dopisany komponent musi określić, co wypływa z każdego portu. Do każdego portu naczynia można też podłączyć tylko jeden element (`nPorts`).
 - **Ostrzeżenia o aliasach** przy kompilacji (`The model contains alias variables with redundant start and/or conflicting nominal values`) pochodzą z wartości startowych wewnątrz MSL (np. `medium.T` i `state.T`). Są nieszkodliwe.
@@ -259,7 +262,7 @@ Model odpowiada na pytania typu „czy pompa i bateria wystarczą” i „gdzie 
 - **Ciąg z placeholderu.** `Propulsion.LighthillFin` to reaktywna teoria Lighthilla dla sztywnej płetwy z empirycznym współczynnikiem `C_T`. Nie ma w niej oderwania przepływu, śladu wirowego o skończonej długości ani wpływu kształtu płetwy. Liczby prędkości pokazują trendy, a nie wartości do projektowania.
 - **Brak sprzężenia ruchów.** Ruch do przodu (`SurgeDynamics`), pion (`VerticalDynamics`) i obrót są niezależne. Machanie ogonem nie odchyla kadłuba (brak yaw i recoil), balast nie zmienia oporu ani trymu, a prędkość pływania nie daje siły nośnej.
 - **Brak hydrodynamiki przestrzennej.** Opór kadłuba to `½·ρ·C_d·A·U²` ze stałym `C_d`, a masa dodana jest stała. Nie ma przepływu wokół ciała, fal, ściany basenu ani prądów.
-- **Hydraulika o skupionych parametrach.** Woda jest nieściśliwa i ma stałą temperaturę. Komory mają statyczną krzywą p–V bez histerezy i lepkosprężystości silikonu. Przewód liczy opór tylko ze wzoru laminarnego, choć przy szybkim pompowaniu Re dochodzi do ok. 5200 (porównanie z `Modelica.Fluid` wyżej). Zawory nie mają dynamiki grzybka.
+- **Hydraulika o skupionych parametrach.** Woda jest nieściśliwa i ma stałą temperaturę. Komory mają statyczną krzywą p–V bez histerezy i lepkosprężystości silikonu. Przewód ma tarcie laminarne i turbulentne, ale przejście między nimi (Re 2000–4000) jest tylko interpolacją, a przepływ niestacjonarny (oscylujący) liczony jest charakterystyką ustaloną. Zawory nie mają dynamiki grzybka.
 - **Elektryka uproszczona.** Bateria to źródło napięcia z rezystancją wewnętrzną, bez spadku napięcia w miarę rozładowania. Mostek H jest idealny (uśredniony PWM, bez strat przełączania). Silnik nie ma nasycenia magnetycznego ani temperatury uzwojenia.
 - **Parametry niezidentyfikowane.** Wszystkie wartości oznaczone `PLACEHOLDER` w kodzie są szacunkami rzędu wielkości. Przy obecnych parametrach silnik jest np. mocno przewymiarowany względem pompy (scenariusz 1).
 
@@ -272,7 +275,7 @@ Parametry najlepiej identyfikować od źródła energii w stronę wody. Każdy k
 | 1 | Bateria | napięcie jałowe i pod znanym obciążeniem, w kilku stanach naładowania | `U_nom`, `R_int`, `capacity_Wh` |
 | 2 | Silnik DC | rezystancja uzwojenia (miernik, zablokowany wał); prędkość biegu jałowego przy kilku napięciach; wybieg po odłączeniu zasilania; odpowiedź prądu na skok napięcia przy zablokowanym wale | `R`, `k`, `b`, `J`, `L` |
 | 3 | Pompa | przepływ (cylinder miarowy lub przepływomierz) przy kilku prędkościach i ciśnieniach (zawór dławiący na wyjściu); prąd silnika daje moment | `D_rev`, `k_leak`, `eta_m` |
-| 4 | Przewody | spadek ciśnienia przy kilku przepływach (dwa czujniki ciśnienia); sprawdzić, przy jakim przepływie charakterystyka przestaje być liniowa | `l`, `d`, `zeta` (i czy potrzebny model turbulentny) |
+| 4 | Przewody | spadek ciśnienia przy kilku przepływach (dwa czujniki ciśnienia); sprawdzić, przy jakim przepływie charakterystyka przestaje być liniowa | `l`, `d`, `zeta`, `roughness` (i czy przejście w turbulencję zgadza się z `Re_lam`, `Re_turb`) |
 | 5 | Komory | quasi-statyczne napełnianie strzykawką z czujnikiem ciśnienia, ogon zablokowany; kilka cykli napełnij–opróżnij (histereza) | krzywa p–V (`table` lub plik CSV), `V_prefill` |
 | 6 | Zawory przelewowe | ciśnienie otwarcia i przepływ ponad nim (pompa na zamknięty obwód) | `p_set`, `dp_open`, `V_flow_nominal` |
 | 7 | Ogon (statycznie) | moment na zablokowanym ogonie (siłomierz na ramieniu) vs różnica ciśnień; kąt swobodnego ogona vs różnica ciśnień | `D_tail` (z momentu), `k` (z kąta) |

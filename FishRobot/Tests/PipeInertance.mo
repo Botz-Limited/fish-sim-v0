@@ -10,7 +10,8 @@ model PipeInertance "Test: narastanie przepływu po skoku ciśnienia (inertancja
     annotation (Placement(transformation(extent={{-90,-10},{-70,10}})));
   FishRobot.Hydraulics.Reservoir high(use_p_in=true)
     annotation (Placement(transformation(extent={{-50,-10},{-30,10}})));
-  FishRobot.Hydraulics.Pipe pipe(zeta=0, useInertance=true)
+  FishRobot.Hydraulics.Pipe pipe(zeta=0, useInertance=true, useTurbulent=false)
+    "Tylko tarcie laminarne: rozwiązanie analityczne RL zakłada stały opór (ustalony przepływ ma Re ok. 3000)"
     annotation (Placement(transformation(extent={{0,-10},{20,10}})));
   FishRobot.Hydraulics.Reservoir low
     annotation (Placement(transformation(extent={{70,-10},{50,10}})));

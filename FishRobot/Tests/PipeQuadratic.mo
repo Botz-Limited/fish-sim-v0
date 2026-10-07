@@ -6,14 +6,15 @@ model PipeQuadratic "Test: człon kwadratowy i regularyzacja przy przepływie zm
     annotation (Placement(transformation(extent={{-90,-10},{-70,10}})));
   FishRobot.Hydraulics.VolumeFlowSource source
     annotation (Placement(transformation(extent={{-50,-10},{-30,10}})));
-  FishRobot.Hydraulics.Pipe pipe(zeta=1.5)
+  FishRobot.Hydraulics.Pipe pipe(zeta=1.5, useTurbulent=false)
+    "Bez przejścia w turbulencję: test dotyczy tylko członu kwadratowego i jego regularyzacji w zerze"
     annotation (Placement(transformation(extent={{0,-10},{20,10}})));
   FishRobot.Hydraulics.Reservoir sink
     annotation (Placement(transformation(extent={{70,-10},{50,10}})));
 
-  // Wzór bez regularyzacji: R_lam·Q + R_turb·|Q|·Q.
+  // Wzór bez regularyzacji: R_lam·Q + R_local·|Q|·Q.
   Modelica.Units.SI.PressureDifference dp_exact =
-    pipe.R_lam*pipe.V_flow + pipe.R_turb*abs(pipe.V_flow)*pipe.V_flow "Charakterystyka bez regularyzacji";
+    pipe.R_lam*pipe.V_flow + pipe.R_local*abs(pipe.V_flow)*pipe.V_flow "Charakterystyka bez regularyzacji";
 equation
   connect(sine.y, source.V_flow) annotation (Line(points={{-69,0},{-54,0}}, color={0,0,127}));
   connect(source.port, pipe.port_a) annotation (Line(points={{-30,0},{0,0}}, color={0,128,255}));
