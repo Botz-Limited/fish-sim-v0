@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -14,31 +14,31 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Parametry tego przypadku (wczytywane przez 0/*, controlDict i preciceDict).
-// Zmieniaj tylko tutaj.
+// Parameters of this case (read by 0/*, controlDict and preciceDict).
+// Change them only here.
 
-// Prędkość napływu [m/s]. 0 = woda stojąca.
-// PLACEHOLDER – do identyfikacji z pomiarów (prędkość pływania ryby)
+// Inflow velocity [m/s]. 0 = still water.
+// PLACEHOLDER – to be identified from measurements (fish swimming speed)
 U_IN            0.05;
 
-// Czas narastania napływu od 0 do U_IN [s]. Nagły start daje uderzenie
-// ciśnienia (w 1. kroku ~66 N/m), które "kopnęłoby" miękki ogon.
+// Ramp time of the inflow from 0 to U_IN [s]. A sudden start gives a pressure
+// shock (~66 N/m in the 1st step) that would "kick" the soft tail.
 U_RAMP          0.5;
 
-// Krok czasowy [s] i czas końcowy [s].
-// Przy sprzężeniu z preCICE krok narzuca time-window-size w precice-config.xml,
-// ale OpenFOAM musi dostać ten sam deltaT.
+// Time step [s] and end time [s].
+// With preCICE coupling the step is set by time-window-size in precice-config.xml,
+// but OpenFOAM must get the same deltaT.
 DELTA_T         0.0025;
 END_TIME        5;
 
-// Co ile sekund zapisywać pola (do ParaView).
+// How often (in seconds) to write fields (for ParaView).
 WRITE_INTERVAL  0.1;
 
-// Od kiedy uśredniać pola w czasie (pMean, UMean) [s] – po zaniku rozruchu.
+// When to start time-averaging fields (pMean, UMean) [s] – after the start-up transient.
 AVG_START       5;
 
-// Gęstość wody [kg/m^3] – OpenFOAM (pimpleFoam) liczy ciśnienie kinematyczne
-// p/rho, więc siły w N/m dostajemy, mnożąc przez RHO.
+// Water density [kg/m^3] – OpenFOAM (pimpleFoam) computes the kinematic pressure
+// p/rho, so forces in N/m are obtained by multiplying by RHO.
 RHO             1000;
 
 // ************************************************************************* //

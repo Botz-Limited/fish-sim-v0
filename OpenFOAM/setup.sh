@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Instalacja środowiska FSI: OpenFOAM v2606 + preCICE 3.4.1 + CalculiX 2.20
-# (adapter 2.20.2, PARDISO z Intel MKL) + adapter OpenFOAM 1.4.0.
-# Arch Linux / EndeavourOS. Wszystko poza pakietami systemowymi instaluje się
-# w katalogu domowym (bez sudo): ~/opt/fsi, ~/OpenFOAM.
+# FSI environment installation: OpenFOAM v2606 + preCICE 3.4.1 + CalculiX 2.20
+# (adapter 2.20.2, PARDISO from Intel MKL) + OpenFOAM adapter 1.4.0.
+# Arch Linux / EndeavourOS. Everything except system packages is installed
+# in the home directory (no sudo): ~/opt/fsi, ~/OpenFOAM.
 #
-# Czas na Ryzen AI 5 PRO 340 (6 rdzeni / 12 wątków): ~1.5 h (głównie OpenFOAM).
+# Time on a Ryzen AI 5 PRO 340 (6 cores / 12 threads): ~1.5 h (mostly OpenFOAM).
 #
-#   ./setup.sh            – wszystko po kolei (pomija kroki już zrobione)
+#   ./setup.sh            – everything in order (skips steps already done)
 #
-# Przed uruchomieniem (raz, wymaga hasła):
+# Before running (once, needs your password):
 #   sudo pacman -S --needed openmpi scotch gcc-fortran arpack ccache git-lfs \
 #        paraview python-matplotlib python-pandas python-scipy
 # =============================================================================
@@ -24,11 +24,11 @@ cd "$SRC"
 step() { echo; echo "=== $* ==="; }
 
 for p in openmpi scotch gcc-fortran arpack ccache paraview python-matplotlib; do
-    pacman -Q $p > /dev/null 2>&1 || { echo "Brak pakietu $p – uruchom najpierw polecenie sudo pacman z nagłówka."; exit 1; }
+    pacman -Q $p > /dev/null 2>&1 || { echo "Missing package $p – first run the sudo pacman command from the header."; exit 1; }
 done
 
 # -----------------------------------------------------------------------------
-step "1/7 Źródła"
+step "1/7 Sources"
 [ -f OpenFOAM-v2606.tgz ] || curl -sSLO https://dl.openfoam.com/source/v2606/OpenFOAM-v2606.tgz
 echo "35cbe9bc512fe087e4a472b1cb610063  OpenFOAM-v2606.tgz" | md5sum -c
 [ -f precice-3.4.1.tar.gz ] || curl -sSL -o precice-3.4.1.tar.gz https://github.com/precice/precice/archive/v3.4.1.tar.gz
@@ -41,7 +41,7 @@ echo "35cbe9bc512fe087e4a472b1cb610063  OpenFOAM-v2606.tgz" | md5sum -c
 [ -d tutorials ] || GIT_LFS_SKIP_SMUDGE=1 git clone -q https://github.com/precice/tutorials.git
 
 # -----------------------------------------------------------------------------
-step "2/7 Python (venv: gmsh, meshio, MKL dla PARDISO)"
+step "2/7 Python (venv: gmsh, meshio, MKL for PARDISO)"
 [ -d "$PREFIX/venv" ] || python3 -m venv --system-site-packages "$PREFIX/venv"
 "$PREFIX/venv/bin/pip" install -q gmsh meshio mkl-devel
 M=$PREFIX/venv/lib
@@ -51,7 +51,7 @@ for l in mkl_rt mkl_core mkl_gnu_thread mkl_intel_lp64; do ln -sf "$M/lib$l.so.3
 # -----------------------------------------------------------------------------
 step "3/7 preCICE 3.4.1 (Release, -march=native, Eigen 3.4)"
 if [ ! -f "$PREFIX/lib/libprecice.so" ]; then
-    # Eigen 5 z Arch powoduje FPE w mapowaniu RBF pod pułapką OpenFOAM (NOTES.md)
+    # Eigen 5 from Arch causes an FPE in RBF mapping under the OpenFOAM trap (NOTES.md)
     tar xzf eigen-3.4.0.tar.gz
     cmake -S eigen-3.4.0 -B eigen-build -DCMAKE_INSTALL_PREFIX="$PREFIX/eigen-3.4" -DBUILD_TESTING=OFF > /dev/null
     cmake --install eigen-build > /dev/null
@@ -91,7 +91,7 @@ if [ ! -f "$PREFIX/bin/ccx_preCICE" ]; then
 fi
 
 # -----------------------------------------------------------------------------
-step "5/7 OpenFOAM v2606 (-O3 -march=native, ccache) – ok. 1.5 h"
+step "5/7 OpenFOAM v2606 (-O3 -march=native, ccache) – approx. 1.5 h"
 if [ ! -x "$FOAM/platforms/linux64GccDPInt32Opt/bin/pimpleFoam" ]; then
     mkdir -p "$HOME/OpenFOAM" && [ -d "$FOAM" ] || tar xzf OpenFOAM-v2606.tgz -C "$HOME/OpenFOAM"
     cat > "$FOAM/etc/prefs.sh" <<'EOF'
@@ -104,12 +104,12 @@ EOF
     "$FOAM/bin/tools/foamConfigurePaths" -adios adios-none -boost boost-system -cgal cgal-none \
         -fftw fftw-system -kahip kahip-none -metis metis-none -scotch scotch-system > /dev/null
     sed -i 's/^ParaView_VERSION=.*/ParaView_VERSION=none/' "$FOAM/etc/config.sh/paraview"
-    # dwa przebiegi: w trybie równoległym część aplikacji linkuje się przed bibliotekami
+    # two passes: in parallel mode some applications link before their libraries exist
     bash -c "set +e; source $FOAM/etc/bashrc; cd $FOAM; ./Allwmake -j $NJ -s -q -l > /dev/null 2>&1; ./Allwmake -j $NJ -s -l > /dev/null 2>&1"
 fi
 
 # -----------------------------------------------------------------------------
-step "6/7 Adapter OpenFOAM-preCICE 1.4.0"
+step "6/7 OpenFOAM-preCICE adapter 1.4.0"
 mkdir -p openfoam-adapter && tar xzf openfoam-adapter-1.4.0.tar.gz -C openfoam-adapter --strip-components=1
 bash -c "source $FOAM/etc/bashrc; export PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig CPATH=$PREFIX/include LD_LIBRARY_PATH=$PREFIX/lib:\$LD_LIBRARY_PATH; cd openfoam-adapter && ./Allwmake > build.log 2>&1 && tail -1 build.log"
 
@@ -118,4 +118,4 @@ step "7/7 Test"
 source "$(dirname "$0")/env.sh" > /dev/null 2>&1 || source "$(cd "$(dirname "$0")" && pwd)/env.sh"
 precice-version | cut -d';' -f1
 which pimpleFoam ccx_preCICE
-echo "Gotowe. Dalej: source OpenFOAM/env.sh  i  (cd OpenFOAM/00-reference-flap; ...)"
+echo "Done. Next: source OpenFOAM/env.sh  and  (cd OpenFOAM/00-reference-flap; ...)"

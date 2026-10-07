@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Etap 4, wariant "na sucho": ta sama aktuacja co w ../water, bez wody.
+# Stage 4, "dry" variant: the same actuation as in ../water, without water.
 set -e -u
 cd "$(dirname "$0")"
 d="$(pwd)"; while [ ! -f "$d/tools/make_geometry.py" ]; do d="$(dirname "$d")"; done

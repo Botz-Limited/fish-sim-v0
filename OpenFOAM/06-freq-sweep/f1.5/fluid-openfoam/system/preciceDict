@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -16,25 +16,25 @@ FoamFile
 
 #include "caseParams"
 
-// Konfiguracja adaptera OpenFOAM-preCICE
+// OpenFOAM-preCICE adapter configuration
 preciceConfig   "../precice-config.xml";
 
-// Nazwa uczestnika – musi być zgodna z <participant name="Fluid"> w XML
+// Participant name – must match <participant name="Fluid"> in the XML
 participant     Fluid;
 
-// Moduł FSI: siły na ścianach i ruch siatki
+// FSI module: wall forces and mesh motion
 modules         (FSI);
 
 interfaces
 {
     Interface1
     {
-        // siatka interfejsu po stronie płynu (nazwa z precice-config.xml)
+        // interface mesh on the fluid side (name from precice-config.xml)
         mesh        Fluid-Mesh;
-        // tylko ogon jest sprężysty; głowa jest sztywna i nie uczestniczy
+        // only the tail is elastic; the head is rigid and does not take part
         patches     (tail);
-        // siły liczymy w środkach ścian, przemieszczenia też tam odbieramy
-        // i adapter interpoluje je do punktów siatki
+        // forces are computed at face centres, displacements are received there
+        // too and the adapter interpolates them to the mesh points
         locations   faceCenters;
 
         readData    (Displacement);
@@ -44,8 +44,8 @@ interfaces
 
 FSI
 {
-    // Solver nieściśliwy liczy p/rho – adapter mnoży przez rho, żeby
-    // wysłać siły w niutonach (na DEPTH = 1 m rozpiętości)
+    // The incompressible solver computes p/rho – the adapter multiplies by rho
+    // to send forces in newtons (per DEPTH = 1 m of span)
     rho         rho [1 -3 0 0 0 0 0] $RHO;
 }
 

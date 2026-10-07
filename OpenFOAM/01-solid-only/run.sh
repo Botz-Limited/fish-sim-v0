@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Etap 1: tylko ciało stałe. Liczy rampę ciśnienia w komorze L i R (równolegle)
-# i rysuje results/e1_tip_vs_pressure.png.
+# Stage 1: solid only. Computes a pressure ramp in chamber L and R (in parallel)
+# and plots results/e1_tip_vs_pressure.png.
 set -e -u
 cd "$(dirname "$0")"
 python ../tools/make_geometry.py solid .

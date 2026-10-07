@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Generuje siatkę płynu w bieżącym katalogu przypadku OpenFOAM:
-#   gmsh (tools/make_geometry.py) -> gmshToFoam -> typy patchy -> checkMesh
-# Zmienne środowiskowe:
-#   MESH_SCALE  – zagęszczenie (domyślnie 1)
-#   MESH_DOMAIN – mnożnik rozmiaru domeny (domyślnie 1)
+# Generates the fluid mesh in the current OpenFOAM case directory:
+#   gmsh (tools/make_geometry.py) -> gmshToFoam -> patch types -> checkMesh
+# Environment variables:
+#   MESH_SCALE  – refinement factor (default 1)
+#   MESH_DOMAIN – domain size multiplier (default 1)
 set -e -u
 TOOLS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -11,7 +11,7 @@ python "$TOOLS/make_geometry.py" fluid . --scale "${MESH_SCALE:-1}" --domain "${
 gmshToFoam fluid.msh > log.gmshToFoam 2>&1
 rm -f fluid.msh
 
-# gmshToFoam tworzy wszystkie patche jako "patch" – ustawiamy właściwe typy
+# gmshToFoam creates every patch as type "patch" – set the proper types
 B=constant/polyMesh/boundary
 foamDictionary -entry entry0/frontAndBack/type -set empty "$B" > /dev/null 2>&1
 foamDictionary -entry entry0/head/type -set wall "$B" > /dev/null 2>&1

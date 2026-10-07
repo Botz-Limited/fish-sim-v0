@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -14,27 +14,27 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Parametry tego przypadku (wczytywane przez 0/*, controlDict i preciceDict).
-// Zmieniaj tylko tutaj.
+// Parameters of this case (read by 0/*, controlDict and preciceDict).
+// Change them only here.
 
-// Prędkość napływu [m/s]. 0 = woda stojąca.
-// PLACEHOLDER – do identyfikacji z pomiarów (prędkość pływania ryby)
+// Inflow velocity [m/s]. 0 = still water.
+// PLACEHOLDER – to be identified from measurements (fish swimming speed)
 U_IN            0.2;
 
-// Krok czasowy [s] i czas końcowy [s].
-// Przy sprzężeniu z preCICE krok narzuca time-window-size w precice-config.xml,
-// ale OpenFOAM musi dostać ten sam deltaT.
+// Time step [s] and end time [s].
+// With preCICE coupling the step is set by time-window-size in precice-config.xml,
+// but OpenFOAM must get the same deltaT.
 DELTA_T         0.002;
 END_TIME        10;
 
-// Co ile sekund zapisywać pola (do ParaView).
+// How often (in seconds) to write fields (for ParaView).
 WRITE_INTERVAL  0.25;
 
-// Od kiedy uśredniać pola w czasie (pMean, UMean) [s] – po zaniku rozruchu.
+// When to start time-averaging fields (pMean, UMean) [s] – after the start-up transient.
 AVG_START       5;
 
-// Gęstość wody [kg/m^3] – OpenFOAM (pimpleFoam) liczy ciśnienie kinematyczne
-// p/rho, więc siły w N/m dostajemy, mnożąc przez RHO.
+// Water density [kg/m^3] – OpenFOAM (pimpleFoam) computes the kinematic pressure
+// p/rho, so forces in N/m are obtained by multiplying by RHO.
 RHO             1000;
 
 // ************************************************************************* //

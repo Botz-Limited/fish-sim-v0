@@ -1,237 +1,237 @@
-# NOTES – dziennik diagnoz
+# NOTES – diagnosis log
 
-Co się rozbiegło / nie działało, dlaczego i jak naprawione. Najnowsze na dole.
+What diverged / did not work, why, and how it was fixed. Newest at the bottom.
 
-## Etap 1 – jedna długa komora "balonuje" (2026-10-06)
+## Stage 1 – a single long chamber "balloons" (2026-10-06)
 
-**Objaw.** Pierwsza wersja: jedna komora 100 mm × ~4–11 mm z każdej strony.
-Rampa ciśnienia w komorze L: przy ~0.5 kPa końcówka przesunęła się o −20 mm
-w osi x (skrócenie!) i +11 mm w y (zgięcie *w stronę* komory pod ciśnieniem),
-potem `*ERROR: increment size smaller than minimum`.
+**Symptom.** First version: one chamber of 100 mm × ~4–11 mm on each side.
+Pressure ramp in chamber L: at ~0.5 kPa the tip moved by −20 mm
+along x (shortening!) and +11 mm in y (bending *towards* the pressurised chamber),
+then `*ERROR: increment size smaller than minimum`.
 
-**Diagnoza.** Ścianka zewnętrzna (3 mm) między końcami komory to belka o
-rozpiętości 100 mm obciążona ciśnieniem. Ugięcie belki utwierdzonej:
-w = p·l⁴ / (384·E·I), I = t³/12 (na metr głębokości).
-Dla p = 500 Pa, l = 0.1 m, E = 3e5 Pa, t = 3 mm: w ≈ 0.19 m – ścianka wybrzusza
-się jak membrana. Wybrzuszona ścianka ściąga końce komory (efekt mięśnia
-McKibbena), więc strona pod ciśnieniem się *skraca*. W 3D prawdziwe aktuatory
-temu zapobiegają żebrami (PneuNet) albo oplotem z włókien (demo SOFA).
+**Diagnosis.** The outer wall (3 mm) between the chamber ends is a beam with a
+100 mm span loaded by pressure. Deflection of a clamped beam:
+w = p·l⁴ / (384·E·I), I = t³/12 (per metre of depth).
+For p = 500 Pa, l = 0.1 m, E = 3e5 Pa, t = 3 mm: w ≈ 0.19 m – the wall bulges
+like a membrane. The bulging wall pulls the chamber ends together (McKibben
+muscle effect), so the pressurised side *shortens*. In 3D, real actuators
+prevent this with ribs (PneuNet) or a fibre braid (SOFA demo).
 
-**Naprawa.** Komora podzielona żebrami na cele (`N_CELLS`, `RIB` w
-`tools/params.py`). Rozpiętość ścianki spada ze 100 mm do ~8.6 mm, czyli
-ugięcie ∝ l⁴ spada ~18 000 razy. Cele są połączone kanałem poza płaszczyzną
-przekroju (to samo ciśnienie).
+**Fix.** The chamber is split into cells by ribs (`N_CELLS`, `RIB` in
+`tools/params.py`). The wall span drops from 100 mm to ~8.6 mm, so the
+deflection ∝ l⁴ drops ~18 000 times. The cells are connected by a channel
+outside the cross-section plane (same pressure).
 
-## Etap 1 – zapadanie ścianki środkowej (2026-10-06)
+## Stage 1 – collapse of the middle wall (2026-10-06)
 
-**Objaw.** 6 cel po 15 mm, ścianka środkowa 2 mm: zgięcie już we właściwą
-stronę, ale utrata zbieżności przy ~16 kPa, ugięcie końcówki tylko 11 mm.
+**Symptom.** 6 cells of 15 mm, middle wall 2 mm: bending now in the right
+direction, but loss of convergence at ~16 kPa, tip deflection only 11 mm.
 
-**Diagnoza.** Ta sama formuła dla ścianki środkowej (t = 2 mm, l = 15 mm,
-p = 16 kPa) daje w ≈ 10 mm – więcej niż wysokość sąsiedniej komory. Ścianka
-zapada się do pustej komory po drugiej stronie, a model nie ma kontaktu.
+**Diagnosis.** The same formula for the middle wall (t = 2 mm, l = 15 mm,
+p = 16 kPa) gives w ≈ 10 mm – more than the height of the neighbouring chamber. The wall
+collapses into the empty chamber on the other side, and the model has no contact.
 
-**Naprawa.** 10 cel po 8.65 mm, żebra 1.5 mm, ścianka środkowa 3 mm
-(w ≈ 0.35 mm). Wynik: odpowiedź prawie liniowa ~1.2 mm/kPa, 24 mm (16% L)
-przy 20 kPa. Zbieżność traci się dopiero powyżej ~21 kPa, dlatego zakres
-roboczy to 0–20 kPa (`P_MAX`).
+**Fix.** 10 cells of 8.65 mm, ribs 1.5 mm, middle wall 3 mm
+(w ≈ 0.35 mm). Result: nearly linear response ~1.2 mm/kPa, 24 mm (16% L)
+at 20 kPa. Convergence is lost only above ~21 kPa, so the working range
+is 0–20 kPa (`P_MAX`).
 
-## Etap 1 – zbieżność siatki ciała stałego (2026-10-06)
+## Stage 1 – solid mesh convergence (2026-10-06)
 
-Ugięcie końcówki przy 20 kPa (komora L) dla rozmiaru elementu h:
+Tip deflection at 20 kPa (chamber L) for element size h:
 h = 0.5 mm: 24.31 mm (8152 el.), 0.75 mm: 24.20 mm (3596 el.), 1.0 mm: 24.29 mm (2559 el.).
-Rozrzut < 0.5%, więc przyjęto h = 1.0 mm – CalculiX jest najdroższą częścią
-każdej iteracji sprzężenia, a mniej elementów = krótsze obliczenia FSI.
+Spread < 0.5%, so h = 1.0 mm was chosen – CalculiX is the most expensive part of
+every coupling iteration, and fewer elements = shorter FSI runs.
 
-## Etap 0 – FPE w preCICE przy Eigen 5 (2026-10-06)
+## Stage 0 – FPE in preCICE with Eigen 5 (2026-10-06)
 
-**Objaw.** Referencyjny perpendicular-flap padał po 1. kroku: `Floating point
-exception` w procesach OpenFOAM, stos: `Eigen::internal::triSolveKernelLxK` <-
-`RadialBasisFctSolver<CompactPolynomialC6>::solveConsistent` (mapowanie RBF).
+**Symptom.** The reference perpendicular-flap crashed after the 1st step: `Floating point
+exception` in the OpenFOAM processes, stack: `Eigen::internal::triSolveKernelLxK` <-
+`RadialBasisFctSolver<CompactPolynomialC6>::solveConsistent` (RBF mapping).
 
-**Diagnoza.** Arch dostarcza Eigen 5.0.1, a preCICE 3.4 wybiera Eigen 5, jeśli
-jest dostępny. Nowy, wektoryzowany kernel rozwiązywania układu trójkątnego w
-Eigen 5 podnosi flagę wyjątku zmiennoprzecinkowego, a OpenFOAM domyślnie
-pułapkuje takie wyjątki (FOAM_SIGFPE) i przerywa obliczenia.
+**Diagnosis.** Arch ships Eigen 5.0.1, and preCICE 3.4 picks Eigen 5 if
+it is available. The new vectorised triangular-solve kernel in
+Eigen 5 raises a floating-point exception flag, and OpenFOAM by default
+traps such exceptions (FOAM_SIGFPE) and aborts the run.
 
-**Naprawa.** preCICE przebudowany z Eigen 3.4.0 (to wersja używana w
-oficjalnych pakietach .deb preCICE). Pułapka FPE w OpenFOAM zostaje włączona,
-bo przydaje się przy rozbieganiu sprzężenia (NaN zatrzymuje obliczenia od
-razu). Alternatywa (gorsza): `export FOAM_SIGFPE=false`.
+**Fix.** preCICE rebuilt with Eigen 3.4.0 (the version used in the
+official preCICE .deb packages). The FPE trap in OpenFOAM stays enabled,
+because it is useful when coupling diverges (a NaN stops the run
+immediately). Alternative (worse): `export FOAM_SIGFPE=false`.
 
-Po naprawie: perpendicular-flap zgodny z referencją tutorialu (maks. błąd
-względny przemieszczenia końcówki 0.83%, średnio 2.01 iteracji sprzężenia na
-okno vs 2.012 w referencji). Czas: 34 s (płyn 4 procesy MPI, CalculiX 2 wątki).
+After the fix: perpendicular-flap matches the tutorial reference (max. relative
+tip displacement error 0.83%, on average 2.01 coupling iterations per
+window vs 2.012 in the reference). Time: 34 s (fluid 4 MPI processes, CalculiX 2 threads).
 
-## Wydajność CalculiX – PARDISO zamiast SPOOLES (2026-10-06)
+## CalculiX performance – PARDISO instead of SPOOLES (2026-10-06)
 
-CalculiX to najdroższa część każdej iteracji sprzężenia (płyn ~20 ms/krok na
-4 procesach, ciało stałe ~3–4 iteracje Newtona na przyrost). Test: 20
-przyrostów dynamicznych, NLGEOM, 2559 el. C3D8I, czas na iterację Newtona:
+CalculiX is the most expensive part of every coupling iteration (fluid ~20 ms/step on
+4 processes, solid ~3–4 Newton iterations per increment). Test: 20
+dynamic increments, NLGEOM, 2559 el. C3D8I, time per Newton iteration:
 
-| wątki | SPOOLES | PARDISO (MKL) |
+| threads | SPOOLES | PARDISO (MKL) |
 |---|---|---|
 | 1 | 158 ms | 123 ms |
 | 2 | 130 ms | 81 ms |
-| 4 | 121 ms (**błędny wynik!**) | 69 ms |
+| 4 | 121 ms (**wrong result!**) | 69 ms |
 
-SPOOLES w wersji wielowątkowej z 4 wątkami dał inne (błędne) ugięcie
-końcówki (−3.4 mm zamiast −7.9 mm) i zbiegał w innej liczbie iteracji –
-znany problem SPOOLES MT. PARDISO daje identyczne wyniki dla 1/2/4 wątków.
-Iteracyjne solvery CalculiX były ~15–20x wolniejsze.
+Multi-threaded SPOOLES with 4 threads gave a different (wrong) tip
+deflection (−3.4 mm instead of −7.9 mm) and converged in a different number of iterations –
+a known SPOOLES MT problem. PARDISO gives identical results for 1/2/4 threads.
+CalculiX's iterative solvers were ~15–20x slower.
 
-Decyzja: `ccx_preCICE` budowany z PARDISO (MKL z `pip install mkl-devel` do
-venv – bez sudo), 2 wątki. Stara wersja zostaje jako `ccx_preCICE_spooles`.
+Decision: `ccx_preCICE` built with PARDISO (MKL from `pip install mkl-devel` into the
+venv – no sudo), 2 threads. The old version is kept as `ccx_preCICE_spooles`.
 
-## Etap 3 – CalculiX rozbiega się już w 2. oknie FSI (2026-10-06)
+## Stage 3 – CalculiX diverges already in the 2nd FSI window (2026-10-06)
 
-**Objaw.** Pierwszy test FSI (ogon pasywny, U = 0.2 m/s): okno 1 zbiega
-(23 iteracje sprzężenia), w oknie 2 CalculiX nie zbiega w pętli Newtona
-("largest correction to disp 7.8e-2"), potem `corrupted double-linked list`.
+**Symptom.** First FSI test (passive tail, U = 0.2 m/s): window 1 converges
+(23 coupling iterations), in window 2 CalculiX does not converge in the Newton loop
+("largest correction to disp 7.8e-2"), then `corrupted double-linked list`.
 
-**Diagnoza.** Eksport VTU z preCICE pokazał, że siły na interfejsie są
-fizyczne (−1.4 N/m w oknie 1, −51 N/m w oknie 2 – skok to efekt masy dodanej:
-przesunięcie ściany o 2e-5 m w jednym kroku daje duże ciśnienie). Test bez
-preCICE: to samo obciążenie (−51 N/m jako siły węzłowe na Nsurface) w kroku
-dynamicznym z NLGEOM również się rozbiega. Macierz testów:
+**Diagnosis.** The VTU export from preCICE showed that the interface forces are
+physical (−1.4 N/m in window 1, −51 N/m in window 2 – the jump is the added-mass effect:
+moving the wall by 2e-5 m in one step produces a large pressure). Test without
+preCICE: the same load (−51 N/m as nodal forces on Nsurface) in a
+dynamic step with NLGEOM also diverges. Test matrix:
 
-| wariant | wynik |
+| variant | result |
 |---|---|
-| C3D8I + NLGEOM (oryginał) | rozbieżność |
-| C3D8I bez NLGEOM | zbieżność |
-| C3D8I + NLGEOM, siła 10x mniejsza | zbieżność, ale wolna |
-| C3D8 + NLGEOM | zbieżność |
-| SPOOLES zamiast PARDISO / ALPHA = −0.1 | rozbieżność (to nie solver) |
+| C3D8I + NLGEOM (original) | divergence |
+| C3D8I without NLGEOM | convergence |
+| C3D8I + NLGEOM, force 10x smaller | convergence, but slow |
+| C3D8 + NLGEOM | convergence |
+| SPOOLES instead of PARDISO / ALPHA = −0.1 | divergence (not the solver) |
 
-Winne są elementy z modami niezgodnymi (C3D8I – w CalculiX rozwinięte w
-dodatkowe węzły bez masy) w połączeniu z NLGEOM i siłami węzłowymi; największe
-poprawki pojawiały się właśnie w tych dodatkowych węzłach.
+The culprits are the incompatible-mode elements (C3D8I – expanded in CalculiX into
+extra massless nodes) combined with NLGEOM and nodal forces; the largest
+corrections appeared exactly in those extra nodes.
 
-**Naprawa.** Elementy C3D8 (pełne całkowanie). Sprawdzenie blokady ścinania
-na etapie 1 (20 kPa): C3D8I 24.28 mm, C3D8 24.14 mm (−0.6%), C3D8R 24.63 mm.
-Różnica pomijalna, a C3D8 jest ~2x szybszy.
+**Fix.** C3D8 elements (full integration). Shear-locking check
+on stage 1 (20 kPa): C3D8I 24.28 mm, C3D8 24.14 mm (−0.6%), C3D8R 24.63 mm.
+The difference is negligible, and C3D8 is ~2x faster.
 
-## Etap 3/4 – rozbieganie CalculiX w dłuższych przebiegach (2026-10-06)
+## Stage 3/4 – CalculiX diverging in longer runs (2026-10-06)
 
-**Objaw.** Etap 3 niejawny padał w oknie 44 (t = 0.11 s): w jednej iteracji
-sprzężenia siła na interfejsie skacze ~1000x, Newton w CalculiX nie zbiega
-(rezydua 77 kN w jednym węźle), potem `corrupted double-linked list`.
+**Symptom.** Implicit stage 3 crashed in window 44 (t = 0.11 s): in one coupling
+iteration the interface force jumps ~1000x, Newton in CalculiX does not converge
+(residuals of 77 kN at one node), then `corrupted double-linked list`.
 
-**Diagnoza.**
-1. Testy akceleracji na krótkim przebiegu (0.2 s): IQN-ILS jak w tutorialu
-   (QR2 1e-2, relaksacja 0.5) – pad w oknie 66; IQN-IMVJ – pad w oknie 58.
-   Zmiana akceleracji nie pomaga.
-2. Kluczowy test: etap 4 "na sucho" (sam CalculiX, bez wody i bez preCICE)
-   też się rozbiegł przy t = 1.58 s – liczba iteracji Newtona skakała 4/9/4/9.
-   Problem jest więc w dynamice samego ciała stałego: schemat Newmarka bez
-   tłumienia (ALPHA = 0) + NLGEOM + bardzo miękki materiał – mody osiowe
-   (~30 Hz, okres ~12 kroków) nie są tłumione i "rozhuśtują" iteracje.
+**Diagnosis.**
+1. Acceleration tests on a short run (0.2 s): IQN-ILS as in the tutorial
+   (QR2 1e-2, relaxation 0.5) – crash in window 66; IQN-IMVJ – crash in window 58.
+   Changing the acceleration does not help.
+2. Key test: stage 4 "dry" (CalculiX alone, without water and without preCICE)
+   also diverged at t = 1.58 s – the number of Newton iterations jumped 4/9/4/9.
+   So the problem lies in the dynamics of the solid itself: Newmark scheme without
+   damping (ALPHA = 0) + NLGEOM + very soft material – the axial modes
+   (~30 Hz, period ~12 steps) are not damped and "rock" the iterations.
 
-**Naprawa.** `*DYNAMIC, ALPHA=-0.2` (schemat HHT). Krótki test FSI: 79/79
-okien bez błędów; "na sucho": pełne 4 s (wcześniej pad przy 1.58 s).
-Tłumienie numeryczne HHT ∝ (ω·Δt)³: dla 1 Hz i Δt = 2.5 ms praktycznie zerowe,
-więc nie zmienia odpowiedzi w paśmie aktuacji. Prawdziwy silikon i tak ma
-tłumienie materiałowe, którego model nie zawiera.
+**Fix.** `*DYNAMIC, ALPHA=-0.2` (HHT scheme). Short FSI test: 79/79
+windows without errors; "dry": the full 4 s (previously crashed at 1.58 s).
+HHT numerical damping ∝ (ω·Δt)³: for 1 Hz and Δt = 2.5 ms practically zero,
+so it does not change the response in the actuation band. Real silicone has
+material damping anyway, which the model does not include.
 
-## Etap 3 – wynik: jawne vs niejawne (2026-10-06)
+## Stage 3 – result: explicit vs implicit (2026-10-06)
 
-- **Niejawne** (parallel-implicit + IQN-ILS): 1200 okien (3 s) w 592 s,
-  średnio 4.7 iteracji sprzężenia na okno, maks. 17 (tylko na starcie, zanim
-  IQN zbierze historię). Ogon drga w śladzie wirowym, amplituda rośnie do ~0.15 mm.
-- **Jawne** (serial-explicit): siła w węźle końcówki zmienia znak i rośnie
-  ×13 na okno (Δt = 2.5 ms); po 2 oknach CalculiX się rozbiega.
-- **Jawne z Δt = 1 ms: ×40 na okno** – mniejszy krok czasowy pogarsza sprawę.
-  To klasyczny wynik dla niestabilności masy dodanej (Causin, Gerbeau, Nobile
-  2005, CMAME 194): przy gęstości ciała ~ gęstości płynu schemat jawny jest
-  niestabilny dla każdego Δt, a czynnik wzmocnienia rośnie, gdy Δt maleje.
+- **Implicit** (parallel-implicit + IQN-ILS): 1200 windows (3 s) in 592 s,
+  on average 4.7 coupling iterations per window, max. 17 (only at the start, before
+  IQN builds up history). The tail vibrates in the vortex wake, amplitude grows to ~0.15 mm.
+- **Explicit** (serial-explicit): the force at the tip node changes sign and grows
+  ×13 per window (Δt = 2.5 ms); after 2 windows CalculiX diverges.
+- **Explicit with Δt = 1 ms: ×40 per window** – a smaller time step makes things worse.
+  This is the classic result for the added-mass instability (Causin, Gerbeau, Nobile
+  2005, CMAME 194): with solid density ~ fluid density the explicit scheme is
+  unstable for every Δt, and the amplification factor grows as Δt decreases.
 
-## Etap 4 – pułapka w postprocessingu: siły z każdej iteracji (2026-10-06)
+## Stage 4 – post-processing trap: forces from every iteration (2026-10-06)
 
-**Objaw.** Wykres siły Fx ogona: oscylacje ±300 N/m z częstotliwością
-~20–25 Hz w paczkach co pół okresu, „ciąg” 5.4 N/m – 40x więcej niż opór
-całego ciała przy 0.2 m/s z etapu 2.
+**Symptom.** Plot of the tail force Fx: oscillations of ±300 N/m at
+~20–25 Hz in bursts every half period, "thrust" 5.4 N/m – 40x more than the drag
+of the whole body at 0.2 m/s from stage 2.
 
-**Diagnoza.** Widmo dawało nieskończone częstotliwości (dzielenie przez Δt = 0):
-w `postProcessing/forces*/0/force.dat` każda chwila występuje kilka razy.
-Przy sprzężeniu niejawnym adapter cofa OpenFOAM do punktu kontrolnego i krok
-jest liczony ponownie w każdej iteracji sprzężenia – a funkcja `forces`
-zapisuje wiersz za każdym razem, także dla niezbieżnych iteracji.
+**Diagnosis.** The spectrum gave infinite frequencies (division by Δt = 0):
+in `postProcessing/forces*/0/force.dat` each instant appears several times.
+With implicit coupling the adapter rewinds OpenFOAM to the checkpoint and the step
+is recomputed in every coupling iteration – and the `forces` function
+writes a row every time, including for non-converged iterations.
 
-**Naprawa.** `read_forces()` zostawia ostatni wiersz dla każdej chwili
-(= wartość zbieżna). Po poprawce: siła ±3.7 N/m, bez oscylacji 20 Hz.
-Druga poprawka: ciąg liczony z siły na **całe** ciało (głowa + ogon) – sam
-ogon nie jest powierzchnią zamkniętą, więc jego Fx zależy od poziomu
-odniesienia ciśnienia.
+**Fix.** `read_forces()` keeps the last row for each instant
+(= the converged value). After the fix: force ±3.7 N/m, no 20 Hz oscillations.
+Second fix: thrust computed from the force on the **whole** body (head + tail) – the
+tail alone is not a closed surface, so its Fx depends on the pressure
+reference level.
 
-## Etap 4 – w wodzie amplituda WIĘKSZA niż na sucho (2026-10-06)
+## Stage 4 – amplitude in water LARGER than dry (2026-10-06)
 
-Przy f = 1 Hz, P0 = 15 kPa: na sucho 20.7 mm, w wodzie 26.5 mm, opóźnienie
-fazy w wodzie 62° (na sucho ~0°). Spec zakładał „woda tłumi”, ale to zależy
-od częstotliwości względem rezonansu:
-- na sucho f₁ = 3.39 Hz (CalculiX, `*FREQUENCY`), więc 1 Hz to praca
-  quasi-statyczna (wzmocnienie ~1.1),
-- masa dodana obniża częstotliwość własną; szacunek 2D (masa dodana ~6x masy
-  ogona): f₁,woda ≈ 3.39/√7 ≈ 1.3 Hz – napęd 1 Hz jest blisko rezonansu w wodzie,
-  więc amplituda rośnie, a faza przesuwa się w stronę 90°.
-Woda jednocześnie tłumi (energia odpływa w ślad wirowy) i „opóźnia” ruch –
-widać to w fazie. Przegląd częstotliwości (etap 6) pokazuje przebieg.
+At f = 1 Hz, P0 = 15 kPa: dry 20.7 mm, in water 26.5 mm, phase
+lag in water 62° (dry ~0°). The spec assumed "water damps", but this depends
+on the frequency relative to resonance:
+- dry f₁ = 3.39 Hz (CalculiX, `*FREQUENCY`), so 1 Hz is
+  quasi-static operation (amplification ~1.1),
+- added mass lowers the natural frequency; 2D estimate (added mass ~6x the tail
+  mass): f₁,water ≈ 3.39/√7 ≈ 1.3 Hz – 1 Hz actuation is close to the resonance in water,
+  so the amplitude grows and the phase shifts towards 90°.
+Water at the same time damps (energy leaves into the vortex wake) and "delays" the motion –
+this is visible in the phase. The frequency sweep (stage 6) shows the trend.
 
-Średni ciąg w wodzie stojącej jest mały i po 3 okresach jeszcze się nie
-ustalił (średnie po okresach: −12.6, −467.5, −91.9, +78.4 mN/m – duży ciąg
-od wiru startowego, potem zanik). Dlatego etap 4 i 6 liczone ponownie na
-8 okresach.
+The mean thrust in still water is small and after 3 periods had not yet
+settled (cycle means: −12.6, −467.5, −91.9, +78.4 mN/m – large thrust
+from the starting vortex, then decay). That is why stages 4 and 6 were recomputed with
+8 periods.
 
-## Etap 4 – jakość deformowanej siatki płynu (2026-10-06)
+## Stage 4 – quality of the deforming fluid mesh (2026-10-06)
 
-`python tools/postprocess.py meshq 04-fsi-actuated/water` (checkMesh na każdym
-zapisie): przy największym wychyleniu (kąt końcówki 13.5°, ugięcie 26.5 mm =
-18% L, t ≈ 1.9 s) maks. nieortogonalność 63° (próg checkMesh 70°), maks.
-skośność 4.1 (próg 4), min. objętość komórki spada z 3.1e-7 do 1.7e-7 m³ –
-ujemnych objętości brak. To praktyczna granica deformacji siatki metodą
-Laplace'a dla tej geometrii: większe amplitudy (wyższe P0 albo bliżej
-rezonansu) wymagają przesiatkowania albo siatek overset.
+`python tools/postprocess.py meshq 04-fsi-actuated/water` (checkMesh at every
+write): at the largest deflection (tip angle 13.5°, deflection 26.5 mm =
+18% L, t ≈ 1.9 s) max. non-orthogonality 63° (checkMesh threshold 70°), max.
+skewness 4.1 (threshold 4), min. cell volume drops from 3.1e-7 to 1.7e-7 m³ –
+no negative volumes. This is the practical limit of Laplacian mesh deformation
+for this geometry: larger amplitudes (higher P0 or closer to
+resonance) require remeshing or overset meshes.
 
-## Etap 5 – napęd daje opór netto; równowaga dopiero przy U ≈ 0.02 m/s (2026-10-07)
+## Stage 5 – actuation gives net drag; balance only at U ≈ 0.02 m/s (2026-10-07)
 
-Średnie Fx całego ciała (okresy od t = 2 s, ± błąd standardowy średniej z okresów):
-U = 0 (etap 4): −87 ± 99, U = 0.05: +100 ± 32, U = 0.1: +292 ± 14,
-U = 0.2: +416 ± 18 mN/m. Dla porównania sztywne ciało przy 0.2 m/s: +132 mN/m.
+Mean Fx of the whole body (cycles from t = 2 s, ± standard error of the cycle means):
+U = 0 (stage 4): −87 ± 99, U = 0.05: +100 ± 32, U = 0.1: +292 ± 14,
+U = 0.2: +416 ± 18 mN/m. For comparison, rigid body at 0.2 m/s: +132 mN/m.
 
-- Machanie **zwiększa** opór ~3x (przy 0.2 m/s): część ciśnieniowa 338 vs 86
-  mN/m, tarcie 66 vs 44 mN/m (cieńsza warstwa przyścienna przy ruchu bocznym –
-  efekt Bone'a–Lighthilla).
-- Siła boczna ma odchylenie std. 8–13 N/m, czyli ~30x więcej niż średnia siła
-  wzdłużna: ogon głównie „przepycha” wodę na boki.
-- Równowaga (średnie Fx = 0) z interpolacji: U ≈ 0.023 m/s, St ≈ 2.4 – daleko
-  poza zakresem ryb 0.2–0.4. Niepewność duża: w wodzie stojącej rozrzut
-  średnich z okresów wynosi ±230 mN/m.
+- Flapping **increases** drag ~3x (at 0.2 m/s): pressure part 338 vs 86
+  mN/m, friction 66 vs 44 mN/m (thinner boundary layer during lateral motion –
+  Bone–Lighthill effect).
+- The lateral force has a std. deviation of 8–13 N/m, i.e. ~30x more than the mean
+  axial force: the tail mainly "pushes" water sideways.
+- Balance (mean Fx = 0) from interpolation: U ≈ 0.023 m/s, St ≈ 2.4 – far
+  outside the fish range of 0.2–0.4. Large uncertainty: in still water the spread
+  of the cycle means is ±230 mN/m.
 
-**Interpretacja (hipoteza, nie do końca sprawdzona).** Aktuator z dwiema
-jednolitymi komorami zgina ogon jak wspornik: cały ogon wychyla się w jednej
-fazie (fala stojąca), końcówka jest tępa (10 mm), a sztywna głowa jest
-nieruchoma. Ryby wytwarzają ciąg falą biegnącą wzdłuż ciała i ostrą, giętką
-płetwą ogonową z odpowiednią fazą wychylenia i kąta natarcia. Kierunki do
-sprawdzenia w modelu: komory sterowane z przesunięciem fazy wzdłuż długości
-(fala biegnąca), cieńsza/ostra końcówka albo osobna giętka płetwa ogonowa,
-wyższa częstotliwość. Ograniczenia modelu (2D, laminarnie) też mogą zawyżać
-opór.
+**Interpretation (hypothesis, not fully verified).** An actuator with two
+uniform chambers bends the tail like a cantilever: the whole tail deflects in one
+phase (standing wave), the tip is blunt (10 mm), and the rigid head is
+fixed. Fish produce thrust with a wave travelling along the body and a sharp, flexible
+caudal fin with the right phase of deflection and angle of attack. Directions to
+check in the model: chambers driven with a phase shift along the length
+(travelling wave), a thinner/sharp tip or a separate flexible caudal fin,
+higher frequency. The model limitations (2D, laminar) may also overestimate
+drag.
 
-Wizualizacja: przy U = 0.2 m/s ślad to pojedynczy rząd wirów blisko osi; przy
-U = 0.05 m/s (St ≈ 1.1) ślad jest asymetryczny i odchylony w dół – typowe dla
-bardzo dużych St.
+Visualisation: at U = 0.2 m/s the wake is a single row of vortices close to the axis; at
+U = 0.05 m/s (St ≈ 1.1) the wake is asymmetric and deflected downwards – typical for
+very large St.
 
-Poprawka po drodze: `pv_snapshots.py` kolorował moduł wektora wirowości (same
-dodatnie wartości) – trzeba jawnie ustawić `VectorMode = "Component"`.
+Fix along the way: `pv_snapshots.py` was colouring the magnitude of the vorticity vector (only
+positive values) – `VectorMode = "Component"` must be set explicitly.
 
-## Etap 6 – rezonans w wodzie ~1 Hz (2026-10-07)
+## Stage 6 – resonance in water ~1 Hz (2026-10-07)
 
-Amplituda końcówki (średnia z połówek rozpiętości w 2 ostatnich okresach):
-0.5 Hz: 20.7 mm, 1 Hz: 28.3 mm, 1.5 Hz: 14.8 mm, 2 Hz: 3.1 mm. Maksimum przy
-1 Hz – rezonans w wodzie jest niżej niż szacowane wcześniej 1.3 Hz, czyli
-masa dodana w 2D to ~10x masa ogona ((3.39/1)² − 1), nie ~6x.
-Średni ciąg (okresy od t = 2/f): 0 ± 5, 87 ± 99, −142 ± 61, −23 ± 32 mN/m –
-istotny jest tylko opór przy 1.5 Hz.
+Tip amplitude (mean of the half peak-to-peak ranges over the last 2 periods):
+0.5 Hz: 20.7 mm, 1 Hz: 28.3 mm, 1.5 Hz: 14.8 mm, 2 Hz: 3.1 mm. Maximum at
+1 Hz – the resonance in water is lower than the earlier estimate of 1.3 Hz, i.e.
+the added mass in 2D is ~10x the tail mass ((3.39/1)² − 1), not ~6x.
+Mean thrust (cycles from t = 2/f): 0 ± 5, 87 ± 99, −142 ± 61, −23 ± 32 mN/m –
+only the drag at 1.5 Hz is significant.
 
-Uwaga do definicji: amplituda liczona wcześniej jako połowa rozpiętości w
-jednym ostatnim okresie (etap 4: 25.8 mm), teraz średnia z 2 ostatnich okresów
-(28.3 mm) – ta sama definicja dla wody i „na sucho” i we wszystkich etapach.
+Note on the definition: the amplitude was previously computed as half the range over
+the single last period (stage 4: 25.8 mm), now as the mean over the last 2 periods
+(28.3 mm) – the same definition for water and "dry" and in all stages.

@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -16,32 +16,32 @@ FoamFile
 
 ddtSchemes
 {
-    // backward: drugi rząd w czasie (Euler jest tylko pierwszego rzędu i
-    // sztucznie tłumi drgania). Adapter v1.4 poprawnie checkpointuje V0/V00,
-    // więc backward działa ze sprzężeniem niejawnym.
+    // backward: second order in time (Euler is only first order and
+    // artificially damps oscillations). Adapter v1.4 checkpoints V0/V00
+    // correctly, so backward works with implicit coupling.
     default         backward;
 }
 
 gradSchemes
 {
     default         Gauss linear;
-    // ograniczony gradient dla członu konwekcji – mniej oscylacji
+    // limited gradient for the convection term – fewer oscillations
     grad(U)         cellLimited Gauss linear 1;
 }
 
 divSchemes
 {
     default         none;
-    // linearUpwind: drugi rząd, stabilny na siatkach niestrukturalnych
+    // linearUpwind: second order, stable on unstructured meshes
     div(phi,U)      Gauss linearUpwind grad(U);
     div((nuEff*dev2(T(grad(U))))) Gauss linear;
 }
 
 laplacianSchemes
 {
-    // "limited corrected 0.5": korekcja nieortogonalności ograniczona do
-    // połowy – kompromis dokładność/stabilność na siatce z gmsh, która
-    // dodatkowo deformuje się w czasie
+    // "limited corrected 0.5": non-orthogonal correction limited to
+    // one half – an accuracy/stability compromise on a gmsh mesh that
+    // additionally deforms in time
     default         Gauss linear limited corrected 0.5;
 }
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Etap 2: sam płyn, sztywny ogon (siatka nieruchoma).
-#   ./run.sh            – szeregowo
-#   ./run.sh -parallel  – MPI wg system/decomposeParDict
+# Stage 2: fluid only, rigid tail (static mesh).
+#   ./run.sh            – serial
+#   ./run.sh -parallel  – MPI according to system/decomposeParDict
 set -e -u
 . ../../tools/log.sh
 exec > >(tee --append "$LOGFILE") 2>&1

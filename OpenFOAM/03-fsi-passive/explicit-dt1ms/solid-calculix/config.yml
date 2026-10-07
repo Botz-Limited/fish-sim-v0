@@ -1,8 +1,8 @@
-# Konfiguracja adaptera CalculiX-preCICE
+# CalculiX-preCICE adapter configuration
 participants:
     Solid:
         interfaces:
-        # węzły zbioru Nsurface (CalculiX szuka NSET o nazwie N + "patch")
+        # nodes of the Nsurface set (CalculiX looks for an NSET named N + "patch")
         - nodes-mesh: Solid-Mesh
           patch: surface
           read-data: [Force]

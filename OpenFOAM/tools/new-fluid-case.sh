@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Tworzy katalog przypadku OpenFOAM na bazie tools/fluid-base.
-#   new-fluid-case.sh <katalog> [--fsi]
-# Bez --fsi: siatka nieruchoma (etap 2, sztywny ogon).
-# Z --fsi:  ruchoma siatka + adapter preCICE (etapy 3–5).
+# Creates an OpenFOAM case directory from tools/fluid-base.
+#   new-fluid-case.sh <directory> [--fsi]
+# Without --fsi: static mesh (stage 2, rigid tail).
+# With --fsi:   moving mesh + preCICE adapter (stages 3–6).
 set -e -u
 TOOLS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEST="$1"; MODE="${2:-}"

@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -14,7 +14,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-dimensions      [0 2 -2 0 0 0 0];   // ciśnienie kinematyczne p/rho [m^2/s^2]
+dimensions      [0 2 -2 0 0 0 0];   // kinematic pressure p/rho [m^2/s^2]
 
 internalField   uniform 0;
 
@@ -25,7 +25,7 @@ boundaryField
         type            zeroGradient;
     }
 
-    // Poziom odniesienia ciśnienia: 0 na wylocie
+    // Pressure reference level: 0 at the outlet
     outlet
     {
         type            fixedValue;
@@ -42,8 +42,8 @@ boundaryField
         type            zeroGradient;
     }
 
-    // fixedFluxPressure: gradient ciśnienia zgodny z ruchem ściany (ważne
-    // przy ruchomej siatce – inaczej strumień przez ścianę nie jest zerowy)
+    // fixedFluxPressure: pressure gradient consistent with the wall motion
+    // (important with a moving mesh – otherwise the flux through the wall is not zero)
     tail
     {
         type            fixedFluxPressure;

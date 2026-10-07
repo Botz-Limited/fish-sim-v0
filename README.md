@@ -1,9 +1,9 @@
 # fish-sim-v0
 
-Edukacyjne symulacje miękkiego, hydraulicznie napędzanego ogona robota-ryby.
+Educational simulations of a soft, hydraulically actuated robot fish tail.
 
-| Katalog | Narzędzie | Co pokazuje |
+| Directory | Tool | What it shows |
 |---|---|---|
-| `OpenFOAM/` | OpenFOAM + preCICE + CalculiX | FSI: prawdziwy przepływ wody wokół odkształcającego się ogona, ślad wirowy, ciąg, masa dodana |
+| `OpenFOAM/` | OpenFOAM + preCICE + CalculiX | FSI: real water flow around the deforming tail, vortex wake, thrust, added mass |
 
-Szczegóły i instrukcje: README w każdym katalogu.
+Details and instructions: the README in each directory.

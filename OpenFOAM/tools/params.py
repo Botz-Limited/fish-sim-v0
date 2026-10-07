@@ -1,59 +1,59 @@
-"""Wspólne parametry demo FSI (geometria, materiał, woda, siatki).
+"""Shared parameters of the FSI demo (geometry, material, water, meshes).
 
-UWAGA: wszystkie liczby fizyczne poniżej to PLACEHOLDER – do identyfikacji
-z pomiarów. Nie są skalibrowane względem żadnej realnej ryby ani prototypu.
+NOTE: all physical numbers below are PLACEHOLDER – to be identified from
+measurements. They are not calibrated against any real fish or prototype.
 
-Układ współrzędnych (widok z góry, przekrój 2D):
-    x – oś ryby, od nasady ogona (x = 0) w stronę końcówki (x = L),
-        napływ wody płynie w +x (ryba "płynie" w -x),
-    y – w bok (lewa strona ryby y > 0, prawa y < 0),
-    z – kierunek "rozpiętości"; model 2D ma grubość DEPTH (jedna warstwa).
-Siły raportujemy na jednostkę rozpiętości [N/m], bo DEPTH = 1 m (jak w
-tutorialu perpendicular-flap).
+Coordinate system (top view, 2D section):
+    x – fish axis, from the tail root (x = 0) towards the tip (x = L);
+        the inflow goes in +x (the fish "swims" in -x),
+    y – sideways (left side of the fish y > 0, right side y < 0),
+    z – "span" direction; the 2D model has thickness DEPTH (one layer).
+Forces are reported per unit span [N/m], because DEPTH = 1 m (as in the
+perpendicular-flap tutorial).
 """
 
-# --- Geometria ogona -------------------------------------------------------
-L = 0.15            # długość ogona [m]                 PLACEHOLDER – do identyfikacji z pomiarów
-T_ROOT = 0.030      # grubość przy nasadzie [m]          PLACEHOLDER – do identyfikacji z pomiarów
-T_TIP = 0.010       # grubość na końcówce [m]            PLACEHOLDER – do identyfikacji z pomiarów
+# --- Tail geometry -----------------------------------------------------------
+L = 0.15            # tail length [m]                    PLACEHOLDER – to be identified from measurements
+T_ROOT = 0.030      # thickness at the root [m]          PLACEHOLDER – to be identified from measurements
+T_TIP = 0.010       # thickness at the tip [m]           PLACEHOLDER – to be identified from measurements
 
-# Komory (lewa/prawa), rozdzielone ścianką środkową
-CH_X0 = 0.010       # początek komory (od nasady) [m]   PLACEHOLDER – do identyfikacji z pomiarów
-CH_X1 = 0.110       # koniec komory [m]                  PLACEHOLDER – do identyfikacji z pomiarów
-W_OUT = 0.003       # grubość ścianki zewnętrznej [m]    PLACEHOLDER – do identyfikacji z pomiarów
-W_MID = 0.003       # grubość ścianki środkowej [m]      PLACEHOLDER – do identyfikacji z pomiarów
-# Komora podzielona żebrami na krótkie cele (styl PneuNet). Jedna długa komora
-# w 2D "balonuje": ścianka zewnętrzna wygina się jak membrana i ogon się
-# skraca zamiast zginać (patrz NOTES.md, etap 1). Cele są połączone kanałem
-# poza płaszczyzną przekroju, więc mają to samo ciśnienie.
-N_CELLS = 10        # liczba cel w komorze [-]           PLACEHOLDER – do identyfikacji z pomiarów
-RIB = 0.0015        # grubość żebra między celami [m]    PLACEHOLDER – do identyfikacji z pomiarów
+# Chambers (left/right), separated by a middle wall
+CH_X0 = 0.010       # chamber start (from the root) [m]  PLACEHOLDER – to be identified from measurements
+CH_X1 = 0.110       # chamber end [m]                    PLACEHOLDER – to be identified from measurements
+W_OUT = 0.003       # outer wall thickness [m]           PLACEHOLDER – to be identified from measurements
+W_MID = 0.003       # middle wall thickness [m]          PLACEHOLDER – to be identified from measurements
+# The chamber is split by ribs into short cells (PneuNet style). A single long
+# chamber "balloons" in 2D: the outer wall bulges like a membrane and the tail
+# shortens instead of bending (see NOTES.md, stage 1). The cells are connected
+# by a channel outside the section plane, so they share the same pressure.
+N_CELLS = 10        # number of cells per chamber [-]    PLACEHOLDER – to be identified from measurements
+RIB = 0.0015        # rib thickness between cells [m]    PLACEHOLDER – to be identified from measurements
 
-# --- Sztywna "głowa" (półelipsa przed nasadą) -------------------------------
-HEAD_A = 0.060      # półoś w kierunku x [m]             PLACEHOLDER – do identyfikacji z pomiarów
-HEAD_B = T_ROOT / 2 # półoś w kierunku y = pół grubości nasady (gładkie przejście)
+# --- Rigid "head" (half-ellipse in front of the root) ------------------------
+HEAD_A = 0.060      # semi-axis in x [m]                 PLACEHOLDER – to be identified from measurements
+HEAD_B = T_ROOT / 2 # semi-axis in y = half the root thickness (smooth transition)
 
-# --- Domena płynu (wielokrotności L) ----------------------------------------
-UPSTREAM = 3.0 * L    # od czubka głowy do wlotu        PLACEHOLDER – sprawdzić wpływ granic
-DOWNSTREAM = 8.0 * L  # od końcówki ogona do wylotu     PLACEHOLDER – sprawdzić wpływ granic
-SIDE = 3.0 * L        # od osi do ścian bocznych        PLACEHOLDER – sprawdzić wpływ granic
+# --- Fluid domain (multiples of L) -------------------------------------------
+UPSTREAM = 3.0 * L    # from the head nose to the inlet   PLACEHOLDER – check the boundary effect
+DOWNSTREAM = 8.0 * L  # from the tail tip to the outlet   PLACEHOLDER – check the boundary effect
+SIDE = 3.0 * L        # from the axis to the side walls   PLACEHOLDER – check the boundary effect
 
-DEPTH = 1.0         # grubość modelu 2D w z [m] (jak w tutorialu: siły w N/m)
+DEPTH = 1.0         # 2D model thickness in z [m] (as in the tutorial: forces in N/m)
 
-# --- Materiał ogona (silikon) -----------------------------------------------
-E_SOLID = 3.0e5     # moduł Younga [Pa] (zakres 1e5–1e6) PLACEHOLDER – do identyfikacji z pomiarów
-NU_SOLID = 0.45     # współczynnik Poissona [-]          PLACEHOLDER – do identyfikacji z pomiarów
-RHO_SOLID = 1070.0  # gęstość [kg/m^3]                   PLACEHOLDER – do identyfikacji z pomiarów
+# --- Tail material (silicone) ------------------------------------------------
+E_SOLID = 3.0e5     # Young's modulus [Pa] (range 1e5–1e6) PLACEHOLDER – to be identified from measurements
+NU_SOLID = 0.45     # Poisson's ratio [-]                  PLACEHOLDER – to be identified from measurements
+RHO_SOLID = 1070.0  # density [kg/m^3]                     PLACEHOLDER – to be identified from measurements
 
-# --- Woda --------------------------------------------------------------------
-RHO_FLUID = 1000.0  # gęstość [kg/m^3]
-NU_FLUID = 1.0e-6   # lepkość kinematyczna [m^2/s]
+# --- Water -------------------------------------------------------------------
+RHO_FLUID = 1000.0  # density [kg/m^3]
+NU_FLUID = 1.0e-6   # kinematic viscosity [m^2/s]
 
-# --- Siatki ------------------------------------------------------------------
-SOLID_H = 1.0e-3    # rozmiar elementu ciała stałego [m]; zbieżność: 0.5/0.75/1.0 mm -> ugięcie
-                    # przy 20 kPa 24.31/24.20/24.29 mm (< 0.5%), więc 1 mm wystarcza
+# --- Meshes ------------------------------------------------------------------
+SOLID_H = 1.0e-3    # solid element size [m]; convergence: 0.5/0.75/1.0 mm -> deflection
+                    # at 20 kPa 24.31/24.20/24.29 mm (< 0.5%), so 1 mm is enough
 
 
 def thickness(x):
-    """Grubość ogona w punkcie x (liniowe zwężenie)."""
+    """Tail thickness at position x (linear taper)."""
     return T_ROOT + (T_TIP - T_ROOT) * x / L

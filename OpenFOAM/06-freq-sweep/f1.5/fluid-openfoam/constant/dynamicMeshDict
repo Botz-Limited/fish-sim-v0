@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -14,21 +14,21 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Ruch siatki płynu: siatka deformuje się (bez zmiany topologii) tak, żeby
-// nadążać za ogonem.
+// Fluid mesh motion: the mesh deforms (without topology changes) so that it
+// follows the tail.
 dynamicFvMesh   dynamicMotionSolverFvMesh;
 
 motionSolverLibs ("libfvMotionSolvers.so");
 
-// Przemieszczenia wnętrza siatki z równania Laplace'a:
-//   div( gamma * grad(d) ) = 0,  d – przemieszczenie, gamma – dyfuzyjność
+// Interior mesh displacements from the Laplace equation:
+//   div( gamma * grad(d) ) = 0,  d – displacement, gamma – diffusivity
 solver          displacementLaplacian;
 
 displacementLaplacianCoeffs
 {
-    // Dyfuzyjność rośnie jak 1/r^2 przy ogonie: komórki blisko ciała
-    // przesuwają się prawie jak ciało sztywne (warstwa przyścienna zostaje
-    // nietknięta), a deformację "przejmują" duże komórki dalej.
+    // Diffusivity grows like 1/r^2 near the tail: cells close to the body
+    // move almost like a rigid body (the boundary layer stays intact), and
+    // the deformation is "absorbed" by the large cells further away.
     diffusivity     quadratic inverseDistance (tail head);
 }
 

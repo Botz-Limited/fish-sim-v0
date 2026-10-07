@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -18,20 +18,21 @@ FoamFile
 
 dimensions      [0 1 -1 0 0 0 0];
 
-// Start z jednorodnego pola napływu (szybciej się ustala niż od zera)
+// Start from water at rest; the inflow grows linearly over U_RAMP seconds
+// Start from a uniform inflow field (settles faster than starting from rest)
 internalField   uniform ($U_IN 0 0);
 
 boundaryField
 {
-    // Wlot: zadana prędkość napływu
+    // Inlet: prescribed inflow velocity
     inlet
     {
         type            fixedValue;
         value           uniform ($U_IN 0 0);
     }
 
-    // Wylot: zerowy gradient przy wypływie, ale gdy wir wraca do domeny
-    // (przepływ wsteczny) – prędkość zero. Stabilniejsze niż czyste zeroGradient.
+    // Outlet: zero gradient for outflow, but when a vortex re-enters the domain
+    // (backflow) – zero velocity. More stable than plain zeroGradient.
     outlet
     {
         type            inletOutlet;
@@ -39,28 +40,28 @@ boundaryField
         value           $internalField;
     }
 
-    // Ściany boczne: poślizg – udajemy nieograniczony ośrodek (bez warstwy
-    // przyściennej na ścianach kanału). Wpływ odległości sprawdzamy w etapie 2.
+    // Side walls: slip – we mimic an unbounded medium (no boundary layer on
+    // the channel walls). The effect of their distance is checked in stage 2.
     sides
     {
         type            slip;
     }
 
-    // Sztywna głowa: brak poślizgu
+    // Rigid head: no slip
     head
     {
         type            noSlip;
     }
 
-    // Ogon: ściana ruchoma – prędkość płynu = prędkość ściany (z ruchu siatki).
-    // Dla nieruchomej siatki (etap 2) to samo co noSlip.
+    // Tail: moving wall – fluid velocity = wall velocity (from mesh motion).
+    // For a static mesh (stage 2) this is the same as noSlip.
     tail
     {
         type            movingWallVelocity;
         value           uniform (0 0 0);
     }
 
-    // 2D: przód i tył domeny nie są liczone
+    // 2D: front and back of the domain are not solved
     frontAndBack
     {
         type            empty;

@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -16,7 +16,7 @@ FoamFile
 
 solvers
 {
-    // Ciśnienie: GAMG (wielosiatkowy) – najszybszy dla równania Poissona
+    // Pressure: GAMG (multigrid) – fastest for the Poisson equation
     "(p|pcorr)"
     {
         solver          GAMG;
@@ -45,7 +45,7 @@ solvers
         relTol          0;
     }
 
-    // Równanie ruchu siatki (Laplace dla przemieszczeń)
+    // Mesh motion equation (unused here: stage 2 has a static mesh)
     cellDisplacement
     {
         solver          GAMG;
@@ -57,15 +57,15 @@ solvers
 
 PIMPLE
 {
-    // 1 pętla zewnętrzna = tryb PISO (wystarczy przy Co < 1).
-    // W sprzężeniu niejawnym preCICE i tak powtarza krok kilka razy.
+    // 1 outer loop = PISO mode (enough for Co < 1).
+    // With implicit coupling preCICE repeats the step several times anyway.
     nOuterCorrectors        1;
     nCorrectors             2;
-    // siatka z gmsh nie jest ortogonalna -> jedna dodatkowa korekcja
+    // the gmsh mesh is not orthogonal -> one extra correction
     nNonOrthogonalCorrectors 1;
     momentumPredictor       yes;
     consistent              no;
-    // po ruchu siatki popraw strumienie, żeby zachować masę
+    // after mesh motion correct the fluxes to conserve mass
     correctPhi              yes;
     moveMeshOuterCorrectors no;
 }

@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -14,13 +14,13 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Ładowany z controlDict (sekcja functions). Adapter wymienia dane z preCICE
-// w każdym kroku: wysyła siły na ogonie, odbiera przemieszczenia.
+// Loaded from controlDict (functions section). The adapter exchanges data with
+// preCICE in every step: sends the forces on the tail, receives displacements.
 preCICE_Adapter
 {
     type            preciceAdapterFunctionObject;
     libs            (preciceAdapterFunctionObject);
-    errors          strict;     // błąd adaptera = zatrzymanie obliczeń
+    errors          strict;     // adapter error = stop the run
 }
 
 // ************************************************************************* //

@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -14,11 +14,11 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Podział siatki na procesy MPI. Na 6-rdzeniowym Ryzenie: 4 procesy płynu,
-// pozostałe rdzenie zostają dla CalculiX (OpenMP) w etapach FSI.
+// Mesh decomposition into MPI processes. On the 6-core Ryzen: 4 fluid processes,
+// the remaining cores are left for CalculiX (OpenMP) in the FSI stages.
 numberOfSubdomains 4;
 
-// scotch: automatyczny podział minimalizujący granice między procesami
+// scotch: automatic decomposition minimising the boundaries between processes
 method          scotch;
 
 // ************************************************************************* //

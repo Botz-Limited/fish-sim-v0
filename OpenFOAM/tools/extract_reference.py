@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Wyciąga przemieszczenie końcówki flapu z wyników referencyjnych preCICE.
+"""Extracts the flap tip displacement from the preCICE reference results.
 
-Wyniki referencyjne tutorialu perpendicular-flap (fluid-openfoam_solid-calculix)
-to eksport VTU siatki interfejsu ciała stałego w każdym oknie czasowym.
-Punkt obserwacji w tutorialu to Flap-Tip = (0, 1); bierzemy średnią z węzłów
-leżących na górnej krawędzi flapu (y = max), co odpowiada interpolacji
-watch-pointu preCICE.
+The reference results of the perpendicular-flap tutorial
+(fluid-openfoam_solid-calculix) are VTU exports of the solid interface mesh
+at every time window. The tutorial's watch point is Flap-Tip = (0, 1); we take
+the mean of the nodes on the upper edge of the flap (y = max), which matches
+the interpolation of the preCICE watch point.
 
-Użycie:
-    python tools/extract_reference.py <katalog_z_vtu> <wyjście.csv>
+Usage:
+    python tools/extract_reference.py <dir_with_vtu> <output.csv>
 """
 import re
 import sys
@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-WINDOW = 0.01  # time-window-size z precice-config.xml tutorialu [s]
+WINDOW = 0.01  # time-window-size from the tutorial precice-config.xml [s]
 
 
 def read_array(text, name):
@@ -38,7 +38,7 @@ def main(src, out):
         d = disp[top].mean(axis=0)
         rows.append((n * WINDOW, d[0], d[1]))
     np.savetxt(out, rows, delimiter=",", header="time,dx,dy", comments="", fmt="%.6g")
-    print(f"{len(rows)} wierszy -> {out}")
+    print(f"{len(rows)} rows -> {out}")
 
 
 if __name__ == "__main__":

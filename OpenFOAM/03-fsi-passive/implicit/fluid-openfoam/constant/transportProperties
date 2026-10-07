@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -14,10 +14,10 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// Woda jako płyn newtonowski
+// Water as a Newtonian fluid
 transportModel  Newtonian;
 
-// Lepkość kinematyczna wody [m^2/s] (ok. 20 °C)
+// Kinematic viscosity of water [m^2/s] (approx. 20 °C)
 nu              1e-06;
 
 // ************************************************************************* //

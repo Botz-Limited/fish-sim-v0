@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Etap 2: sam płyn, sztywny ogon. Test zbieżności siatki (3 gęstości) i wpływu
-# granic domeny (domena 1.5x). Każdy wariant to kopia fluid-openfoam/.
-#   ./run_all.sh          – wszystkie warianty po kolei (4 procesy MPI każdy)
+# Stage 2: fluid only, rigid tail. Mesh convergence test (3 densities) and the
+# effect of domain boundaries (1.5x domain). Each variant is a copy of fluid-openfoam/.
+#   ./run_all.sh          – all variants one after another (4 MPI ranks each)
 set -e -u
 cd "$(dirname "$0")"
 run_variant() {  # nazwa, MESH_SCALE, MESH_DOMAIN
@@ -10,7 +10,7 @@ run_variant() {  # nazwa, MESH_SCALE, MESH_DOMAIN
     cp -r fluid-openfoam "$name"
     (cd "$name" && ./clean.sh > /dev/null && MESH_SCALE=$2 MESH_DOMAIN=$3 ./run.sh -parallel > /dev/null 2>&1) \
         && echo "$name: OK ($(grep Duration "$name/$name.log" | sed 's/.*: *//'))" \
-        || echo "$name: BŁĄD – patrz $name/$name.log"
+        || echo "$name: ERROR – see $name/$name.log"
 }
 run_variant mesh-coarse 0.7 1.0
 run_variant mesh-medium 1.0 1.0

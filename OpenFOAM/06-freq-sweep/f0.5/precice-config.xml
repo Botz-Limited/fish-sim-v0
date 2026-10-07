@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!-- ====================================================================== -->
-<!-- Konfiguracja preCICE v3: ogon ryby (CalculiX) w wodzie (OpenFOAM).     -->
-<!-- Wariant: sprzężenie NIEJAWNE (implicit) z akceleracją quasi-Newtona.   -->
-<!-- Na bazie tutorialu perpendicular-flap (preCICE tutorials, develop).    -->
+<!-- preCICE v3 configuration: fish tail (CalculiX) in water (OpenFOAM).    -->
+<!-- Variant: IMPLICIT coupling with quasi-Newton acceleration.            -->
+<!-- Based on the perpendicular-flap tutorial (preCICE tutorials, develop). -->
 <!-- ====================================================================== -->
 <precice-configuration>
-  <!-- Logi preCICE: informacje z procesu 0, ostrzeżenia i błędy ze wszystkich -->
+  <!-- preCICE logs: info from rank 0, warnings and errors from all ranks -->
   <log>
     <sink
       filter="(%Severity% > debug and %Rank% = 0) or %Severity% > info"
@@ -13,17 +13,17 @@
       enabled="true" />
   </log>
 
-  <!-- Podstawowy profil czasów (precice-profiling) – pokazuje, ile czasu
-       zajmuje płyn, ciało stałe, mapowanie i komunikacja -->
+  <!-- Basic timing profile (precice-profiling) – shows how much time is
+       spent in the fluid, the solid, mapping and communication -->
   <profiling mode="fundamental" synchronize="false" />
 
-  <!-- Wymieniane dane: siła od wody na ogon i przemieszczenie ogona -->
+  <!-- Exchanged data: water force on the tail and tail displacement -->
   <data:vector name="Force" />
   <data:vector name="Displacement" />
 
-  <!-- Siatki interfejsu (2D: preCICE widzi przekrój x-y).
-       Fluid-Mesh: środki ścian patcha "tail" w OpenFOAM.
-       Solid-Mesh: węzły zbioru Nsurface w CalculiX. -->
+  <!-- Interface meshes (2D: preCICE sees the x-y section).
+       Fluid-Mesh: face centres of the "tail" patch in OpenFOAM.
+       Solid-Mesh: nodes of the Nsurface set in CalculiX. -->
   <mesh name="Fluid-Mesh" dimensions="2">
     <use-data name="Force" />
     <use-data name="Displacement" />
@@ -39,17 +39,17 @@
     <receive-mesh name="Solid-Mesh" from="Solid" />
     <write-data name="Force" mesh="Fluid-Mesh" />
     <read-data name="Displacement" mesh="Fluid-Mesh" />
-    <!-- MAPOWANIE. Siatki płynu i ciała stałego się nie pokrywają (inne
-         rozmieszczenie punktów), więc dane trzeba przenieść interpolacją.
-         RBF (radialne funkcje bazowe) nie potrzebuje połączeń między punktami,
-         a CalculiX przekazuje tylko węzły – stąd RBF, jak w tutorialu.
-         * Siła: "conservative" – suma sił węzłowych zostaje zachowana
-           (inaczej zmieniłby się wypadkowy ciąg/opór).
-         * Przemieszczenie: "consistent" – wartość w punkcie jest
-           interpolowana (stałe przesunięcie musi zostać stałe).
-         Promień nośnika 5 mm: obejmuje kilka punktów każdej siatki, ale jest
-         mniejszy od grubości końcówki (10 mm), więc lewa i prawa powierzchnia
-         ogona słabo się "mieszają". PLACEHOLDER – sprawdzić przy zagęszczaniu. -->
+    <!-- MAPPING. The fluid and solid meshes do not coincide (different
+         point locations), so data must be transferred by interpolation.
+         RBF (radial basis functions) needs no connectivity between points,
+         and CalculiX provides nodes only – hence RBF, as in the tutorial.
+         * Force: "conservative" – the sum of nodal forces is preserved
+           (otherwise the resulting thrust/drag would change).
+         * Displacement: "consistent" – the value at a point is
+           interpolated (a constant shift must stay constant).
+         Support radius 5 mm: covers several points of each mesh but is
+         smaller than the tip thickness (10 mm), so the left and right tail
+         surfaces barely "mix". PLACEHOLDER – check when refining. -->
     <mapping:rbf direction="write" from="Fluid-Mesh" to="Solid-Mesh" constraint="conservative">
       <basis-function:compact-polynomial-c6 support-radius="0.005" />
     </mapping:rbf>
@@ -62,51 +62,51 @@
     <provide-mesh name="Solid-Mesh" />
     <write-data name="Displacement" mesh="Solid-Mesh" />
     <read-data name="Force" mesh="Solid-Mesh" />
-    <!-- Punkt obserwacji: środek końcówki ogona (x = L = 0.15 m, y = 0).
-         Zapisuje plik precice-Solid-watchpoint-Tip.log -->
+    <!-- Watch point: centre of the tail tip (x = L = 0.15 m, y = 0).
+         Writes the file precice-Solid-watchpoint-Tip.log -->
     <watch-point mesh="Solid-Mesh" name="Tip" coordinate="0.15;0.0" />
   </participant>
 
-  <!-- Komunikacja przez gniazda TCP; pliki adresowe w katalogu wyżej -->
+  <!-- Communication via TCP sockets; address files in the parent directory -->
   <m2n:sockets acceptor="Fluid" connector="Solid" exchange-directory=".." />
 
-  <!-- SCHEMAT SPRZĘŻENIA.
-       Gęstość silikonu (~1070) jest prawie równa gęstości wody (1000).
-       Woda, którą ogon musi rozpychać, działa jak dodatkowa masa ("masa
-       dodana") porównywalna z masą samego ogona. Przy sprzężeniu jawnym
-       (jedna wymiana na krok) taka pętla jest bezwarunkowo niestabilna –
-       błąd rośnie z kroku na krok (patrz wariant explicit, etap 3).
-       Dlatego: parallel-implicit = w każdym oknie czasowym oba solvery
-       liczą równocześnie i powtarzają krok, aż siły i przemieszczenia na
-       interfejsie przestaną się zmieniać. -->
+  <!-- COUPLING SCHEME.
+       The density of silicone (~1070) is almost equal to that of water (1000).
+       The water the tail has to push aside acts as extra mass ("added
+       mass") comparable to the mass of the tail itself. With explicit coupling
+       (one exchange per step) such a loop is unconditionally unstable –
+       the error grows from step to step (see the explicit variant, stage 3).
+       Therefore: parallel-implicit = in every time window both solvers
+       run simultaneously and repeat the step until the forces and
+       displacements on the interface stop changing. -->
   <coupling-scheme:parallel-implicit>
-    <!-- Okno czasowe = krok czasowy obu solverów (DELTA_T w caseParams i w fsi.inp) -->
+    <!-- Time window = time step of both solvers (DELTA_T in caseParams and in fsi.inp) -->
     <time-window-size value="0.0025" />
     <max-time value="16" />
     <participants first="Fluid" second="Solid" />
     <exchange data="Force" mesh="Solid-Mesh" from="Fluid" to="Solid" />
     <exchange data="Displacement" mesh="Solid-Mesh" from="Solid" to="Fluid" />
-    <!-- Maks. liczba iteracji w oknie; po jej przekroczeniu preCICE idzie
-         dalej mimo braku zbieżności (sprawdzamy to w check_results.py) -->
+    <!-- Max. number of iterations per window; beyond it preCICE moves on
+         despite no convergence (checked in check_results.py) -->
     <max-iterations value="50" />
-    <!-- Kryterium zbieżności: względna zmiana między iteracjami < 1e-3 -->
+    <!-- Convergence criterion: relative change between iterations < 1e-3 -->
     <relative-convergence-measure limit="1e-3" data="Displacement" mesh="Solid-Mesh" />
     <relative-convergence-measure limit="1e-3" data="Force" mesh="Solid-Mesh" />
-    <!-- IQN-ILS (interface quasi-Newton, inverse least squares): na podstawie
-         poprzednich iteracji buduje przybliżenie jakobianu interfejsu i
-         "przewiduje" lepsze dane wejściowe. Zbiega w kilku iteracjach tam,
-         gdzie zwykła relaksacja potrzebowałaby dziesiątek. -->
+    <!-- IQN-ILS (interface quasi-Newton, inverse least squares): builds an
+         approximation of the interface Jacobian from previous iterations and
+         "predicts" better input data. Converges in a few iterations where
+         plain relaxation would need dozens. -->
     <acceleration:IQN-ILS>
       <data name="Displacement" mesh="Solid-Mesh" />
       <data name="Force" mesh="Solid-Mesh" />
-      <!-- skalowanie: siły [N] i przemieszczenia [m] mają różne rzędy wielkości -->
+      <!-- scaling: forces [N] and displacements [m] have different orders of magnitude -->
       <preconditioner type="residual-sum" />
-      <!-- filtr QR usuwa prawie liniowo zależne kolumny (stabilność numeryczna) -->
+      <!-- QR filter removes nearly linearly dependent columns (numerical stability) -->
       <filter type="QR3" limit="1e-3" />
-      <!-- pierwsza iteracja pierwszego okna: zwykła relaksacja z tym współczynnikiem -->
+      <!-- first iteration of the first window: plain relaxation with this factor -->
       <initial-relaxation value="0.1" />
       <max-used-iterations value="100" />
-      <!-- używaj informacji z 10 poprzednich okien (szybsza zbieżność) -->
+      <!-- reuse information from the 10 previous windows (faster convergence) -->
       <time-windows-reused value="10" />
     </acceleration:IQN-ILS>
   </coupling-scheme:parallel-implicit>

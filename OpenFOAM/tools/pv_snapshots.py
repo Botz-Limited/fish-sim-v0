@@ -1,14 +1,14 @@
-"""Zrzuty pola wirowości (ślad wirowy za ogonem) – uruchamiać przez pvbatch.
+"""Snapshots of the vorticity field (vortex wake behind the tail) – run with pvbatch.
 
-Użycie (z katalogu OpenFOAM/):
-    pvbatch tools/pv_snapshots.py <katalog_przypadku_FSI> <prefiks_pliku> [liczba_zrzutów]
-np.
+Usage (from the OpenFOAM/ directory):
+    pvbatch tools/pv_snapshots.py <FSI_case_dir> <file_prefix> [number_of_snapshots]
+e.g.
     pvbatch tools/pv_snapshots.py 05-fsi-inflow/U0.1 e5_vorticity_U0.1 4
 
-Wczytuje fluid-openfoam (wbudowany czytnik OpenFOAM w ParaView), bierze
-ostatnie N zapisanych chwil (domyślnie 4, czyli np. jeden okres przy zapisie
-co 1/4 okresu) i zapisuje PNG z polem wirowości (składowa z) w results/.
-Kolory: czerwony = wir lewoskrętny (przeciwnie do zegara), niebieski = prawoskrętny.
+Loads fluid-openfoam (ParaView's built-in OpenFOAM reader), takes the last N
+saved time steps (default 4, i.e. one period when writing every 1/4 period)
+and saves PNGs of the vorticity field (z component) to results/.
+Colours: red = counter-clockwise vortex, blue = clockwise vortex.
 """
 import sys
 from pathlib import Path
@@ -50,12 +50,12 @@ disp = Show(reader, view)
 ColorBy(disp, ("CELLS", "vorticity", "Z"))
 lut = GetColorTransferFunction("vorticity")
 lut.ApplyPreset("Cool to Warm", True)
-lut.VectorMode = "Component"   # bez tego ParaView potrafi pokazać moduł wektora
-lut.VectorComponent = 2        # składowa z
-lut.RescaleTransferFunction(-20.0, 20.0)   # [1/s] – stała skala dla porównań
+lut.VectorMode = "Component"   # without this ParaView may show the vector magnitude
+lut.VectorComponent = 2        # z component
+lut.RescaleTransferFunction(-20.0, 20.0)   # [1/s] – fixed scale for comparisons
 disp.SetScalarBarVisibility(view, True)
 bar = GetScalarBar(lut, view)
-bar.Title = "wirowość z [1/s]"
+bar.Title = "vorticity z [1/s]"
 bar.ComponentTitle = ""
 bar.TitleColor = bar.LabelColor = [0, 0, 0]
 label = Text()
@@ -64,7 +64,7 @@ label_disp.Color = [0, 0, 0]
 label_disp.FontSize = 14
 label_disp.WindowLocation = "Upper Left Corner"
 
-# kamera: od głowy do ~4 długości ogona za końcówką
+# camera: from the head to ~4 tail lengths behind the tip
 view.CameraPosition = [0.3, 0.0, 3.0]
 view.CameraFocalPoint = [0.3, 0.0, 0.5]
 view.CameraViewUp = [0, 1, 0]
@@ -75,8 +75,8 @@ scene = GetAnimationScene()
 scene.UpdateAnimationUsingDataTimeSteps()
 for k, t in enumerate(times[-n_snap:]):
     view.ViewTime = t
-    label.Text = f"{case.name}   t = {t:.3f} s   wirowość (składowa z) [1/s]"
+    label.Text = f"{case.name}   t = {t:.3f} s   vorticity (z component) [1/s]"
     UpdatePipeline(time=t, proxy=reader)
     out = results / f"{prefix}_{k}.png"
     SaveScreenshot(str(out), view, ImageResolution=[1600, 700])
-    print(f"zapisano {out}")
+    print(f"saved {out}")

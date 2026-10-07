@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -14,10 +14,10 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-// UPROSZCZENIE: przepływ liczony laminarnie.
-// Przy U ~ 0.2 m/s i długości ~0.2 m liczba Reynoldsa Re = U*L/nu ~ 4e4,
-// więc realnie przepływ jest przejściowy/turbulentny. Demo 2D celowo pomija
-// model turbulencji (patrz README, sekcja "Ograniczenia").
+// SIMPLIFICATION: the flow is computed as laminar.
+// At U ~ 0.2 m/s and length ~0.2 m the Reynolds number Re = U*L/nu ~ 4e4,
+// so in reality the flow is transitional/turbulent. The 2D demo deliberately
+// omits a turbulence model (see README, section "Limitations").
 simulationType  laminar;
 
 // ************************************************************************* //

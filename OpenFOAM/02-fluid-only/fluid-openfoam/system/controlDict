@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
   =========                 |
   \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+   \\    /   O peration     | Version: v2606 (openfoam.com)
     \\  /    A nd           |
-     \\/     M anipulation  | Demo FSI ogona ryby
+     \\/     M anipulation  | Fish tail FSI demo
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -16,8 +16,8 @@ FoamFile
 
 #include "caseParams"
 
-// pimpleFoam: nieściśliwy, nieustalony, laminarny lub turbulentny solver.
-// Obsługuje ruchomą siatkę (constant/dynamicMeshDict).
+// pimpleFoam: incompressible, transient, laminar or turbulent solver.
+// Supports a moving mesh (constant/dynamicMeshDict).
 application     pimpleFoam;
 
 startFrom       startTime;
@@ -25,25 +25,25 @@ startTime       0;
 stopAt          endTime;
 endTime         $END_TIME;
 
-// Stały krok czasowy: przy sprzężeniu preCICE oba solvery muszą iść tym samym
-// krokiem (time-window-size). Liczbę Couranta pilnujemy, dobierając DELTA_T.
+// Fixed time step: with preCICE coupling both solvers must use the same step
+// (time-window-size). The Courant number is controlled by choosing DELTA_T.
 deltaT          $DELTA_T;
 adjustTimeStep  no;
 
 writeControl    adjustableRunTime;
 writeInterval   $WRITE_INTERVAL;
 purgeWrite      0;
-writeFormat     binary;         // binarnie = szybciej i mniej miejsca
+writeFormat     binary;         // binary = faster and smaller
 writePrecision  8;
 writeCompression off;
 timeFormat      general;
 timePrecision   8;
-runTimeModifiable false;        // nie sprawdzaj plików co krok (szybciej)
+runTimeModifiable false;        // do not re-read files every step (faster)
 
 functions
 {
-    // Siła od wody na całe ciało (głowa + ogon) -> postProcessing/forces*/
-    // Składowa x: dodatnia = opór, ujemna = ciąg.
+    // Water force on the whole body (head + tail) -> postProcessing/forces*/
+    // x component: positive = drag, negative = thrust.
     forcesBody
     {
         type            forces;
@@ -51,19 +51,19 @@ functions
         writeControl    timeStep;
         writeInterval   1;
         patches         (head tail);
-        rho             rhoInf;     // solver nieściśliwy: podajemy gęstość
+        rho             rhoInf;     // incompressible solver: density given here
         rhoInf          $RHO;
-        CofR            (0 0 0);    // moment liczony względem nasady ogona
+        CofR            (0 0 0);    // moment about the tail root
     }
 
-    // To samo, ale tylko ogon
+    // Same, but the tail only
     forcesTail
     {
         $forcesBody;
         patches         (tail);
     }
 
-    // Wirowość (rot U) – do zrzutów śladu wirowego w ParaView
+    // Vorticity (curl U) – for wake snapshots in ParaView
     vorticity
     {
         type            vorticity;
@@ -71,7 +71,7 @@ functions
         writeControl    writeTime;
     }
 
-    // Liczba Couranta w logu (kontrola kroku czasowego)
+    // Courant number in the log (time step check)
     CourantNo
     {
         type            CourantNo;
@@ -79,7 +79,7 @@ functions
         writeControl    writeTime;
     }
 
-    // Uśrednianie w czasie (od AVG_START): pMean, UMean
+    // Time averaging (from AVG_START): pMean, UMean
     fieldAverage
     {
         type            fieldAverage;
@@ -93,7 +93,7 @@ functions
         );
     }
 
-    // Ciśnienie na powierzchni ciała (chwilowe i średnie) -> postProcessing/bodySurface
+    // Pressure on the body surface (instantaneous and mean) -> postProcessing/bodySurface
     bodySurface
     {
         type            surfaces;
@@ -113,7 +113,7 @@ functions
         }
     }
 
-    // Adapter preCICE – plik istnieje tylko w przypadkach FSI (etapy 3–5)
+    // preCICE adapter – the file exists only in FSI cases (stages 3–6)
     #includeIfPresent "preciceFunctionObject"
 }
 

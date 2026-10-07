@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Uczestnik "Solid": siatka ogona + aktuacja + CalculiX z adapterem preCICE.
+# Participant "Solid": tail mesh + actuation + CalculiX with the preCICE adapter.
 set -e -u
 d="$(pwd)"; while [ ! -f "$d/tools/make_geometry.py" ]; do d="$(dirname "$d")"; done
 TOOLS="$d/tools"
