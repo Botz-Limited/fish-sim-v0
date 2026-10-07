@@ -3,3 +3,11 @@ __pycache__/
 build/
 results/
 *.fmu
+
+# artefakty omc wygenerowane w katalogu głównym (kompilacja idzie do build/)
+/FishRobot.*.c
+/FishRobot.*.h
+/FishRobot.*.makefile
+/FishRobot.*.bin
+/FishRobot.*.json
+/FishRobot.*.xml
