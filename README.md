@@ -54,6 +54,7 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/calibrate.py tail-static [--data punkty.csv --k small]   # D_tail i k ogona
 .venv/bin/python scripts/calibrate.py tail-dynamic [--data-air a.csv --data-water w.csv]   # J, c, J_added, c_h
 .venv/bin/python scripts/calibrate.py thrust [--data punkty.csv --noise-abs 1e-4 --noise-rel 0.05]   # C_T płetwy
+.venv/bin/python scripts/calibrate.py hull [--data-tow h.csv --data-coast w.csv --A 0.005 --m 1.0]   # C_d, m_added_x
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -437,3 +438,22 @@ Pomiar syntetyczny: płetwa z `C_T = 0,6` i karą za prędkość 1,5 razy więks
 | kara za prędkość `b/a` | 1,50 | 0,12 | 0,14 |
 
 **Lekcja: model o złej postaci daje obciążony parametr, ale nie zawsze ma to znaczenie.** `C_T` ze wszystkich punktów jest obciążone, bo model źle opisuje spadek ciągu z prędkością. `C_T` z samej uwięzi tego problemu nie ma, ale ma większy rozrzut. Skrypt wpisuje do modelu `C_T` z uwięzi, bo robot pływa wolno: przy 1 Hz krawędź spływu porusza się z prędkością ok. 63 cm/s, a robot płynie 6 cm/s. Kara za prędkość to tam ok. 1% ciągu, a jej błąd o 50% zmienia ciąg o ok. 0,5%. Ma ona znaczenie dopiero dla prędkości maksymalnej: ciąg znika przy `L·ω/√1,5` ≈ 51 cm/s zamiast 63 cm/s. Test postaci wykrywa `b/a = 1,5` (powyżej 3σ) tylko w 74% powtórzeń. Rozstrzygają go nieliczne punkty o dużym `U²/(L·ω)²`, czyli przy małej częstotliwości i dużej prędkości przepływu (prawy wykres), a nie liczba punktów.
+
+### Kadłub (krok 10): `calibrate.py hull`
+
+Dwa pomiary w basenie, oba z nieruchomym ogonem:
+
+- **holowanie** ze stałą prędkością, siłomierz na wózku: `F = ½·ρ·C_d·A·U²`. Pole `A` mierzy się linijką (wyznaczalny jest tylko iloczyn `C_d·A`), a `C_d` wynika z regresji ważonej modelem szumu siłomierza. Plik: `U [m/s], F [N]`.
+- **wybieg** po puszczeniu z wózka, położenie z kamery nad basenem (`FishRobot.Calibration.CoastDown`). Plik: `time [s], x [m]`, z `x = 0` w chwili puszczenia.
+
+**Wybieg zależy tylko od `k_d/M`**, gdzie `k_d = ½·ρ·C_d·A`, a `M = m + m_added_x`. Dlatego `C_d` pochodzi z holowania, `m` z wagi (`--m`), a wybieg daje masę całkowitą `M` i dopiero z niej masę dodaną `m_added_x = M − m`. Prędkość początkową dopasowujemy jako parametr pomocniczy.
+
+Pomiar syntetyczny: `C_d = 0,4`, `A = 50 cm²`, `m = 1 kg`, `m_added_x = 0,08 kg`. Holowanie przy 10 prędkościach 2–20 cm/s (szum 0,1 mN + 3%), wybieg z 15 cm/s przez 20 s, kamera 30 kl./s z szumem 2 mm (`results/calibration/hull_fit.{txt,png}`):
+
+- `C_d` = 0,402 ± 0,9%,
+- masa całkowita z wybiegu: niepewność z samego dopasowania tylko 0,09%,
+- `m_added_x` = 0,084 ± 0,010 kg (12%), z czego 0,0097 kg pochodzi z `C_d`, a po 0,001 kg z dopasowania i z ważenia.
+
+W 200 powtórzeniach rozrzut `m_added_x` to 0,015 kg (ok. 18%), przy średnim σ 0,014 kg i bez obciążenia.
+
+**Lekcja: mała różnica dużych liczb.** Masa dodana to tylko 8% masy całkowitej, więc każdy procent błędu `M` daje ok. 13% błędu `m_added_x`. Kamera wyznacza `k_d/M` bardzo dokładnie, ale błąd `C_d` z holowania przechodzi w `M` 1:1 i zjada całą precyzję. Żeby poprawić `m_added_x`, trzeba lepiej zmierzyć opór (więcej punktów holowania przy prędkościach z wybiegu, 5–15 cm/s), a nie dłużej filmować wybieg. Dla samego pływania to małe zmartwienie: `m_added_x` wpływa tylko na czas rozpędzania, a prędkość ustalona zależy wyłącznie od `C_d·A`, który jest wyznaczony z dokładnością 1%.

@@ -26,6 +26,7 @@ szkieletowej, a wynik zapisywany jako CSV dla Chamber(tableOnFile=true) i sprawd
   .venv/bin/python scripts/calibrate.py tail-static [--data punkty.csv --k small]
   .venv/bin/python scripts/calibrate.py tail-dynamic [--data-air a.csv --data-water w.csv]
   .venv/bin/python scripts/calibrate.py thrust [--data punkty.csv --noise-abs 1e-4 --noise-rel 0.05]
+  .venv/bin/python scripts/calibrate.py hull [--data-tow h.csv --data-coast w.csv --A 0.005 --m 1.0]
 
 Krok 6, zawór przelewowy (calibrate.py valve): charakterystyka Q(Δp) przy rosnącym i malejącym przepływie,
 dopasowanie jak w kroku 4, osobno dla obu gałęzi (histereza grzybka) i wspólnie.
@@ -39,12 +40,16 @@ Krok 8, ogon dynamicznie (calibrate.py tail-dynamic): drgania swobodne w powietr
 Krok 9, ciąg płetwy (calibrate.py thrust): średni ciąg na siłomierzu przy kilku f, Θ i U; ThrustBench liczy ciąg
 dla C_T = 1, a C_T wynika z regresji ważonej modelem szumu siłomierza. Test postaci: kara za U² vs teoria.
 
+Krok 10, kadłub (calibrate.py hull): C_d z holowania (regresja ważona), m_added_x z wybiegu CoastDown
+(wybieg wyznacza tylko k_d/M, więc C_d i m pochodzą z innych pomiarów).
+
 Pliki pomiaru: CSV z nagłówkiem; silnik: time [s], i [A], w [rad/s]; pompa: U [V], i [A], w [rad/s],
 dp [Pa], Q [m³/s];
 przewód: Q [m³/s], dp [Pa]; komora (w kolejności czasu): dV [m³], p [Pa];
 zawór: dp [Pa], Q [m³/s], up (1 = przepływ rośnie);
 ogon statycznie: dp_blocked [Pa], tau [N·m], dp_free [Pa], theta [rad]; ogon dynamicznie: time [s], theta [rad];
-ciąg: Theta [rad], f [Hz], U [m/s], T [N].
+ciąg: Theta [rad], f [Hz], U [m/s], T [N];
+kadłub: holowanie U [m/s], F [N]; wybieg time [s], x [m].
 Wyniki -> results/calibration/.
 """
 
@@ -949,6 +954,112 @@ def thrust_main(args):
     print(plotting.save(fig, "thrust_fit.png", "calibration"))
 
 
+# --- Krok 10: kadłub ---------------------------------------------------------------------------------
+
+HULL = {
+    "model": "FishRobot.Calibration.CoastDown",
+    "rho": 998.2,
+    "A": 0.005, "m": 1.0, "sigma_m": 1e-3,  # pole przekroju (linijka) [m²], masa z wagi [kg] ± 1 g
+    "true": {"C_d": 0.4, "m_added_x": 0.08, "U_start": 0.15},
+    "U_tow": np.linspace(0.02, 0.2, 10).tolist(),
+    "noise_abs": 1e-4, "noise_rel": 0.03,  # siłomierz wózka: 0,1 mN + 3%
+    "coast": {"t_end": 20.0, "dt": 1 / 30, "noise": 2e-3},  # kamera 30 kl./s, 2 mm
+    "params": {"surge.m_added_x": (0.1, "kg"), "surge.U_start": (0.1, "m/s")},
+    "signals": {"x": ("m", "położenie")},
+    "component": "FishRobot.Propulsion.SurgeDynamics surge",
+}
+
+
+def hull_main(args):
+    c = HULL
+    work_dir = om_fast.compile_model(c["model"])
+    q = 0.5 * c["rho"] * args.A
+    # --- holowanie: F = q·C_d·U², regresja przez zero z wagami z modelu szumu siłomierza
+    if args.data_tow:
+        d = np.genfromtxt(args.data_tow, delimiter=",", names=True)
+        U, F = d["U"], d["F"]
+        truth = None
+    else:
+        truth = c["true"]
+        U = np.array(c["U_tow"])
+        F0 = q * truth["C_d"] * U ** 2
+        F = F0 + np.random.default_rng(10).normal(0, 1, U.size) * (c["noise_abs"] + c["noise_rel"] * F0)
+        np.savetxt(OUT / "hull_tow_synthetic.csv", np.column_stack([U, F]), delimiter=",", header="U,F",
+                   comments="", fmt="%.6g")
+    xr = q * U ** 2
+    w = 1 / (args.noise_abs + args.noise_rel * xr * np.median(F / xr)) ** 2
+    C_d = (w * xr) @ F / ((w * xr) @ xr)
+    r_tow = F - C_d * xr
+    rel_Cd = np.sqrt((w * r_tow) @ r_tow / (len(U) - 1) / ((w * xr) @ xr)) / C_d
+
+    # --- wybieg: x(t) przy ustalonych C_d, A, m; dopasowanie m_added_x i prędkości początkowej
+    exp = {k: c[k] for k in ("model", "params", "signals", "component")}
+    setup = {"surge.C_d": C_d, "surge.A": args.A, "surge.m": args.m}
+    if args.data_coast:
+        d = np.genfromtxt(args.data_coast, delimiter=",", names=True)
+        t, meas = d["time"], {"x": d["x"]}
+    else:
+        t = np.arange(0, c["coast"]["t_end"] + 1e-9, c["coast"]["dt"])
+        true_setup = {"surge.C_d": truth["C_d"], "surge.A": args.A, "surge.m": args.m}
+        clean = simulate(work_dir, exp, [truth["m_added_x"], truth["U_start"]], "true", true_setup, t)["x"]
+        meas = {"x": clean + np.random.default_rng(11).normal(0, c["coast"]["noise"], t.size)}
+        np.savetxt(OUT / "hull_coast_synthetic.csv", np.column_stack([t, meas["x"]]), delimiter=",",
+                   header="time,x", comments="", fmt="%.6g")
+    p_fit, sigma, cov, res, noise = fit(work_dir, exp, t, meas, setup)
+    ma = p_fit[0]
+    M = args.m + ma
+    # Przebieg zależy tylko od k_d/M, więc błąd C_d przenosi się 1:1 na M; m_added_x = M − m.
+    s_M_fit = ma * sigma[0]  # niepewność bezwzględna z dopasowania (M − m przy ustalonym m)
+    s_ma = np.sqrt(s_M_fit ** 2 + (M * rel_Cd) ** 2 + args.sigma_m ** 2)
+
+    tr = (lambda v, ref: f"   (prawdziwe {ref:g}, błąd {100 * (v / ref - 1):+.1f}%)") if truth else (lambda v, ref: "")
+    lines = [f"holowanie: {len(U)} prędkości {U.min() * 100:.0f}–{U.max() * 100:.0f} cm/s",
+             f"C_d = {C_d:.4f} ± {100 * rel_Cd:.2f}%   (A = {args.A:g} m² zmierzone; wyznaczalny jest tylko iloczyn C_d·A)"
+             + (tr(C_d, truth["C_d"]) if truth else ""),
+             "",
+             "wybieg:",
+             "\n".join(l for l in report(exp, p_fit, sigma, cov, res, noise, truth and {
+                 "surge.m_added_x": truth["m_added_x"], "surge.U_start": truth["U_start"]}).splitlines()
+                 if not l.startswith("do modelu")),
+             "",
+             f"m_added_x = {ma:.4f} kg ± {s_ma:.4f} kg ({100 * s_ma / ma:.0f}%), w tym: dopasowanie {s_M_fit:.4f}, "
+             f"C_d z holowania {M * rel_Cd:.4f}, ważenie {args.sigma_m:.4f}"
+             + (tr(ma, truth["m_added_x"]) if truth else ""),
+             f"do modelu: FishRobot.Propulsion.SurgeDynamics surge(m={args.m:g}, C_d={C_d:.4g}, A={args.A:g}, "
+             f"m_added_x={ma:.4g});"]
+    text = "\n".join(lines)
+    print(text)
+    (OUT / "hull_fit.txt").write_text(text + "\n")
+
+    sim_fit = simulate(work_dir, exp, p_fit, "fit", setup, t)
+    fig, axes = plotting.plt.subplots(2, 2, figsize=(10.5, 6), gridspec_kw={"height_ratios": [3, 1.3]})
+    uu = np.linspace(0, U.max() * 1.05, 100)
+    axes[0, 0].plot(U * 100, F * 1e3, "o", color=plotting.SERIES[0], markersize=5, label="pomiar")
+    axes[0, 0].plot(uu * 100, C_d * q * uu ** 2 * 1e3, color=plotting.TEXT_2, linewidth=1.2, label="½·ρ·C_d·A·U²")
+    axes[0, 0].set_ylabel("opór [mN]")
+    axes[0, 0].set_title("holowanie", loc="left", fontsize=10)
+    axes[0, 0].legend(loc="upper left")
+    sig_tow = args.noise_abs + args.noise_rel * C_d * xr
+    axes[1, 0].errorbar(U * 100, 100 * r_tow / (C_d * xr), yerr=100 * sig_tow / (C_d * xr), fmt="o",
+                        color=plotting.SERIES[0], markersize=4, elinewidth=0.8, capsize=0)
+    axes[1, 0].set_ylabel("reszty [%]")
+    axes[1, 0].set_xlabel("U [cm/s]")
+    axes[0, 1].plot(t, meas["x"] * 100, ".", color="#b9b8b3", markersize=2, label="pomiar")
+    axes[0, 1].plot(t, sim_fit["x"] * 100, color=plotting.SERIES[0], label="dopasowanie")
+    axes[0, 1].set_ylabel("położenie [cm]")
+    axes[0, 1].set_title("wybieg", loc="left", fontsize=10)
+    axes[0, 1].legend(loc="upper left")
+    axes[1, 1].plot(t, (meas["x"] - sim_fit["x"]) * 1e3, color=plotting.SERIES[0], linewidth=0.8)
+    axes[1, 1].set_ylabel("reszty [mm]")
+    axes[1, 1].set_xlabel("czas [s]")
+    for ax in axes[1]:
+        ax.axhline(0, color=plotting.TEXT_2, linewidth=0.8)
+    src = "pomiar syntetyczny" if truth else f"{args.data_tow}, {args.data_coast}"
+    fig.suptitle(f"Kalibracja kadłuba ({src})", x=0.01, ha="left", fontsize=11)
+    fig.tight_layout()
+    print(plotting.save(fig, "hull_fit.png", "calibration"))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="step", required=True)
@@ -981,10 +1092,18 @@ def main():
     th.add_argument("--data", help="CSV (Theta [rad], f [Hz], U [m/s], T [N]); T po odjęciu tary przy nieruchomym ogonie")
     th.add_argument("--noise-abs", type=float, default=THRUST["noise_abs"], help="szum stały siłomierza [N]")
     th.add_argument("--noise-rel", type=float, default=THRUST["noise_rel"], help="szum względny siłomierza [–]")
+    h = sub.add_parser("hull", help="krok 10: C_d z holowania, m_added_x z wybiegu")
+    h.add_argument("--data-tow", help="CSV (U [m/s], F [N]) – holowanie ze stałą prędkością")
+    h.add_argument("--data-coast", help="CSV (time [s], x [m]) – wybieg po puszczeniu, x = 0 w chwili puszczenia")
+    h.add_argument("--A", type=float, default=HULL["A"], help="pole przekroju kadłuba [m²]")
+    h.add_argument("--m", type=float, default=HULL["m"], help="masa ryby z wagi [kg]")
+    h.add_argument("--sigma-m", type=float, default=HULL["sigma_m"], help="niepewność ważenia [kg]")
+    h.add_argument("--noise-abs", type=float, default=HULL["noise_abs"], help="szum stały siłomierza [N]")
+    h.add_argument("--noise-rel", type=float, default=HULL["noise_rel"], help="szum względny siłomierza [–]")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     {"motor": motor_main, "pump": pump_main, "pipe": pipe_main, "chamber": chamber_main, "valve": valve_main,
-     "tail-static": tail_static_main, "tail-dynamic": tail_dynamic_main, "thrust": thrust_main}[args.step](args)
+     "tail-static": tail_static_main, "tail-dynamic": tail_dynamic_main, "thrust": thrust_main, "hull": hull_main}[args.step](args)
 
 
 if __name__ == "__main__":
