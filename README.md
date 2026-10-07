@@ -1,492 +1,492 @@
-# fish-sim-v0 – model systemowy robota-ryby w OpenModelica
+# fish-sim-v0 – system model of a robotic fish in OpenModelica
 
-Uproszczony, **edukacyjny i nieskalibrowany** model robota-ryby w Modelice: silnik DC → pompa → przewody → komory → ogon, plus balast i ruch do przodu. Specyfikacja: [`SPEC_fish_openmodelica_demo.md`](SPEC_fish_openmodelica_demo.md). Wszystkie parametry konstrukcyjne to placeholdery do identyfikacji.
+A simplified, **educational and uncalibrated** model of a robotic fish in Modelica: DC motor → pump → pipes → chambers → tail, plus ballast and forward motion. Specification: [`SPEC_fish_openmodelica_demo.md`](SPEC_fish_openmodelica_demo.md). All design parameters are placeholders to be identified.
 
-## Stan prac
+## Progress
 
-| Etap | Zakres | Status |
+| Stage | Scope | Status |
 |---|---|---|
-| 1 | Złącze hydrauliczne, `Pipe`, `Reservoir`, `VolumeFlowSource` + testy | gotowe |
-| 2 | `Chamber` (krzywa p–V z tabeli lub CSV), `ReliefValve` + testy | gotowe |
-| 3 | `Battery`, `HBridge`, `DCMotor`, `GearPump` → scenariusz `HydraulicsStep` | gotowe |
-| 4 | `TailEquivalent`, `CPG`, podukład `TailDrive` → `TailFlapping`, `FrequencySweep` (`sweep.py`), `ReliefValveDemo` | gotowe |
-| 5 | Bilans energii w `TailDrive` → `EnergyBudget` + test zamknięcia bilansu | gotowe |
-| 6 | `BallastSyringe`, `VerticalDynamics`, `DepthPID` (kaskada) → `DepthControl`, test `BallastStatics` | gotowe |
-| 7 | `LighthillFin` (ciąg, placeholder), `SurgeDynamics` → `SwimForward`, `sweep.py --swim`, testy `SurgeTerminalVelocity`, `FinPrescribedMotion` | gotowe |
-| 8 | `TailDriveFMU` → FMU 2.0 CS (`export_fmu.py`), pętla FMPy i porównanie z OpenModelica (`fmu_demo.py`) | gotowe |
-| 9 | (opcja) `HydraulicsFluid` na złączach `Modelica.Fluid` → `HydraulicsMSLFluid`, porównanie (`compare_fluid.py`) | gotowe |
-| 10 | Kalibracja: stanowiska `FishRobot.Calibration` i `calibrate.py` dla kroków 2–11 planu kalibracji | gotowe, sprawdzone na pomiarach syntetycznych |
+| 1 | Hydraulic connector, `Pipe`, `Reservoir`, `VolumeFlowSource` + tests | done |
+| 2 | `Chamber` (p–V curve from a table or CSV), `ReliefValve` + tests | done |
+| 3 | `Battery`, `HBridge`, `DCMotor`, `GearPump` → scenario `HydraulicsStep` | done |
+| 4 | `TailEquivalent`, `CPG`, subsystem `TailDrive` → `TailFlapping`, `FrequencySweep` (`sweep.py`), `ReliefValveDemo` | done |
+| 5 | Energy balance in `TailDrive` → `EnergyBudget` + balance closure test | done |
+| 6 | `BallastSyringe`, `VerticalDynamics`, `DepthPID` (cascade) → `DepthControl`, test `BallastStatics` | done |
+| 7 | `LighthillFin` (thrust, placeholder), `SurgeDynamics` → `SwimForward`, `sweep.py --swim`, tests `SurgeTerminalVelocity`, `FinPrescribedMotion` | done |
+| 8 | `TailDriveFMU` → FMU 2.0 CS (`export_fmu.py`), FMPy loop and comparison with OpenModelica (`fmu_demo.py`) | done |
+| 9 | (optional) `HydraulicsFluid` on `Modelica.Fluid` connectors → `HydraulicsMSLFluid`, comparison (`compare_fluid.py`) | done |
+| 10 | Calibration: `FishRobot.Calibration` test benches and `calibrate.py` for steps 2–11 of the calibration plan | done, verified on synthetic measurements |
 
-## Wersje
+## Versions
 
-| Narzędzie | Wersja |
+| Tool | Version |
 |---|---|
 | OpenModelica (omc, OMEdit, OMSimulator) | 1.27.1 |
-| Modelica Standard Library | 4.1.0 (jednostki: `Modelica.Units.SI`) |
-| OMPython | 4.1.0 (klasa `ModelicaSystemOMC`; stara `ModelicaSystem` jest przestarzała) |
+| Modelica Standard Library | 4.1.0 (units: `Modelica.Units.SI`) |
+| OMPython | 4.1.0 (class `ModelicaSystemOMC`; the old `ModelicaSystem` is deprecated) |
 | FMPy | 0.3.32 |
 | Python | 3.14 |
 
-## Instalacja (Ubuntu)
+## Installation (Ubuntu)
 
 ```bash
-setup/install_system.sh   # sudo: repozytorium apt OpenModelica, omc/OMEdit/OMSimulator, git, python3-venv
-setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez menedżer pakietów omc
+setup/install_system.sh   # sudo: OpenModelica apt repository, omc/OMEdit/OMSimulator, git, python3-venv
+setup/install_user.sh     # no sudo: .venv from requirements.txt + MSL 4.1.0 via the omc package manager
 ```
 
-## Uruchamianie
+## Running
 
 ```bash
-.venv/bin/python scripts/check_tests.py          # wszystkie modele z Tests/ i Examples/
-.venv/bin/python scripts/check_tests.py Pipe     # tylko modele zawierające "Pipe" w nazwie
-.venv/bin/python scripts/run_all.py              # wszystkie scenariusze z Examples/ -> results/examples/
-.venv/bin/python scripts/sweep.py               # przegląd częstotliwości 0,25–4 Hz -> results/sweep/
-.venv/bin/python scripts/sweep.py --A 0.5 --n 30   # inna amplituda komendy, gęstsza siatka
-.venv/bin/python scripts/sweep.py --swim        # prędkość pływania vs częstotliwość -> results/sweep/swim_sweep.*
-.venv/bin/python scripts/export_fmu.py          # FMU napędu ogona -> results/fmu/TailDrive.fmu
-.venv/bin/python scripts/fmu_demo.py            # FMU w pętli FMPy vs OpenModelica -> results/fmu/fmu_vs_om.png
-.venv/bin/python scripts/compare_fluid.py       # własna hydraulika vs Modelica.Fluid -> results/fluid/fluid_vs_own.png
-.venv/bin/python scripts/calibrate.py motor     # identyfikacja silnika DC (pomiar syntetyczny) -> results/calibration/
-.venv/bin/python scripts/calibrate.py motor --data pomiar.csv --U 6 --t-step 0.01   # to samo na prawdziwym pomiarze
-.venv/bin/python scripts/calibrate.py pump      # identyfikacja pompy (wymaga wyniku kroku motor)
-.venv/bin/python scripts/calibrate.py pipe [--data punkty.csv --l 0.2]   # identyfikacja przewodu z Δp(Q)
-.venv/bin/python scripts/calibrate.py chamber [--data cykle.csv --V-rest 5e-6]   # krzywa p–V komory -> CSV dla Chamber
-.venv/bin/python scripts/calibrate.py valve [--data punkty.csv]   # zawór przelewowy z Q(Δp), z histerezą grzybka
-.venv/bin/python scripts/calibrate.py tail-static [--data punkty.csv --k small]   # D_tail i k ogona
+.venv/bin/python scripts/check_tests.py          # all models from Tests/ and Examples/
+.venv/bin/python scripts/check_tests.py Pipe     # only models with "Pipe" in the name
+.venv/bin/python scripts/run_all.py              # all scenarios from Examples/ -> results/examples/
+.venv/bin/python scripts/sweep.py               # frequency sweep 0.25–4 Hz -> results/sweep/
+.venv/bin/python scripts/sweep.py --A 0.5 --n 30   # different command amplitude, denser grid
+.venv/bin/python scripts/sweep.py --swim        # swimming speed vs frequency -> results/sweep/swim_sweep.*
+.venv/bin/python scripts/export_fmu.py          # tail drive FMU -> results/fmu/TailDrive.fmu
+.venv/bin/python scripts/fmu_demo.py            # FMU in an FMPy loop vs OpenModelica -> results/fmu/fmu_vs_om.png
+.venv/bin/python scripts/compare_fluid.py       # custom hydraulics vs Modelica.Fluid -> results/fluid/fluid_vs_own.png
+.venv/bin/python scripts/calibrate.py motor     # DC motor identification (synthetic measurement) -> results/calibration/
+.venv/bin/python scripts/calibrate.py motor --data pomiar.csv --U 6 --t-step 0.01   # the same on a real measurement
+.venv/bin/python scripts/calibrate.py pump      # pump identification (needs the result of the motor step)
+.venv/bin/python scripts/calibrate.py pipe [--data punkty.csv --l 0.2]   # pipe identification from Δp(Q)
+.venv/bin/python scripts/calibrate.py chamber [--data cykle.csv --V-rest 5e-6]   # chamber p–V curve -> CSV for Chamber
+.venv/bin/python scripts/calibrate.py valve [--data punkty.csv]   # relief valve from Q(Δp), with poppet hysteresis
+.venv/bin/python scripts/calibrate.py tail-static [--data punkty.csv --k small]   # tail D_tail and k
 .venv/bin/python scripts/calibrate.py tail-dynamic [--data-air a.csv --data-water w.csv]   # J, c, J_added, c_h
-.venv/bin/python scripts/calibrate.py thrust [--data punkty.csv --noise-abs 1e-4 --noise-rel 0.05]   # C_T płetwy
+.venv/bin/python scripts/calibrate.py thrust [--data punkty.csv --noise-abs 1e-4 --noise-rel 0.05]   # fin C_T
 .venv/bin/python scripts/calibrate.py hull [--data-tow h.csv --data-coast w.csv --A 0.005 --m 1.0]   # C_d, m_added_x
-.venv/bin/python scripts/calibrate.py ballast [--data-turns t.csv --data-depth d.csv --data-vertical v.csv]   # balast i pion
+.venv/bin/python scripts/calibrate.py ballast [--data-turns t.csv --data-depth d.csv --data-vertical v.csv]   # ballast and heave
 ```
 
-Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
+Each model is checked (`checkModel`: number of equations = number of unknowns), compiled, simulated and compared with an analytical result. Models are processed in parallel (a separate process and a separate omc session per model). Plots go to `results/tests/`.
 
-Ustawienia wydajności są w `scripts/om_config.py`. W modelach zmienne hydrauliczne mają atrybuty `nominal` (ciśnienie 1e5 Pa, różnica ciśnień 1e4 Pa, przepływ i objętość 1e-5). Solver skaluje nimi tolerancje, a bez nich wielkości rzędu 1e-5 m³ traktowałby jak wielkości rzędu 1. W testach czysto hydraulicznych poprawiło to dokładność o kilka rzędów (np. inertancja: błąd z 1e-3 do 2e-8). Kompilacja kodu C idzie równolegle na wszystkich rdzeniach, a wygenerowany kod jest budowany z `-O2`, co daje ok. 8% szybszą symulację. `-O3`, `-march=native` i ccache nie dały mierzalnego zysku.
+Performance settings are in `scripts/om_config.py`. Hydraulic variables in the models have `nominal` attributes (pressure 1e5 Pa, pressure difference 1e4 Pa, flow and volume 1e-5). The solver scales its tolerances with them; without them it would treat quantities of order 1e-5 m³ as if they were of order 1. In purely hydraulic tests this improved accuracy by several orders of magnitude (e.g. inertance: error from 1e-3 down to 2e-8). C code compilation runs in parallel on all cores, and the generated code is built with `-O2`, which gives about 8% faster simulation. `-O3`, `-march=native` and ccache gave no measurable gain.
 
-## Otwieranie w OMEdit
+## Opening in OMEdit
 
-`File → Load Library…` (lub `Open Model/Library File`) → wskaż `FishRobot/package.mo`. W drzewie bibliotek rozwiń `FishRobot.Tests`, otwórz model i przełącz na widok *Diagram*. Złącza hydrauliczne są niebieskie: pełne kółko to `port_a`, puste to `port_b`.
+`File → Load Library…` (or `Open Model/Library File`) → select `FishRobot/package.mo`. In the library tree expand `FishRobot.Tests`, open a model and switch to the *Diagram* view. Hydraulic connectors are blue: a filled circle is `port_a`, an empty one is `port_b`.
 
-`sweep.py` kompiluje model raz, a potem uruchamia gotowy plik wykonywalny równolegle dla każdej częstotliwości (`scripts/om_fast.py`). Parametry zmienia przez `-override`, a wyniki czyta bezpośrednio z plików `.mat` (`scripts/om_results.py`). 16 symulacji zajmuje ok. 0,2 s plus ok. 1 s kompilacji. W OpenModelica 1.27.1 `-override` nie zmienia ustawień eksperymentu (`stopTime`, `tolerance`), więc `om_fast` podmienia je w kopii pliku `_init.xml`.
+`sweep.py` compiles the model once and then runs the built executable in parallel for each frequency (`scripts/om_fast.py`). It changes parameters via `-override` and reads results directly from the `.mat` files (`scripts/om_results.py`). 16 simulations take about 0.2 s plus about 1 s of compilation. In OpenModelica 1.27.1 `-override` does not change the experiment settings (`stopTime`, `tolerance`), so `om_fast` replaces them in a copy of the `_init.xml` file.
 
-## Ogon: sformułowanie
+## Tail: formulation
 
-Ogon to tłok obrotowy o wydajności `D_tail = A_eff·r_eff` (`Tail.HydraulicBender`):
+The tail is a rotary piston with displacement `D_tail = A_eff·r_eff` (`Tail.HydraulicBender`):
 
-- ruch ogona wypiera ciecz: `Q_L = D_tail·θ̇`, `Q_R = −D_tail·θ̇`,
-- różnica ciśnień daje moment: `τ = D_tail·(p_L − p_R)`.
+- tail motion displaces fluid: `Q_L = D_tail·θ̇`, `Q_R = −D_tail·θ̇`,
+- the pressure difference produces torque: `τ = D_tail·(p_L − p_R)`.
 
-Ta sama stała w obu równaniach sprawia, że moc hydrauliczna jest z definicji równa mechanicznej. Krzywa p–V komory opisuje tylko pęcznienie ścianek przy zablokowanym ogonie, więc woda przetłoczona przez pompę dzieli się na dwie części: pęcznienie komór i ruch ogona. Wariant „θ z różnicy objętości przez sztywność” odrzuciłem, bo pomija bezwładność ogona i nie daje momentu do przekazania np. do MuJoCo.
+The same constant in both equations makes hydraulic power equal to mechanical power by definition. The chamber p–V curve describes only wall swelling with the tail blocked, so the water pushed by the pump splits into two parts: chamber swelling and tail motion. I rejected the "θ from the volume difference through stiffness" variant, because it ignores tail inertia and gives no torque to pass on, e.g. to MuJoCo.
 
-## Hydraulika: dlaczego własny pakiet
+## Hydraulics: why a custom package
 
-`Modelica.Fluid` jest potężne, ale ciężkie dla małego układu z nieściśliwą wodą: wymaga modelu medium, bilansu entalpii i starannej inicjalizacji. Własne złącze `HydraulicPort` ma tylko dwie zmienne:
+`Modelica.Fluid` is powerful but heavy for a small system with incompressible water: it needs a medium model, an enthalpy balance and careful initialization. The custom `HydraulicPort` connector has only two variables:
 
-- `p` – ciśnienie (potencjał, w węźle równe we wszystkich portach),
-- `flow V_flow` – przepływ objętościowy (w węźle sumuje się do zera).
+- `p` – pressure (potential, equal at all ports in a node),
+- `flow V_flow` – volume flow rate (sums to zero in a node).
 
-Ich iloczyn `p·V_flow` to moc w watach, więc bilans energii wynika wprost z połączeń, tak jak `v·i` w elektryce. To najprostszy sposób, żeby zobaczyć, jak działają złącza akauzalne.
+Their product `p·V_flow` is power in watts, so the energy balance follows directly from the connections, like `v·i` in electrics. It is the simplest way to see how acausal connectors work.
 
-Ten sam obwód zbudowany na `Modelica.Fluid` i porównanie obu wersji opisuje sekcja [Modelica.Fluid zamiast własnego pakietu](#modelicafluid-zamiast-własnego-pakietu-etap-9).
+The same circuit built on `Modelica.Fluid` and a comparison of both versions is described in [Modelica.Fluid instead of the custom package](#modelicafluid-instead-of-the-custom-package-stage-9).
 
-**Konwencja kierunków:** komenda pompy `u > 0` ⇒ wał kręci się w kierunku dodatnim (`ω > 0`) ⇒ pompa tłoczy wodę z komory R do komory L ⇒ `p_L > p_R`. W etapie 4 ten sam znak da dodatni kąt ogona.
+**Direction convention:** pump command `u > 0` ⇒ the shaft turns in the positive direction (`ω > 0`) ⇒ the pump pushes water from chamber R to chamber L ⇒ `p_L > p_R`. In stage 4 the same sign gives a positive tail angle.
 
-**Konwencja znaków przepływu:** `V_flow > 0` oznacza przepływ **do** komponentu przez dany port. W elementach dwuportowych `V_flow` (bez prefiksu portu) to przepływ od `port_a` do `port_b`, a `dp = port_a.p − port_b.p`.
+**Flow sign convention:** `V_flow > 0` means flow **into** the component through the given port. In two-port elements `V_flow` (without a port prefix) is the flow from `port_a` to `port_b`, and `dp = port_a.p − port_b.p`.
 
-## Co pokazują wykresy testów (etapy 1–3)
+## What the test plots show (stages 1–3)
 
-- **`pipe_laminar.png`** – spadek ciśnienia rośnie liniowo z przepływem, zgodnie z prawem Hagena–Poiseuille’a `Δp = 128·μ·l·Q / (π·d⁴)`. Liczba Reynoldsa pozostaje poniżej 2300, więc wzór laminarny obowiązuje. Zwróć uwagę na `d⁴`: dwa razy węższy przewód daje 16 razy większy opór.
-- **`pipe_quadratic.png`** – przy przepływie sinusoidalnym krzywa Δp ma „spłaszczenia” przy zerze (dominuje część liniowa) i ostre szczyty (dominuje część kwadratowa). Dolny panel pokazuje błąd regularyzacji `Q·√(Q² + Q_small²)` zamiast `|Q|·Q`. Jest rzędu 10⁻⁴ Pa, a symulacja przechodzi przez zero bez żadnych zdarzeń.
-- **`pipe_turbulent_vs_msl.png`** – przepływ rośnie od zera do Re ≈ 12 700, a ten sam przepływ płynie przez `Hydraulics.Pipe` i przez `Modelica.Fluid.Pipes.StaticPipe` (`DetailedPipeFlow`). Do Re ≈ 1500 obie krzywe to prosta Hagena–Poiseuille’a (różnica 0,00%). Powyżej Re ≈ 4000 opór rośnie prawie z kwadratem przepływu, a wzór Haalanda różni się od Colebrooka w MSL o mniej niż 0,5%. W zakresie przejściowym modele interpolują inaczej (MSL zaczyna przejście wcześniej) i różnią się do ok. 6%.
-- **`pipe_inertance.png`** – po skoku różnicy ciśnień przepływ nie zmienia się skokowo, bo słup wody ma masę. Narasta wykładniczo ze stałą czasową `τ = L/R ≈ 0,5 s`, dokładnie jak prąd w obwodzie RL.
+- **`pipe_laminar.png`** – pressure drop rises linearly with flow, following the Hagen–Poiseuille law `Δp = 128·μ·l·Q / (π·d⁴)`. The Reynolds number stays below 2300, so the laminar formula applies. Note the `d⁴`: a pipe half as wide gives 16 times the resistance.
+- **`pipe_quadratic.png`** – with sinusoidal flow the Δp curve has "flat spots" near zero (the linear part dominates) and sharp peaks (the quadratic part dominates). The bottom panel shows the error of the regularization `Q·√(Q² + Q_small²)` instead of `|Q|·Q`. It is of order 10⁻⁴ Pa, and the simulation crosses zero without any events.
+- **`pipe_turbulent_vs_msl.png`** – flow rises from zero to Re ≈ 12 700, and the same flow passes through `Hydraulics.Pipe` and through `Modelica.Fluid.Pipes.StaticPipe` (`DetailedPipeFlow`). Up to Re ≈ 1500 both curves are the Hagen–Poiseuille line (difference 0.00%). Above Re ≈ 4000 resistance grows almost with the square of flow, and the Haaland formula differs from Colebrook in MSL by less than 0.5%. In the transitional range the models interpolate differently (MSL starts the transition earlier) and differ by up to about 6%.
+- **`pipe_inertance.png`** – after a step in pressure difference the flow does not jump, because the water column has mass. It rises exponentially with time constant `τ = L/R ≈ 0.5 s`, exactly like current in an RL circuit.
 
-- **`chamber_closed_loop.png`** – dwie komory połączone przewodem, na starcie 8 ml i 3 ml. Ciecz przelewa się do komory o niższym ciśnieniu, „przestrzeliwuje” przez bezwładność słupa wody i oscyluje z tłumieniem wokół 5,5 ml. To obwód RLC: komory to pojemność, słup cieczy to indukcyjność, opór rury to rezystancja. Dolny panel pokazuje, że suma objętości zmienia się tylko na poziomie 10⁻¹⁵ ml, czyli w granicach zaokrągleń komputera.
-- **`relief_valve_limit.png`** – komora napełniana coraz szybciej. Nadciśnienie rośnie najpierw powoli (miękki silikon), potem stromo (silikon sztywnieje). Gdy przekroczy `p_set`, zawór przejmuje cały przepływ i ciśnienie zatrzymuje się na `p_set + dp_open`, czyli tam, gdzie zawór przepuszcza przepływ nominalny.
+- **`chamber_closed_loop.png`** – two chambers connected by a pipe, starting at 8 ml and 3 ml. Fluid flows into the lower-pressure chamber, "overshoots" due to the inertia of the water column and oscillates with damping around 5.5 ml. It is an RLC circuit: the chambers are capacitance, the fluid column is inductance, pipe friction is resistance. The bottom panel shows that the total volume changes only at the level of 10⁻¹⁵ ml, i.e. within floating-point rounding.
+- **`relief_valve_limit.png`** – a chamber filled ever faster. Gauge pressure rises slowly at first (soft silicone), then steeply (silicone stiffens). Once it exceeds `p_set`, the valve takes over the entire flow and pressure stops at `p_set + dp_open`, i.e. where the valve passes the nominal flow.
 
-- **`dc_motor_no_load.png`** – rozruch silnika przez mostek H przy `u = 0,6`. Prędkość narasta wykładniczo ze stałą czasową mechaniczną `J·R/k²` do wartości analitycznej. Bilans mocy (ogniwo = straty + przyrost energii kinetycznej i magnetycznej) zamyka się w każdej chwili.
-- **`gear_pump_characteristic.png`** – przepływ pompy przy stałej prędkości maleje liniowo z przyrostem ciśnienia. Nachylenie to przeciek `k_leak`. Przy ujemnym Δp ciecz sama pomaga pompie i pompa działa jak silnik hydrauliczny.
+- **`dc_motor_no_load.png`** – motor start-up through the H-bridge at `u = 0.6`. Speed rises exponentially with the mechanical time constant `J·R/k²` to the analytical value. The power balance (cell = losses + increase of kinetic and magnetic energy) closes at every instant.
+- **`gear_pump_characteristic.png`** – pump flow at constant speed decreases linearly with pressure rise. The slope is the leakage `k_leak`. At negative Δp the fluid itself helps the pump and the pump works as a hydraulic motor.
 
-## Scenariusze (`results/examples/`)
+## Scenarios (`results/examples/`)
 
-- **`hydraulics_step.png`** (scenariusz 1) – komenda pompy rośnie do 0,5, ogon jest zablokowany:
-  - Silnik się rozpędza, a prąd rozruchowy ma krótki szczyt: przy małej prędkości napięcie indukowane jest małe.
-  - Pompa przetłacza wodę z komory R do L. Różnica ciśnień rośnie coraz szybciej, bo silikon sztywnieje.
-  - Przy ok. 51 kPa otwiera się zawór przelewowy. Od tej chwili woda krąży w pętli pompa → zawór, komory stoją, a cała moc pompy idzie w ciepło.
-  - Po zdjęciu komendy mostek zwiera silnik, a napięte komory wypychają wodę z powrotem, głównie przez przeciek pompy. Silnik działa wtedy jak hamulec prądnicowy, stąd ujemny prąd.
-  - Przy placeholderowych parametrach silnik jest mocno przewymiarowany względem pompy. Prąd pod obciążeniem to tylko ok. 0,35 A, więc parametry trzeba zidentyfikować, zanim wyciągnie się wnioski o doborze napędu.
+- **`hydraulics_step.png`** (scenario 1) – pump command ramps to 0.5, tail blocked:
+  - The motor accelerates and the inrush current has a short peak: at low speed the back-EMF is small.
+  - The pump moves water from chamber R to L. The pressure difference rises ever faster because the silicone stiffens.
+  - At about 51 kPa the relief valve opens. From then on water circulates in the pump → valve loop, the chambers stand still and all pump power turns into heat.
+  - After the command is removed, the bridge short-circuits the motor and the stretched chambers push water back, mainly through pump leakage. The motor then works as a dynamic brake, hence the negative current.
+  - With placeholder parameters the motor is heavily oversized for the pump. Current under load is only about 0.35 A, so the parameters must be identified before drawing conclusions about drive sizing.
 
-- **`hydraulics_msl_fluid.png`** (scenariusz 8, opcjonalny) – ten sam przebieg co `hydraulics_step.png`, policzony na komponentach `Modelica.Fluid`. Na oko wykresy są identyczne. Różnice pokazuje `results/fluid/fluid_vs_own.png` (sekcja niżej).
+- **`hydraulics_msl_fluid.png`** (scenario 8, optional) – the same run as `hydraulics_step.png`, computed with `Modelica.Fluid` components. By eye the plots are identical. The differences are shown in `results/fluid/fluid_vs_own.png` (section below).
 
-- **`tail_flapping.png`** (scenariusz 2) – sinus 1 Hz, ogon swobodny:
-  - Kąt ogona jest opóźniony względem komendy, bo pompa najpierw musi przetłoczyć ciecz.
-  - Ciśnienia w komorach zmieniają się w przeciwfazie.
-  - Prąd baterii ma podwójną częstotliwość i chwilami jest ujemny. W każdej połówce okresu silnik najpierw rozpędza się, a potem hamuje, oddając energię do baterii.
-  - Amplituda rośnie przez 2 okresy, bo CPG zaczyna od łagodnej rampy.
-- **`relief_valve_demo.png`** (scenariusz 4) – pełna komenda przy 0,25 Hz. Różnica ciśnień dochodzi do ±`p_set`, zawory się otwierają, a szczyty kąta ogona się spłaszczają (ok. ±31°). Dolny panel pokazuje, że ok. 43% energii hydraulicznej oddanej przez pompę idzie w ciepło w zaworach. Reszta to głównie tarcie w przewodach, bo przy pełnej komendzie przepływ jest turbulentny.
+- **`tail_flapping.png`** (scenario 2) – 1 Hz sine, free tail:
+  - The tail angle lags the command, because the pump first has to move the fluid.
+  - Chamber pressures change in antiphase.
+  - Battery current has twice the frequency and is negative at times. In each half-period the motor first accelerates and then brakes, returning energy to the battery.
+  - The amplitude grows over 2 periods, because the CPG starts with a gentle ramp.
+- **`relief_valve_demo.png`** (scenario 4) – full command at 0.25 Hz. The pressure difference reaches ±`p_set`, the valves open and the tail angle peaks flatten (about ±31°). The bottom panel shows that about 43% of the hydraulic energy delivered by the pump turns into heat in the valves. The rest is mainly pipe friction, because at full command the flow is turbulent.
 
-- **`depth_control.png`** (scenariusz 6) – skoki zadanej głębokości −0,5 → −1,5 → −1,0 m:
-  - Żeby zejść głębiej, regulator najpierw zmniejsza pęcherz (ryba robi się cięższa), a przed celem zwiększa go z powrotem, żeby wyhamować. Ryba opada ze stałą prędkością ok. 3 cm/s, bo filtr zadanej zamienia skok na rampę.
-  - Przeregulowanie ok. 6%, błąd ustalony na −1,0 m ok. 5 mm. Tłok pracuje w zakresie 15–23 mm z 40 mm skoku, więc nie dochodzi do ograniczników.
-  - Sprzężenie w przód jest celowo niedokładne (5,5 ml zamiast 6 ml). Różnicę usuwa człon całkujący, ale wolno (`Ti = 120 s`): na −1,5 m ryba przez ok. 50 s wisi 2–4 cm za nisko.
-  - Prąd silnika strzykawki płynie tylko podczas ruchu tłoka (szczyty ok. 0,2 A). Utrzymanie głębokości przy sztywnym kadłubie nic nie kosztuje.
+- **`depth_control.png`** (scenario 6) – depth setpoint steps −0.5 → −1.5 → −1.0 m:
+  - To go deeper, the controller first shrinks the bladder (the fish gets heavier), and before the target enlarges it again to brake. The fish descends at a constant speed of about 3 cm/s, because the setpoint filter turns the step into a ramp.
+  - Overshoot about 6%, steady-state error at −1.0 m about 5 mm. The piston works in the 15–23 mm range of a 40 mm stroke, so it never reaches the end stops.
+  - The feedforward is deliberately inaccurate (5.5 ml instead of 6 ml). The integral term removes the difference, but slowly (`Ti = 120 s`): at −1.5 m the fish hangs 2–4 cm too low for about 50 s.
+  - The syringe motor draws current only while the piston moves (peaks about 0.2 A). Holding depth with a rigid hull costs nothing.
 
-- **`swim_forward.png`** (scenariusz 7) – CPG 1 Hz, amplituda komendy 0,8, 120 s:
-  - Ciąg pulsuje z podwójną częstotliwością, bo płetwa pcha w obu kierunkach machnięcia. Chwilami spada do zera, gdy ogon zawraca.
-  - Prędkość rośnie powoli i ustala się na ok. 6,4 cm/s, gdy średni ciąg (ok. 3 mN) zrówna się z oporem kadłuba. Stała czasowa to ok. 20 s, bo przy małym ciągu opór długo nie dorównuje mu.
-  - Z 216 J pobranych z baterii płetwa dostaje tylko ok. 40 mJ, a pracę użyteczną (przeciw oporowi kadłuba) daje ok. 20 mJ, czyli 0,01%. Reszta to straty napędu ogona, opisane w scenariuszu 5.
+- **`swim_forward.png`** (scenario 7) – CPG 1 Hz, command amplitude 0.8, 120 s:
+  - Thrust pulses at twice the frequency, because the fin pushes in both stroke directions. It drops to zero at times, when the tail reverses.
+  - Speed rises slowly and settles at about 6.4 cm/s, when mean thrust (about 3 mN) equals hull drag. The time constant is about 20 s, because with small thrust the drag takes a long time to catch up.
+  - Of the 216 J drawn from the battery, the fin gets only about 40 mJ, and useful work (against hull drag) is about 20 mJ, i.e. 0.01%. The rest is tail drive losses, described in scenario 5.
 
-## Pływanie do przodu (scenariusz 7)
+## Swimming forward (scenario 7)
 
-**Uwaga: model ciągu to najsłabsze ogniwo całego modelu.** `Propulsion.LighthillFin` ma postać z teorii wydłużonego ciała Lighthilla dla sztywnej płetwy obracanej o kąt θ:
+**Note: the thrust model is the weakest link of the whole model.** `Propulsion.LighthillFin` follows Lighthill's elongated-body theory for a rigid fin rotated by angle θ:
 
-- prędkość wody względem płetwy: `w = L·θ̇ + U·θ`,
-- ciąg: `T = ½·m_a·((L·θ̇)² − U²·θ²)`, gdzie masa dodana na metr to `m_a = C_T·ρ·π·s²/4`,
-- moment hamujący ogon: `τ = m_a·U·L·w`.
+- water velocity relative to the fin: `w = L·θ̇ + U·θ`,
+- thrust: `T = ½·m_a·((L·θ̇)² − U²·θ²)`, where the added mass per metre is `m_a = C_T·ρ·π·s²/4`,
+- torque braking the tail: `τ = m_a·U·L·w`.
 
-Parametry `s_fin` i `C_T` są placeholderami. Trzeba je wyznaczyć z pomiaru ciągu na uwięzi albo z demo CFD/MuJoCo. Liczby prędkości pokazują trendy, a nie wartości do projektowania.
+The parameters `s_fin` and `C_T` are placeholders. They must be determined from a tethered thrust measurement or from the CFD/MuJoCo demo. The speed figures show trends, not design values.
 
-**Spójność energetyczna.** Płetwa nie dodaje ciągu „z powietrza”. Pobiera z ogona moc `P_fin = τ·θ̇` przez złącze mechaniczne `TailDrive.flange_tail`, a w każdej chwili zachodzi `P_fin = T·U + P_wake`, gdzie `P_wake = ½·m_a·U·w² ≥ 0` to energia zostawiona w śladzie wirowym. Bilans całego robota (bateria → straty napędu → ślad → opór kadłuba → energia kinetyczna) zamyka się z błędem ok. 1e-6. Dla sinusa sprawność płetwy wynosi `½·(1 − (U/Lω)²)`, czyli najwyżej 50%. Przy U ≪ L·ω jest ona bliska 50%.
+**Energy consistency.** The fin does not add thrust "out of thin air". It takes power `P_fin = τ·θ̇` from the tail through the mechanical connector `TailDrive.flange_tail`, and at every instant `P_fin = T·U + P_wake`, where `P_wake = ½·m_a·U·w² ≥ 0` is the energy left in the vortex wake. The balance of the whole robot (battery → drive losses → wake → hull drag → kinetic energy) closes with an error of about 1e-6. For a sine, fin efficiency is `½·(1 − (U/Lω)²)`, i.e. at most 50%. With U ≪ L·ω it is close to 50%.
 
-**`swim_sweep.png`** (`sweep.py --swim`, `A = 1`, 0,25–4 Hz, 150 s na punkt):
+**`swim_sweep.png`** (`sweep.py --swim`, `A = 1`, 0.25–4 Hz, 150 s per point):
 
 | f [Hz] | U [cm/s] | θ [°] | θ·f [°·Hz] | P_bat [W] |
 |---|---|---|---|---|
-| 0,25 | 7,6 | 31,1 | 7,8 | 1,1 |
-| 0,5 | 8,5 | 16,9 | 8,5 | 1,25 |
-| 1 | 8,0 | 7,7 | 7,7 | 2,9 |
-| 2 | 7,3 | 3,4 | 6,9 | 7,9 |
-| 4 | 6,6 | 1,6 | 6,2 | 16,6 |
+| 0.25 | 7.6 | 31.1 | 7.8 | 1.1 |
+| 0.5 | 8.5 | 16.9 | 8.5 | 1.25 |
+| 1 | 8.0 | 7.7 | 7.7 | 2.9 |
+| 2 | 7.3 | 3.4 | 6.9 | 7.9 |
+| 4 | 6.6 | 1.6 | 6.2 | 16.6 |
 
-**Lekcja: szybsze machanie nie przyspiesza ryby, gdy ogranicza pompa.** Średni ciąg rośnie z kwadratem prędkości krawędzi spływu, czyli z (θ·f)². Powyżej ok. 0,5 Hz pompa przetłacza w półokresie stałą objętość, więc θ·f jest prawie stałe (patrz scenariusz 3). Ciąg i prędkość stoją w miejscu, a nawet lekko maleją, a moc z baterii rośnie 15 razy, bo silnik coraz częściej zawraca wirnik. Poniżej 0,5 Hz ogranicza zawór przelewowy: amplituda przestaje rosnąć, więc θ·f i prędkość spadają. Przy placeholderowych parametrach optimum to ok. 0,5 Hz. Żeby płynąć szybciej, trzeba zwiększyć przepływ pompy albo `D_tail`, a nie częstotliwość.
+**Lesson: faster flapping does not speed up the fish when the pump is the limit.** Mean thrust grows with the square of the trailing-edge speed, i.e. with (θ·f)². Above about 0.5 Hz the pump moves a fixed volume per half-period, so θ·f is almost constant (see scenario 3). Thrust and speed stand still or even drop slightly, while battery power rises 15 times, because the motor reverses the rotor ever more often. Below 0.5 Hz the relief valve is the limit: the amplitude stops growing, so θ·f and speed drop. With placeholder parameters the optimum is about 0.5 Hz. To swim faster you need more pump flow or a larger `D_tail`, not a higher frequency.
 
-## Balast i pion (scenariusz 6)
+## Ballast and heave (scenario 6)
 
-Strzykawka (`Buoyancy.BallastSyringe`) to mostek H, silnik DC, przekładnia, śruba pociągowa i tłok z ogranicznikami sprężysto-tłumiącymi. Ciśnienie hydrostatyczne wpycha tłok. `Buoyancy.VerticalDynamics` traktuje rybę jak punkt materialny z masą dodaną i oporem kwadratowym: każdy mililitr ponad objętość neutralną daje ok. 0,01 N siły w górę.
+The syringe (`Buoyancy.BallastSyringe`) is an H-bridge, a DC motor, a gearbox, a lead screw and a piston with spring-damper end stops. Hydrostatic pressure pushes the piston in. `Buoyancy.VerticalDynamics` treats the fish as a point mass with added mass and quadratic drag: each millilitre above the neutral volume gives about 0.01 N of upward force.
 
-**Lekcja: sztywny kadłub ma równowagę obojętną, kadłub z powietrzem – niestabilną** (test `BallastStatics`). Przy sztywnym kadłubie wypór nie zależy od głębokości, więc ryba zostaje tam, gdzie ją postawiono. Kieszeń powietrza ściska się z głębokością: ryba neutralna na −3 m, przesunięta o 1 cm w dół, robi się cięższa i po 60 s jest 40 cm niżej. Stąd potrzeba aktywnej regulacji.
+**Lesson: a rigid hull is neutrally stable, a hull with air is unstable** (test `BallastStatics`). With a rigid hull buoyancy does not depend on depth, so the fish stays where it was put. An air pocket compresses with depth: a fish neutral at −3 m, moved 1 cm down, becomes heavier and after 60 s is 40 cm lower. Hence the need for active control.
 
-**Regulator kaskadowy (`Control.DepthPID`).** Od komendy silnika do głębokości są trzy całkowania, więc jeden PID jest trudny do nastrojenia. Pętla wewnętrzna (P) ustawia objętość pęcherza, a zewnętrzna (`LimPID` z anti-windupem) zamienia błąd głębokości na zadaną objętość. Szczegóły nastaw i pułapka inicjalizacji `LimPID` są w dokumentacji modelu.
+**Cascade controller (`Control.DepthPID`).** There are three integrations from motor command to depth, so a single PID is hard to tune. The inner loop (P) sets the bladder volume, and the outer loop (`LimPID` with anti-windup) turns depth error into a volume setpoint. Tuning details and the `LimPID` initialization trap are in the model documentation.
 
-`DCMotor` ma parametr `initRotor`. W strzykawce wał jest sztywno połączony z tłokiem przez przekładnię, więc warunki początkowe ma tylko tłok. Inaczej układ byłby nadokreślony.
+`DCMotor` has an `initRotor` parameter. In the syringe the shaft is rigidly coupled to the piston through the gearbox, so only the piston has initial conditions. Otherwise the system would be overdetermined.
 
-## Bilans energii (scenariusz 5)
+## Energy balance (scenario 5)
 
-Podukład `TailDrive` całkuje osobno każdą stratę (`E_loss_*`) i liczy energię zmagazynowaną (`E_stored`): wirnik, indukcyjność, ścianki komór, ogon. Zmienna `E_balance_error = E_battery − E_loss_total − ΔE_stored` musi być bliska zeru. `check_tests.py` sprawdza to automatycznie w każdym modelu z podukładem `drive`; błąd jest rzędu 1e-6 energii z baterii. To test całego modelu: zły znak, brakujący człon albo niespójne równania w dowolnym komponencie rozjechałyby bilans.
+The `TailDrive` subsystem integrates each loss separately (`E_loss_*`) and computes stored energy (`E_stored`): rotor, inductance, chamber walls, tail. The variable `E_balance_error = E_battery − E_loss_total − ΔE_stored` must be close to zero. `check_tests.py` checks this automatically in every model with a `drive` subsystem; the error is of order 1e-6 of the battery energy. This is a test of the whole model: a wrong sign, a missing term or inconsistent equations in any component would break the balance.
 
-Mostek H jest bezstratny. Moc ciśnienia otoczenia znosi się w obiegu zamkniętym, bo objętość krąży, a nie znika. Energię oddaną przez oś ogona na zewnątrz (np. płetwie w scenariuszu 7) liczy osobny człon `E_mech_out`; bez podłączenia jest zerowa.
+The H-bridge is lossless. Ambient pressure power cancels out in a closed circuit, because volume circulates rather than disappears. Energy delivered by the tail axle to the outside (e.g. to the fin in scenario 7) is counted by a separate term `E_mech_out`; when nothing is connected it is zero.
 
-**`energy_budget.png`** – 60 s machania przy 1 Hz i amplitudzie komendy 0,8. Szacowany czas pracy samego napędu ogona to ok. 9,2 h przy 1,8 W i placeholderowej baterii 16,3 Wh.
+**`energy_budget.png`** – 60 s of flapping at 1 Hz and command amplitude 0.8. The estimated run time of the tail drive alone is about 9.2 h at 1.8 W with a placeholder 16.3 Wh battery.
 
-| Pozycja | Udział |
+| Item | Share |
 |---|---|
-| silnik: uzwojenie R·i² | 78,5% |
-| przewody | 9,3% |
-| silnik: łożyska | 8,4% |
-| pompa: tarcie | 2,7% |
-| bateria | 0,8% |
-| ogon (woda i materiał) | 0,1% |
+| motor: winding R·i² | 78.5% |
+| pipes | 9.3% |
+| motor: bearings | 8.4% |
+| pump: friction | 2.7% |
+| battery | 0.8% |
+| tail (water and material) | 0.1% |
 
-**Lekcja: przy odwracalnej pompie energię zjada zawracanie wirnika, a nie woda.** Przy ok. 550 rad/s wirnik ma ok. 0,8 J energii kinetycznej. Dwa razy na okres silnik musi ją wytracić i odbudować, a prąd hamowania i rozpędzania grzeje uzwojenie. Sprawdzenie: przy 10 razy mniejszej bezwładności wirnika energia z baterii spada ponad 4 razy, a udział uzwojenia z 79% do 4%, przy tej samej amplitudzie ogona. Wnioski projektowe do zweryfikowania na prawdziwych parametrach:
+**Lesson: with a reversing pump, energy is eaten by reversing the rotor, not by the water.** At about 550 rad/s the rotor holds about 0.8 J of kinetic energy. Twice per period the motor has to dissipate it and build it up again, and the braking and accelerating current heats the winding. Check: with 10 times lower rotor inertia, battery energy drops more than 4 times, and the winding share from 79% to 4%, at the same tail amplitude. Design conclusions to verify with real parameters:
 
-- silnik o małej bezwładności (np. bezrdzeniowy),
-- przekładnia i wolniejszy silnik, bo energia kinetyczna rośnie z ω²,
-- pompa jednokierunkowa z zaworem rozdzielającym zamiast zawracania pompy.
+- a low-inertia motor (e.g. coreless),
+- a gearbox and a slower motor, because kinetic energy grows with ω²,
+- a unidirectional pump with a directional valve instead of reversing the pump.
 
-## Przegląd częstotliwości (`results/sweep/`, scenariusz 3)
+## Frequency sweep (`results/sweep/`, scenario 3)
 
-`frequency_sweep.png` i `frequency_sweep.csv` pokazują pełną komendę (`A = 1`) przy częstotliwościach 0,25–4 Hz. Zakres zaczyna się od 0,25 Hz, a nie od 0,5 Hz jak w specyfikacji, żeby przy placeholderowych parametrach było widać obszar ograniczony przez zawór.
+`frequency_sweep.png` and `frequency_sweep.csv` show full command (`A = 1`) at frequencies 0.25–4 Hz. The range starts at 0.25 Hz rather than 0.5 Hz as in the specification, so that the valve-limited region is visible with placeholder parameters.
 
-**Lekcja: dwa różne ograniczenia pasma.**
+**Lesson: two different bandwidth limits.**
 
-- **Niskie częstotliwości (≤ ok. 0,4 Hz): ogranicza zawór.** Pompa ma dość czasu, żeby wytworzyć `p_set`. Zawór się otwiera (ponad 20% przepływu pompy idzie przez zawory), a amplituda ogona jest ograniczona ciśnieniem: `θ ≈ D_tail·p_set / k_całk`.
-- **Wyższe częstotliwości: ogranicza przepływ pompy.** W półokresie pompa przetłacza najwyżej `Q_max/(2f)`, więc amplituda spada jak `1/f` (iloczyn θ·f jest prawie stały). Zawory pozostają zamknięte.
-- **Prąd rośnie z częstotliwością, choć amplituda maleje.** Silnik musi coraz częściej zawracać wirnik, a energia kinetyczna wirnika przy każdym zawróceniu w dużej części idzie w ciepło w uzwojeniu (`R·i²`). Szybkie machanie małą pompą jest więc nieefektywne. Lepsza byłaby większa pompa albo przekładnia.
+- **Low frequencies (≤ about 0.4 Hz): the valve is the limit.** The pump has enough time to build up `p_set`. The valve opens (more than 20% of pump flow goes through the valves), and tail amplitude is limited by pressure: `θ ≈ D_tail·p_set / k_total`.
+- **Higher frequencies: pump flow is the limit.** In a half-period the pump moves at most `Q_max/(2f)`, so amplitude falls as `1/f` (the product θ·f is almost constant). The valves stay closed.
+- **Current rises with frequency even though amplitude falls.** The motor has to reverse the rotor ever more often, and much of the rotor's kinetic energy at each reversal turns into heat in the winding (`R·i²`). Fast flapping with a small pump is therefore inefficient. A larger pump or a gearbox would be better.
 
-**Rampa CPG a pompa jako integrator.** Pompa całkuje przepływ do objętości. Sinus włączony od zera dałby więc przesunięcie objętości `(1 − cos ωt)/ω`, a ogon machałby wokół wychylonego położenia przez wiele okresów, bo przesunięcie wycieka tylko przez przeciek pompy. Dlatego CPG narasta łagodnie przez 2 okresy (`n_ramp`).
+**CPG ramp and the pump as an integrator.** The pump integrates flow into volume. A sine switched on from zero would therefore give a volume offset `(1 − cos ωt)/ω`, and the tail would flap around a deflected position for many periods, because the offset leaks away only through pump leakage. That is why the CPG ramps up gently over 2 periods (`n_ramp`).
 
-## FMU (etap 8)
+## FMU (stage 8)
 
-`export_fmu.py` eksportuje `Subsystems.TailDriveFMU` jako **FMU 2.0 Co-Simulation**: bateria, mostek H, silnik, pompa, przewody, komory, zawory i ogon. Wejście to komenda `u`, a wyjścia to `theta`, `w_tail`, `tau_tail`, `p_L`, `p_R` i `i_motor`. `TailDriveFMU` to cienkie opakowanie `TailDrive`. Złącza mechanicznego `flange_tail` (kąt i moment jako zmienna przepływowa) nie da się wystawić jako zwykłego wejścia lub wyjścia FMU, więc zostaje w środku niepodłączone.
+`export_fmu.py` exports `Subsystems.TailDriveFMU` as an **FMU 2.0 Co-Simulation**: battery, H-bridge, motor, pump, pipes, chambers, valves and tail. The input is the command `u`, and the outputs are `theta`, `w_tail`, `tau_tail`, `p_L`, `p_R` and `i_motor`. `TailDriveFMU` is a thin wrapper around `TailDrive`. The mechanical connector `flange_tail` (angle and torque as a flow variable) cannot be exposed as a plain FMU input or output, so it stays inside, unconnected.
 
-**Solver w FMU: CVODE** (`--fmiFlags=s:cvode`). Domyślnie OpenModelica wkłada do FMU CS jawną metodę Eulera z krokiem równym krokowi komunikacji. Przy sztywnej hydraulice i kroku 2 ms taki FMU pada po ok. 0,1 s. CVODE dobiera kroki wewnątrz każdego kroku komunikacji, a biblioteki sundials są spakowane do FMU (1,8 MB).
+**Solver in the FMU: CVODE** (`--fmiFlags=s:cvode`). By default OpenModelica puts explicit Euler with a step equal to the communication step into a CS FMU. With stiff hydraulics and a 2 ms step such an FMU fails after about 0.1 s. CVODE chooses its own steps within each communication step, and the sundials libraries are packed into the FMU (1.8 MB).
 
-`fmu_demo.py` uruchamia FMU w pętli Pythona przez FMPy (`FMU2Slave`) z krokiem 2 ms. Komendę CPG liczy Python tym samym wzorem co `Control.CPG`. Wynik porównuje ze scenariuszem `TailFlapping` policzonym w OpenModelica (`fmu_vs_om.png`):
+`fmu_demo.py` runs the FMU in a Python loop via FMPy (`FMU2Slave`) with a 2 ms step. Python computes the CPG command with the same formula as `Control.CPG`. The result is compared with the `TailFlapping` scenario computed in OpenModelica (`fmu_vs_om.png`):
 
-- komenda próbkowana **w środku kroku** `u(t + h/2)`: max różnica kąta 0,016% amplitudy,
-- komenda próbkowana **na początku kroku** `u(t)`: 0,62% amplitudy.
+- command sampled **at mid-step** `u(t + h/2)`: max angle difference 0.016% of amplitude,
+- command sampled **at the start of the step** `u(t)`: 0.62% of amplitude.
 
-**Lekcja: w co-simulation wejście jest stałe w kroku komunikacji** (ZOH). Próbkowane na początku kroku spóźnia się średnio o h/2 = 1 ms, a przy 1 Hz daje to błąd fazy rzędu 2π·f·h/2 ≈ 0,6%. Próbkowanie w środku kroku usuwa to opóźnienie. Przy sprzężeniu dwóch symulatorów takiego triku nie ma, bo wejście pochodzi z drugiego symulatora. Wtedy krok trzeba dobrać do najszybszej dynamiki sprzężenia.
+**Lesson: in co-simulation the input is constant over a communication step** (ZOH). Sampled at the start of the step it lags by h/2 = 1 ms on average, and at 1 Hz this gives a phase error of order 2π·f·h/2 ≈ 0.6%. Sampling at mid-step removes this delay. When coupling two simulators there is no such trick, because the input comes from the other simulator. Then the step has to be chosen for the fastest dynamics of the coupling.
 
-**FMU działa tylko na systemie, na którym go zbudowano.** Zawiera skompilowane binaria (`binaries/linux64`, glibc i sundials z tej maszyny). Na innym systemie trzeba go zbudować od nowa (`export_fmu.py`).
+**The FMU works only on the system it was built on.** It contains compiled binaries (`binaries/linux64`, glibc and sundials from this machine). On another system it has to be rebuilt (`export_fmu.py`).
 
-**Jak w przyszłości podpiąć FMU pod demo MuJoCo** (niezaimplementowane):
+**How to hook the FMU into the MuJoCo demo in the future** (not implemented):
 
-1. W `TailDriveFMU` dodać wejście momentu obciążenia ogona: `Rotational.Sources.Torque` na `drive.flange_tail`. Wtedy FMU dostaje od MuJoCo reakcję wody i bezwładność reszty ryby, a nie tylko rusza ogonem w próżni.
-2. W pętli MuJoCo w każdym kroku: `fmu.setReal(u, tau_load)` → `fmu.doStep(t, h)` → odczyt `tau_tail` → `data.ctrl[przegub_ogona] = tau_tail` (aktuator momentowy na przegubie ogona) → `mujoco.mj_step`. Moment obciążenia na kolejny krok to moment, jakim woda i reszta ciała działają na przegub ogona w MuJoCo (konkretne pola `mjData` zależą od tego, jak demo modeluje płyn).
-3. Krok komunikacji równy krokowi MuJoCo (np. 2 ms) albo jego wielokrotność. Sprzężenie jest jawne (wartości z poprzedniego kroku), więc przy sztywnym ogonie krok musi być mały w porównaniu z okresem drgań własnych ogona (poniżej 0,17 s: 5,8 Hz bez hydrauliki, a sztywność komór jeszcze tę częstotliwość podnosi).
-4. Hydraulika w FMU, a ruch ciała w MuJoCo. Wtedy `J_added`, `c_h` i `LighthillFin` nie powinny być liczone podwójnie, bo te efekty da wtedy model płynu w MuJoCo.
+1. Add a tail load torque input to `TailDriveFMU`: `Rotational.Sources.Torque` on `drive.flange_tail`. Then the FMU gets the water reaction and the inertia of the rest of the fish from MuJoCo, rather than just moving the tail in a vacuum.
+2. In the MuJoCo loop, at each step: `fmu.setReal(u, tau_load)` → `fmu.doStep(t, h)` → read `tau_tail` → `data.ctrl[tail_joint] = tau_tail` (torque actuator on the tail joint) → `mujoco.mj_step`. The load torque for the next step is the torque that the water and the rest of the body exert on the tail joint in MuJoCo (the exact `mjData` fields depend on how the demo models the fluid).
+3. Communication step equal to the MuJoCo step (e.g. 2 ms) or a multiple of it. The coupling is explicit (values from the previous step), so with a stiff tail the step must be small compared with the tail's natural period (below 0.17 s: 5.8 Hz without hydraulics, and chamber stiffness raises this frequency further).
+4. Hydraulics in the FMU, body motion in MuJoCo. Then `J_added`, `c_h` and `LighthillFin` should not be counted twice, because the MuJoCo fluid model provides these effects.
 
-## Modelica.Fluid zamiast własnego pakietu (etap 9)
+## Modelica.Fluid instead of the custom package (stage 9)
 
-`Examples.HydraulicsMSLFluid` to obwód z `HydraulicsStep` (bateria, mostek H, silnik, pompa, przewody, komory, zawory) z hydrauliką na złączach `Modelica.Fluid` i medium `Modelica.Media.Water.ConstantPropertyLiquidWater`. Komponenty są w `FishRobot.HydraulicsFluid`. `compare_fluid.py` liczy oba modele i porównuje je (`results/fluid/fluid_vs_own.png`).
+`Examples.HydraulicsMSLFluid` is the `HydraulicsStep` circuit (battery, H-bridge, motor, pump, pipes, chambers, valves) with hydraulics on `Modelica.Fluid` connectors and the medium `Modelica.Media.Water.ConstantPropertyLiquidWater`. The components are in `FishRobot.HydraulicsFluid`. `compare_fluid.py` simulates both models and compares them (`results/fluid/fluid_vs_own.png`).
 
-**Co wzięto z biblioteki, a co trzeba było dopisać:**
+**What was taken from the library and what had to be written:**
 
-| Element | Własny pakiet | Wersja Modelica.Fluid |
+| Element | Custom package | Modelica.Fluid version |
 |---|---|---|
-| Przewód | `Hydraulics.Pipe` | z biblioteki: `Pipes.StaticPipe` (`DetailedPipeFlow`) + `Fittings.SimpleGenericOrifice` |
-| Zawór przelewowy | `Hydraulics.ReliefValve` | złożony z biblioteki: `Valves.ValveLinear` + `Sensors.RelativePressure` jako linia sterująca |
-| Pompa zębata | `Hydraulics.GearPump` | **dopisana** na `Interfaces.PartialTwoPortTransport`. MSL ma tylko pompy wirowe |
-| Komora podatna | `Hydraulics.Chamber` | **dopisana** na `Vessels.BaseClasses.PartialLumpedVessel`. Naczynia MSL mają stałą objętość albo swobodne lustro cieczy |
+| Pipe | `Hydraulics.Pipe` | from the library: `Pipes.StaticPipe` (`DetailedPipeFlow`) + `Fittings.SimpleGenericOrifice` |
+| Relief valve | `Hydraulics.ReliefValve` | assembled from the library: `Valves.ValveLinear` + `Sensors.RelativePressure` as the pilot line |
+| Gear pump | `Hydraulics.GearPump` | **written** on `Interfaces.PartialTwoPortTransport`. MSL has only centrifugal pumps |
+| Compliant chamber | `Hydraulics.Chamber` | **written** on `Vessels.BaseClasses.PartialLumpedVessel`. MSL vessels have a fixed volume or a free liquid surface |
 
-**Złożoność** (wynik `compare_fluid.py`, 24 rdzenie):
+**Complexity** (output of `compare_fluid.py`, 24 cores):
 
-| | własny pakiet | Modelica.Fluid |
+| | custom package | Modelica.Fluid |
 |---|---|---|
-| równania po spłaszczeniu (w tym trywialne) | 185 (109) | 425 (222) |
-| stany ciągłe | 8 | 8 |
-| kompilacja | ok. 1,1 s | ok. 1,4 s |
-| symulacja 3 s | ok. 0,02 s | ok. 0,15 s (ok. 6× dłużej) |
+| equations after flattening (of which trivial) | 185 (109) | 425 (222) |
+| continuous states | 8 | 8 |
+| compilation | about 1.1 s | about 1.4 s |
+| 3 s simulation | about 0.02 s | about 0.15 s (about 6× longer) |
 
-Liczba stanów jest równa przypadkiem. Wersja Fluid ma dodatkowo temperaturę wody w każdej komorze, a nie ma całek energii sprężystej `E_elastic`, które dodaliśmy we własnej komorze do bilansu energii. Temperatura zmienia się o mniej niż 0,01 K, więc przy wodzie o stałych właściwościach niczego nie wnosi, ale solver i tak musi ją liczyć.
+The equal number of states is a coincidence. The Fluid version additionally has the water temperature in each chamber, but lacks the elastic energy integrals `E_elastic` that we added to the custom chamber for the energy balance. Temperature changes by less than 0.01 K, so with constant-property water it contributes nothing, but the solver still has to compute it.
 
-**Wyniki:** ciśnienia, przepływ pompy i prąd silnika różnią się o 0,03–0,5% maksimum przebiegu, przepływ przez zawory o 0,9%. Przy szybkim pompowaniu przepływ dochodzi do 16 ml/s, a liczba Reynoldsa w przewodzie 4 mm do ok. 5200, więc przepływ jest turbulentny. Spadek ciśnienia na przewodzie: 3,08 kPa we własnym pakiecie, 3,07 kPa we Fluid. Zawory różnią się charakterystyką o kilka procent (opis w `HydraulicsFluid.ReliefValve`), ale w tym obwodzie prawie tego nie widać.
+**Results:** pressures, pump flow and motor current differ by 0.03–0.5% of the signal maximum, valve flow by 0.9%. During fast pumping the flow reaches 16 ml/s and the Reynolds number in the 4 mm pipe about 5200, so the flow is turbulent. Pressure drop across the pipe: 3.08 kPa in the custom package, 3.07 kPa in Fluid. The valve characteristics differ by a few percent (described in `HydraulicsFluid.ReliefValve`), but in this circuit this is barely visible.
 
-Pierwsza wersja `Hydraulics.Pipe` liczyła tarcie tylko ze wzoru laminarnego. Dawała wtedy 1,8 kPa zamiast 3,1 kPa, ciśnienia różniły się od Fluid o 0,7–3,8%, a przesunięte zbocze otwarcia zaworów dawało chwilowo do 11% różnicy przepływu. Teraz przewód ma tarcie turbulentne (wzór Haalanda, chropowatość ścianki) i gładkie przejście między Re = 2000 a 4000. Osobno sprawdza to test `PipeTurbulentVsMSL`.
+The first version of `Hydraulics.Pipe` computed friction only from the laminar formula. It then gave 1.8 kPa instead of 3.1 kPa, pressures differed from Fluid by 0.7–3.8%, and the shifted valve opening edge briefly caused up to 11% flow difference. Now the pipe has turbulent friction (Haaland formula, wall roughness) and a smooth transition between Re = 2000 and 4000. This is checked separately by the test `PipeTurbulentVsMSL`.
 
-**Lekcje:**
+**Lessons:**
 
-- **Biblioteka pokazała słabość naszego modelu.** Wzór Hagena–Poiseuille’a obowiązuje do Re ≈ 2300, a w scenariuszu 1 przepływ jest już turbulentny. Pierwsza wersja przewodu zaniżała tam opór o ok. 40%. Porównanie z niezależną implementacją wskazało błąd, którego testy własnego pakietu nie mogły złapać, bo sprawdzały model z jego własnymi założeniami. Testy, które zakładają opór liniowy (`PipeQuadratic`, `PipeInertance`), mają teraz jawnie `useTurbulent = false`.
-- **Progi regularyzacji trzeba sprawdzać per komponent.** Domyślne `system.m_flow_small = 0,01 kg/s` jest dobrane do instalacji przemysłowych, a u nas to cały przepływ pompy. W modelu jest zmniejszone do 1e-5 kg/s, ale sprawdziłem, że w tym obwodzie nie ma to wpływu: `SimpleGenericOrifice` wygładza charakterystykę w okolicy zera według `system.dp_small = 1 Pa`, a `DetailedPipeFlow` według liczby Reynoldsa. `m_flow_small` działa w innych komponentach (np. `Fittings` z `from_dp = false`) i w diagnostyce. Przy małych przepływach trzeba więc zajrzeć do kodu komponentu, który próg go dotyczy.
-- **Złącze Fluid przenosi więcej:** masowe natężenie przepływu i zmienne strumieniowe (entalpia, skład, `inStream()`). Każdy dopisany komponent musi określić, co wypływa z każdego portu. Do każdego portu naczynia można też podłączyć tylko jeden element (`nPorts`).
-- **Ostrzeżenia o aliasach** przy kompilacji (`The model contains alias variables with redundant start and/or conflicting nominal values`) pochodzą z wartości startowych wewnątrz MSL (np. `medium.T` i `state.T`). Są nieszkodliwe.
-- **Kiedy brać `Modelica.Fluid`:** gdy liczy się temperatura (nagrzewanie oleju, wymiana ciepła), ściśliwość albo przepływ dwufazowy, albo gdy model ma się łączyć z innymi bibliotekami opartymi na `Modelica.Media`. W tym projekcie (nieściśliwa woda, kilka komponentów, bilans energii jako test) lekki pakiet jest prostszy i ok. 6× szybszy.
+- **The library exposed a weakness of our model.** The Hagen–Poiseuille formula holds up to Re ≈ 2300, and in scenario 1 the flow is already turbulent. The first pipe version underestimated the resistance there by about 40%. Comparison with an independent implementation revealed a bug that the custom package's own tests could not catch, because they checked the model against its own assumptions. Tests that assume linear resistance (`PipeQuadratic`, `PipeInertance`) now explicitly set `useTurbulent = false`.
+- **Regularization thresholds have to be checked per component.** The default `system.m_flow_small = 0.01 kg/s` is chosen for industrial plants, and for us it is the entire pump flow. In the model it is reduced to 1e-5 kg/s, but I checked that in this circuit it has no effect: `SimpleGenericOrifice` smooths the characteristic near zero according to `system.dp_small = 1 Pa`, and `DetailedPipeFlow` according to the Reynolds number. `m_flow_small` acts in other components (e.g. `Fittings` with `from_dp = false`) and in diagnostics. So at small flows you have to look into the component's code to see which threshold applies to it.
+- **The Fluid connector carries more:** mass flow rate and stream variables (enthalpy, composition, `inStream()`). Every new component must define what flows out of each port. Also, only one element can be connected to each vessel port (`nPorts`).
+- **Alias warnings** during compilation (`The model contains alias variables with redundant start and/or conflicting nominal values`) come from start values inside MSL (e.g. `medium.T` and `state.T`). They are harmless.
+- **When to use `Modelica.Fluid`:** when temperature matters (oil heating, heat transfer), compressibility or two-phase flow, or when the model has to connect to other libraries based on `Modelica.Media`. In this project (incompressible water, a few components, energy balance as a test) the lightweight package is simpler and about 6× faster.
 
-## Krzywa p–V komory z pliku
+## Chamber p–V curve from a file
 
-Placeholderową krzywą p–V można zastąpić danymi z demo SOFA albo z pomiaru bez zmiany kodu. Ustaw w `Chamber` parametr `tableOnFile = true`, a `fileName` wskaż przez `Modelica.Utilities.Files.loadResource("modelica://FishRobot/Resources/Data/<plik>.csv")`. Plik ma mieć jedną linię nagłówka i kolumny `V [m³], p − p_ambient [Pa]`, a krzywa musi być rosnąca. Wzór: `FishRobot/Resources/Data/chamber_pV_placeholder.csv` i test `ChamberTableFromFile`.
+The placeholder p–V curve can be replaced with data from the SOFA demo or from a measurement without changing code. In `Chamber` set `tableOnFile = true`, and point `fileName` to `Modelica.Utilities.Files.loadResource("modelica://FishRobot/Resources/Data/<plik>.csv")`. The file must have one header line and columns `V [m³], p − p_ambient [Pa]`, and the curve must be increasing. Example: `FishRobot/Resources/Data/chamber_pV_placeholder.csv` and the test `ChamberTableFromFile`.
 
-## Ograniczenia
+## Limitations
 
-Model odpowiada na pytania typu „czy pompa i bateria wystarczą” i „gdzie ucieka energia”, a nie „jak dokładnie płynie woda”. Główne uproszczenia:
+The model answers questions like "are the pump and battery sufficient" and "where does the energy go", not "how exactly does the water flow". Main simplifications:
 
-- **Ogon jako 1 DOF.** `Tail.TailEquivalent` to sztywna belka obracana o kąt θ ze sprężyną, tłumieniem i masą dodaną. Prawdziwy ogon z silikonu wygina się wzdłuż długości (kształt fali), czego ten model nie odda.
-- **Ciąg z placeholderu.** `Propulsion.LighthillFin` to reaktywna teoria Lighthilla dla sztywnej płetwy z empirycznym współczynnikiem `C_T`. Nie ma w niej oderwania przepływu, śladu wirowego o skończonej długości ani wpływu kształtu płetwy. Liczby prędkości pokazują trendy, a nie wartości do projektowania.
-- **Brak sprzężenia ruchów.** Ruch do przodu (`SurgeDynamics`), pion (`VerticalDynamics`) i obrót są niezależne. Machanie ogonem nie odchyla kadłuba (brak yaw i recoil), balast nie zmienia oporu ani trymu, a prędkość pływania nie daje siły nośnej.
-- **Brak hydrodynamiki przestrzennej.** Opór kadłuba to `½·ρ·C_d·A·U²` ze stałym `C_d`, a masa dodana jest stała. Nie ma przepływu wokół ciała, fal, ściany basenu ani prądów.
-- **Hydraulika o skupionych parametrach.** Woda jest nieściśliwa i ma stałą temperaturę. Komory mają statyczną krzywą p–V bez histerezy i lepkosprężystości silikonu. Przewód ma tarcie laminarne i turbulentne, ale przejście między nimi (Re 2000–4000) jest tylko interpolacją, a przepływ niestacjonarny (oscylujący) liczony jest charakterystyką ustaloną. Zawory nie mają dynamiki grzybka.
-- **Elektryka uproszczona.** Bateria to źródło napięcia z rezystancją wewnętrzną, bez spadku napięcia w miarę rozładowania. Mostek H jest idealny (uśredniony PWM, bez strat przełączania). Silnik nie ma nasycenia magnetycznego ani temperatury uzwojenia.
-- **Parametry niezidentyfikowane.** Wszystkie wartości oznaczone `PLACEHOLDER` w kodzie są szacunkami rzędu wielkości. Przy obecnych parametrach silnik jest np. mocno przewymiarowany względem pompy (scenariusz 1).
+- **Tail as 1 DOF.** `Tail.TailEquivalent` is a rigid beam rotated by angle θ with a spring, damping and added mass. A real silicone tail bends along its length (wave shape), which this model cannot capture.
+- **Placeholder thrust.** `Propulsion.LighthillFin` is Lighthill's reactive theory for a rigid fin with an empirical coefficient `C_T`. It has no flow separation, no finite-length vortex wake and no effect of fin shape. The speed figures show trends, not design values.
+- **No coupling between motions.** Forward motion (`SurgeDynamics`), heave (`VerticalDynamics`) and rotation are independent. Tail flapping does not deflect the hull (no yaw or recoil), ballast does not change drag or trim, and swimming speed produces no lift.
+- **No spatial hydrodynamics.** Hull drag is `½·ρ·C_d·A·U²` with constant `C_d`, and added mass is constant. There is no flow around the body, no waves, no pool walls and no currents.
+- **Lumped-parameter hydraulics.** Water is incompressible and at constant temperature. Chambers have a static p–V curve without hysteresis or silicone viscoelasticity. The pipe has laminar and turbulent friction, but the transition between them (Re 2000–4000) is only an interpolation, and unsteady (oscillating) flow is computed with the steady-state characteristic. Valves have no poppet dynamics.
+- **Simplified electrics.** The battery is a voltage source with internal resistance, with no voltage drop as it discharges. The H-bridge is ideal (averaged PWM, no switching losses). The motor has no magnetic saturation or winding temperature.
+- **Unidentified parameters.** All values marked `PLACEHOLDER` in the code are order-of-magnitude estimates. With the current parameters the motor is, for example, heavily oversized for the pump (scenario 1).
 
-## Plan kalibracji
+## Calibration plan
 
-Parametry najlepiej identyfikować od źródła energii w stronę wody. Każdy krok korzysta z elementów zidentyfikowanych wcześniej, np. silnik z kroku 1 służy potem jako czujnik momentu (moment = `k·i`).
+Parameters are best identified from the energy source towards the water. Each step uses elements identified earlier, e.g. the motor from step 1 later serves as a torque sensor (torque = `k·i`).
 
-| Krok | Element | Pomiar na stole | Parametry |
+| Step | Element | Bench measurement | Parameters |
 |---|---|---|---|
-| 1 | Bateria | napięcie jałowe i pod znanym obciążeniem, w kilku stanach naładowania | `U_nom`, `R_int`, `capacity_Wh` |
-| 2 | Silnik DC | rezystancja uzwojenia (miernik, zablokowany wał); prędkość biegu jałowego przy kilku napięciach; wybieg po odłączeniu zasilania; odpowiedź prądu na skok napięcia przy zablokowanym wale | `R`, `k`, `b`, `J`, `L` |
-| 3 | Pompa | przepływ (cylinder miarowy lub przepływomierz) przy kilku prędkościach i ciśnieniach (zawór dławiący na wyjściu); prąd silnika daje moment | `D_rev`, `k_leak`, `eta_m` |
-| 4 | Przewody | spadek ciśnienia przy kilku przepływach (dwa czujniki ciśnienia); sprawdzić, przy jakim przepływie charakterystyka przestaje być liniowa | `l`, `d`, `zeta`, `roughness` (i czy przejście w turbulencję zgadza się z `Re_lam`, `Re_turb`) |
-| 5 | Komory | quasi-statyczne napełnianie strzykawką z czujnikiem ciśnienia, ogon zablokowany; kilka cykli napełnij–opróżnij (histereza) | krzywa p–V (`table` lub plik CSV), `V_prefill` |
-| 6 | Zawory przelewowe | ciśnienie otwarcia i przepływ ponad nim (pompa na zamknięty obwód) | `p_set`, `dp_open`, `V_flow_nominal` |
-| 7 | Ogon (statycznie) | moment na zablokowanym ogonie (siłomierz na ramieniu) vs różnica ciśnień; kąt swobodnego ogona vs różnica ciśnień | `D_tail` (z momentu), `k` (z kąta) |
-| 8 | Ogon (dynamicznie) | drgania własne po wychyleniu: w powietrzu (`J`, `c`), potem w wodzie (`J_added`, `c_h`) | `J`, `c`, `J_added`, `c_h` |
-| 9 | Ciąg | ciąg na uwięzi (siłomierz) przy kilku częstotliwościach i amplitudach; najlepiej też przy przepływie w tunelu | `C_T`, `s_fin`, `L_tail` |
-| 10 | Kadłub | holowanie ze stałą prędkością albo wybieg (spadek prędkości po wyłączeniu napędu) | `C_d·A`, `m_added_x` |
-| 11 | Balast i pion | ważenie w wodzie przy kilku położeniach tłoka; wybieg w pionie po skoku pęcherza; zależność wyporu od głębokości | `V_b_neutral`, `V_air0`, `m_added_z`, `C_dz·A_z`, `lead`, `gear_ratio` |
+| 1 | Battery | open-circuit voltage and voltage under a known load, at several states of charge | `U_nom`, `R_int`, `capacity_Wh` |
+| 2 | DC motor | winding resistance (meter, locked shaft); no-load speed at several voltages; coast-down after power is cut; current response to a voltage step with the shaft locked | `R`, `k`, `b`, `J`, `L` |
+| 3 | Pump | flow (measuring cylinder or flow meter) at several speeds and pressures (throttle valve at the outlet); motor current gives torque | `D_rev`, `k_leak`, `eta_m` |
+| 4 | Pipes | pressure drop at several flows (two pressure sensors); check at what flow the characteristic stops being linear | `l`, `d`, `zeta`, `roughness` (and whether the turbulent transition matches `Re_lam`, `Re_turb`) |
+| 5 | Chambers | quasi-static filling with a syringe and a pressure sensor, tail blocked; several fill–empty cycles (hysteresis) | p–V curve (`table` or CSV file), `V_prefill` |
+| 6 | Relief valves | opening pressure and flow above it (pump into a closed circuit) | `p_set`, `dp_open`, `V_flow_nominal` |
+| 7 | Tail (static) | torque on the blocked tail (force gauge on an arm) vs pressure difference; angle of the free tail vs pressure difference | `D_tail` (from torque), `k` (from angle) |
+| 8 | Tail (dynamic) | free vibration after deflection: in air (`J`, `c`), then in water (`J_added`, `c_h`) | `J`, `c`, `J_added`, `c_h` |
+| 9 | Thrust | tethered thrust (force gauge) at several frequencies and amplitudes; ideally also with flow in a tunnel | `C_T`, `s_fin`, `L_tail` |
+| 10 | Hull | towing at constant speed or coast-down (speed decay after the drive is switched off) | `C_d·A`, `m_added_x` |
+| 11 | Ballast and heave | weighing in water at several piston positions; vertical coast after a bladder step; buoyancy as a function of depth | `V_b_neutral`, `V_air0`, `m_added_z`, `C_dz·A_z`, `lead`, `gear_ratio` |
 
-Po każdym kroku warto powtórzyć odpowiedni test z `FishRobot.Tests` z nowymi parametrami i porównać przebieg z pomiarem. Kroki 1–8 dotyczą samego napędu ogona i można je wykonać na stole bez wody (oprócz kroku 8). Kroki 9–11 wymagają basenu.
+After each step it is worth rerunning the corresponding test from `FishRobot.Tests` with the new parameters and comparing the run with the measurement. Steps 1–8 concern only the tail drive and can be done on a bench without water (except step 8). Steps 9–11 need a pool.
 
-### Identyfikacja silnika (krok 2): `calibrate.py motor`
+### Motor identification (step 2): `calibrate.py motor`
 
-Na stole wystarczy jeden rozruch: skok napięcia z zasilacza na silnik z wolnym wałem, zapis prądu i prędkości. Model stanowiska to `FishRobot.Calibration.MotorStep`. Każdy z pięciu parametrów kształtuje inną część przebiegu, więc wszystkie da się wyznaczyć naraz:
+On the bench one start-up is enough: a voltage step from a power supply to the motor with a free shaft, recording current and speed. The bench model is `FishRobot.Calibration.MotorStep`. Each of the five parameters shapes a different part of the response, so all can be determined at once:
 
-- `R` – szczyt prądu (wirnik jeszcze stoi),
-- `L` – narastanie prądu do szczytu,
-- `k` – prędkość ustalona,
-- `b` – prąd ustalony,
-- `J` – czas rozpędzania.
+- `R` – current peak (the rotor is still at rest),
+- `L` – current rise to the peak,
+- `k` – steady-state speed,
+- `b` – steady-state current,
+- `J` – acceleration time.
 
-`calibrate.py` kompiluje model raz i dopasowuje parametry metodą najmniejszych kwadratów (`scipy.optimize.least_squares`). Każde wywołanie to uruchomienie gotowego pliku wykonywalnego z `-override`, a kolumny jakobianu liczą się równolegle. Parametry są dopasowywane w skali logarytmicznej, bo wszystkie są dodatnie i różnią się o 6 rzędów wielkości. Plik pomiaru to CSV z nagłówkiem i kolumnami `time [s], i [A], w [rad/s]`. Wynik zawiera gotowy modyfikator do wklejenia w model, niepewność 1σ każdego parametru i macierz korelacji (`results/calibration/motor_step_fit.{txt,png}`).
+`calibrate.py` compiles the model once and fits the parameters by least squares (`scipy.optimize.least_squares`). Each call runs the built executable with `-override`, and Jacobian columns are computed in parallel. Parameters are fitted on a logarithmic scale, because they are all positive and span 6 orders of magnitude. The measurement file is a CSV with a header and columns `time [s], i [A], w [rad/s]`. The result contains a ready-to-paste modifier for the model, the 1σ uncertainty of each parameter and the correlation matrix (`results/calibration/motor_step_fit.{txt,png}`).
 
-Bez `--data` skrypt sprawdza samą procedurę. Tworzy „pomiar” z modelu o znanych parametrach (inne niż placeholdery o 25–100%), dodaje szum czujników (0,03 A i 2 rad/s) i dopasowuje, startując od placeholderów. Całość zajmuje ok. 1,5 s. Wszystkie parametry wracają z błędem poniżej 1,5σ. W 20 powtórzeniach z innym szumem rozrzut wyników zgadza się z podawaną niepewnością, a średni błąd jest bliski zera:
+Without `--data` the script checks the procedure itself. It creates a "measurement" from a model with known parameters (25–100% different from the placeholders), adds sensor noise (0.03 A and 2 rad/s) and fits, starting from the placeholders. The whole thing takes about 1.5 s. All parameters come back with an error below 1.5σ. In 20 repetitions with different noise the spread of results matches the reported uncertainty, and the mean error is close to zero:
 
-| Parametr | Niepewność 1σ | Rozrzut w 20 powtórzeniach |
+| Parameter | 1σ uncertainty | Spread over 20 repetitions |
 |---|---|---|
-| `R` | 0,09% | 0,09% |
-| `L` | 1,0% | 0,9% |
-| `k` | 0,03% | 0,03% |
-| `J` | 0,11% | 0,10% |
-| `b` | 1,2% | 1,4% |
+| `R` | 0.09% | 0.09% |
+| `L` | 1.0% | 0.9% |
+| `k` | 0.03% | 0.03% |
+| `J` | 0.11% | 0.10% |
+| `b` | 1.2% | 1.4% |
 
-**Lekcja: wagi sygnałów decydują o niepewności.** Prąd i prędkość mają różne jednostki i różny szum, więc reszty trzeba podzielić przez szum każdego czujnika. Szumu zwykle nie znamy, dlatego skrypt po pierwszym dopasowaniu szacuje go z reszt każdego sygnału osobno i dopasowuje jeszcze raz. Pierwsza wersja ważyła sygnały przez 1% zakresu. Prąd był wtedy względnie dwa razy bardziej zaszumiony niż prędkość, a wspólna wariancja reszt to ukrywała. Niepewność `b`, wyznaczanego głównie z prądu ustalonego, wychodziła przez to za mała: 1,0% przy rzeczywistym rozrzucie 1,6%.
+**Lesson: signal weights determine the uncertainty.** Current and speed have different units and different noise, so residuals have to be divided by each sensor's noise. The noise is usually unknown, so after the first fit the script estimates it from the residuals of each signal separately and fits again. The first version weighted the signals by 1% of their range. Current was then relatively twice as noisy as speed, and the common residual variance hid this. The uncertainty of `b`, determined mainly from the steady-state current, therefore came out too small: 1.0% against an actual spread of 1.6%.
 
-Macierz korelacji pokazuje, czego eksperyment nie rozróżnia dobrze. `k` i `b` są skorelowane (−0,84), bo oba ustalają punkt pracy w stanie ustalonym, a `R` i `J` (−0,77), bo razem dają mechaniczną stałą czasową `J·R/k²`. Niepewność `b` i `L` jest największa: prąd ustalony to tylko ok. 0,08 A, a narastanie prądu trwa ok. 0,5 ms, czyli kilka próbek przy 5 kHz. Na prawdziwym stole pomaga dłuższy zapis stanu ustalonego (uśrednianie prądu) i szybsze próbkowanie prądu. Krok zapisuje parametry silnika z kowariancją do `results/calibration/motor_params.json`, z którego korzysta krok 3.
+The correlation matrix shows what the experiment does not distinguish well. `k` and `b` are correlated (−0.84), because both set the steady-state operating point, and `R` and `J` (−0.77), because together they give the mechanical time constant `J·R/k²`. The uncertainty of `b` and `L` is the largest: the steady-state current is only about 0.08 A, and the current rise lasts about 0.5 ms, i.e. a few samples at 5 kHz. On a real bench a longer steady-state recording (current averaging) and faster current sampling help. The step saves the motor parameters with covariance to `results/calibration/motor_params.json`, which step 3 uses.
 
-### Identyfikacja pompy (krok 3): `calibrate.py pump`
+### Pump identification (step 3): `calibrate.py pump`
 
-Silnik z kroku 2 kręci pompą, która tłoczy wodę ze zbiornika przez zawór dławiący z powrotem do zbiornika (`FishRobot.Calibration.PumpBench`). Punkt pracy ustawia się napięciem zasilacza i nastawą zaworu, a w każdym punkcie, po ustaleniu prędkości, mierzy się `U, i, w, Δp, Q`. Plik pomiaru to CSV z tymi kolumnami (jednostki SI). Równania pompy są liniowe w szukanych parametrach, więc zamiast dopasowywać symulację wystarcza regresja liniowa:
+The motor from step 2 drives the pump, which pushes water from a reservoir through a throttle valve back to the reservoir (`FishRobot.Calibration.PumpBench`). The operating point is set by the supply voltage and the valve setting, and at each point, once speed has settled, `U, i, w, Δp, Q` are measured. The measurement file is a CSV with these columns (SI units). The pump equations are linear in the unknown parameters, so linear regression is enough instead of fitting a simulation:
 
-- `Q = D·ω − k_leak·Δp` daje `D_rev = 2π·D` i `k_leak`,
-- `k·i − b·ω = D·Δp/η_m` daje `η_m`. Lewa strona to moment na wale policzony z prądu, czyli silnik działa jako czujnik momentu.
+- `Q = D·ω − k_leak·Δp` gives `D_rev = 2π·D` and `k_leak`,
+- `k·i − b·ω = D·Δp/η_m` gives `η_m`. The left side is the shaft torque computed from current, i.e. the motor works as a torque sensor.
 
-Model stanowiska służy tu tylko do wygenerowania pomiaru syntetycznego: 3 napięcia × 5 nastaw zaworu, „prawdziwy” silnik z kroku 2 i pompa różna od placeholderów, plus szum uśrednionych wartości. Wynik (`results/calibration/pump_fit.{txt,png}`):
+The bench model is used here only to generate a synthetic measurement: 3 voltages × 5 valve settings, the "true" motor from step 2 and a pump different from the placeholders, plus noise on the averaged values. Result (`results/calibration/pump_fit.{txt,png}`):
 
-| Parametr | Niepewność 1σ | Rozrzut w 2000 powtórzeniach | Średni błąd |
+| Parameter | 1σ uncertainty | Spread over 2000 repetitions | Mean error |
 |---|---|---|---|
-| `D_rev` | 0,14% | 0,14% | 0,00% |
-| `k_leak` | 4,1% | 4,0% | −0,1% |
-| `eta_m` | 0,77% | 0,65% | −0,33% |
+| `D_rev` | 0.14% | 0.14% | 0.00% |
+| `k_leak` | 4.1% | 4.0% | −0.1% |
+| `eta_m` | 0.77% | 0.65% | −0.33% |
 
-**Lekcja: błąd czujnika nie uśrednia się.** `eta_m` ma stały błąd −0,33%, także bez żadnego szumu. Bierze się z parametrów silnika z kroku 2 (`b` wyszło tam o 1,2% za małe), a ten sam błąd momentu jest w każdym punkcie pracy. Więcej punktów zmniejsza tylko część niepewności pochodzącą z rozrzutu (0,63%), a część od silnika (0,36%) zostaje. Dlatego skrypt podaje obie części osobno i uwzględnia korelację `k` i `b` z kroku 2. Tarcie silnika `b·ω` to od 15% (przy najwyższym Δp) do ponad 80% (zawór otwarty) momentu z prądu, więc dokładne `b` jest tu ważniejsze, niż sugerowałby sam krok 2. Druga pułapka: tarcie lepkie pompy (proporcjonalne do ω) byłoby nie do odróżnienia od `b` silnika, bo w tym stanowisku zawsze występują razem. Jeśli prawdziwa pompa takie tarcie ma, pokaże się jako stały moment przy `Δp ≈ 0` na prawym wykresie.
+**Lesson: sensor error does not average out.** `eta_m` has a fixed error of −0.33%, even without any noise. It comes from the motor parameters from step 2 (`b` came out 1.2% too small there), and the same torque error is present at every operating point. More points reduce only the part of the uncertainty that comes from scatter (0.63%), while the part from the motor (0.36%) remains. That is why the script reports both parts separately and accounts for the correlation of `k` and `b` from step 2. Motor friction `b·ω` is from 15% (at the highest Δp) to over 80% (valve open) of the torque from current, so an accurate `b` matters more here than step 2 alone would suggest. A second trap: viscous pump friction (proportional to ω) would be indistinguishable from the motor's `b`, because on this bench they always occur together. If the real pump has such friction, it will show up as a constant torque at `Δp ≈ 0` in the right-hand plot.
 
-Najmniej dokładny jest przeciek (ok. 4%): przy 85 kPa to tylko 2,5 ml/s wobec ok. 30 ml/s wyparcia, a szum przepływomierza to 0,1 ml/s. Pomaga więcej punktów przy wysokim Δp i niskiej prędkości, gdzie przeciek stanowi większą część przepływu.
+Leakage is the least accurate (about 4%): at 85 kPa it is only 2.5 ml/s against about 30 ml/s of displacement, and the flow meter noise is 0.1 ml/s. More points at high Δp and low speed, where leakage is a larger share of the flow, help.
 
-### Identyfikacja przewodu (krok 4): `calibrate.py pipe`
+### Pipe identification (step 4): `calibrate.py pipe`
 
-Pompa przetłacza wodę przez badany przewód, a w kilkunastu punktach pracy mierzy się przepływ i spadek ciśnienia czujnikiem różnicowym (`FishRobot.Calibration.PipeBench`). Plik pomiaru to CSV z kolumnami `Q [m³/s], dp [Pa]`. Długość mierzy się linijką (`--l`), a dopasowujemy średnicę hydrauliczną `d`, straty miejscowe `zeta` i chropowatość `roughness`. Charakterystyka jest nieliniowa i przechodzi z laminarnej w turbulentną, więc tu znowu dopasowujemy symulację. Model nie ma inertancji, więc rampa przepływu w czasie służy tylko do przejścia po punktach pracy. Szum czujnika ciśnienia jest względny (procent odczytu), a Δp zmienia się o 3 rzędy wielkości, dlatego reszty liczone są jako `ln(Δp_sym/Δp_pomiar)`.
+The pump pushes water through the pipe under test, and at a dozen or so operating points the flow and the pressure drop are measured with a differential sensor (`FishRobot.Calibration.PipeBench`). The measurement file is a CSV with columns `Q [m³/s], dp [Pa]`. Length is measured with a ruler (`--l`), and we fit the hydraulic diameter `d`, the minor losses `zeta` and the roughness `roughness`. The characteristic is nonlinear and changes from laminar to turbulent, so here again we fit a simulation. The model has no inertance, so the flow ramp in time serves only to step through the operating points. The pressure sensor noise is relative (percent of reading), and Δp changes over 3 orders of magnitude, so residuals are computed as `ln(Δp_sim/Δp_meas)`.
 
-Pomiar syntetyczny: 20 punktów od 1 do 40 ml/s (Re ok. 350–14 000), szum 1% odczytu. „Prawdziwy” przewód ma średnicę 3,6 mm zamiast nominalnych 4 mm, `zeta = 2,5` i gładką ściankę (5 µm). Wyniki z 200 powtórzeń (`results/calibration/pipe_fit.{txt,png}`):
+Synthetic measurement: 20 points from 1 to 40 ml/s (Re about 350–14 000), noise 1% of reading. The "true" pipe has a diameter of 3.6 mm instead of the nominal 4 mm, `zeta = 2.5` and a smooth wall (5 µm). Results from 200 repetitions (`results/calibration/pipe_fit.{txt,png}`):
 
-| Parametr | Niepewność 1σ | Rozrzut | Średni błąd |
+| Parameter | 1σ uncertainty | Spread | Mean error |
 |---|---|---|---|
-| `d` | 0,23% | 0,24% | 0,0% |
-| `zeta` | 2,2% | 2,3% | 0,1% |
+| `d` | 0.23% | 0.24% | 0.0% |
+| `zeta` | 2.2% | 2.3% | 0.1% |
 | `roughness` | 29% | 32% | −7% |
 
-**Lekcja: nie każdy parametr da się wyznaczyć z danego eksperymentu.** Średnicę wyznacza głównie zakres laminarny, bo opór rośnie tam jak `1/d⁴`: 0,23% niepewności `d` to ok. 1% oporu. Dla tego węża placeholder 4 mm dawał prawie 2 razy za mały opór. Chropowatość ma niepewność 29%, bo przy Re poniżej ok. 15 000 gładki wąż zachowuje się prawie jak idealnie gładka rura i ścianka ledwo wpływa na tarcie. Taki parametr lepiej przyjąć z tablic, niż dopasowywać. Sprawdzenie: przy chropowatości z tablic 1,5 µm, czyli 3 razy za małej, `d` przesuwa się o 0,25%, a `zeta` o 3,4%, czyli o 1–1,6σ. Średnica i `zeta` są silnie skorelowane (0,96), bo obie podnoszą opór w całym zakresie. Gdyby `d` zmierzyć osobno (np. objętością wody w odcinku węża), niepewność `zeta` by spadła.
+**Lesson: not every parameter can be determined from a given experiment.** The diameter is determined mainly by the laminar range, because resistance there grows as `1/d⁴`: 0.23% uncertainty in `d` is about 1% of resistance. For this hose the 4 mm placeholder gave almost 2 times too little resistance. Roughness has 29% uncertainty, because below Re of about 15 000 a smooth hose behaves almost like a perfectly smooth pipe and the wall barely affects friction. Such a parameter is better taken from tables than fitted. Check: with a table roughness of 1.5 µm, i.e. 3 times too small, `d` shifts by 0.25% and `zeta` by 3.4%, i.e. by 1–1.6σ. Diameter and `zeta` are strongly correlated (0.96), because both raise resistance over the whole range. If `d` were measured separately (e.g. from the volume of water in a length of hose), the uncertainty of `zeta` would drop.
 
-Model przejścia laminarny–turbulentny (interpolacja między `Re_lam` a `Re_turb`) jest tu założeniem, a nie wynikiem. W pomiarze syntetycznym zgadza się z „rzeczywistością” z definicji. Na prawdziwym pomiarze błędne progi przejścia pokażą się jako garb reszt w szarym pasie na wykresie.
+The laminar–turbulent transition model (interpolation between `Re_lam` and `Re_turb`) is an assumption here, not a result. In the synthetic measurement it matches "reality" by definition. On a real measurement wrong transition thresholds will show up as a hump in the residuals in the grey band of the plot.
 
-### Krzywa p–V komory (krok 5): `calibrate.py chamber`
+### Chamber p–V curve (step 5): `calibrate.py chamber`
 
-Strzykawka (najlepiej pompa strzykawkowa) powoli wtłacza i wyciąga wodę z komory przy zablokowanym ogonie, a czujnik ciśnienia stoi przy komorze. Kilka cykli od lekkiego podciśnienia do ciśnienia otwarcia zaworu. Plik pomiaru to CSV w kolejności czasu z kolumnami `dV [m³]` (objętość ze strzykawki względem spoczynku) i `p [Pa]` (nadciśnienie). Wynikiem nie są parametry, tylko cała krzywa: `results/calibration/chamber_pV.csv` w formacie dla `Chamber(tableOnFile = true, fileName = ...)`. Objętość w spoczynku (`--V-rest`) nie wynika z tego pomiaru, trzeba ją wziąć z CAD albo z ważenia. W modelu liczy się zresztą tylko jej położenie względem `V_prefill`, czyli to, ile wody dolano ponad spoczynek przy zamykaniu obwodu.
+A syringe (ideally a syringe pump) slowly pushes water into and draws it out of the chamber with the tail blocked, and a pressure sensor sits at the chamber. Several cycles from slight vacuum to the valve opening pressure. The measurement file is a time-ordered CSV with columns `dV [m³]` (syringe volume relative to rest) and `p [Pa]` (gauge pressure). The result is not a set of parameters but the whole curve: `results/calibration/chamber_pV.csv` in the format for `Chamber(tableOnFile = true, fileName = ...)`. The rest volume (`--V-rest`) does not follow from this measurement; it has to be taken from CAD or from weighing. In the model only its position relative to `V_prefill` matters anyway, i.e. how much water was added above rest when closing the circuit.
 
-Przetwarzanie:
+Processing:
 
-1. Podział na suwy między zawróceniami strzykawki i odrzucenie pierwszego cyklu. Silikon przy pierwszym rozciągnięciu jest sztywniejszy (efekt Mullinsa).
-2. W 15 węzłach lokalna regresja liniowa osobno dla gałęzi napełniania i opróżniania, uśredniona po cyklach.
-3. Krzywa szkieletowa = średnia obu gałęzi. Skrypt sprawdza, czy jest rosnąca, bo innej `Chamber` nie przyjmie.
-4. Pole pętli histerezy `∮ p dV` z surowych danych, czyli energia tracona w każdym cyklu.
-5. Kontrola w Modelice: `FishRobot.Calibration.ChamberBench` z wyznaczonym plikiem (`fileName` przez `-override`) przechodzi przez cały zakres.
+1. Splitting into strokes between syringe reversals and discarding the first cycle. Silicone is stiffer on its first stretch (Mullins effect).
+2. At 15 nodes, local linear regression separately for the filling and emptying branches, averaged over cycles.
+3. Skeleton curve = mean of both branches. The script checks that it is increasing, because `Chamber` will not accept anything else.
+4. Area of the hysteresis loop `∮ p dV` from the raw data, i.e. the energy lost in each cycle.
+5. Check in Modelica: `FishRobot.Calibration.ChamberBench` with the generated file (`fileName` via `-override`) runs through the whole range.
 
-Pomiar syntetyczny: „prawdziwa” komora jest na początku bardziej miękka od placeholdera, a potem mocniej sztywnieje. Ma histerezę o półszerokości `300 Pa + 6%·|p|`, pierwsze napełnienie o 15% sztywniejsze i szum (150 Pa, 0,01 ml). Cztery cykle od −3 do +10 ml. Wyniki (`results/calibration/chamber_fit.{txt,png}`):
+Synthetic measurement: the "true" chamber is softer than the placeholder at first, then stiffens more. It has hysteresis with a half-width of `300 Pa + 6%·|p|`, a first filling 15% stiffer, and noise (150 Pa, 0.01 ml). Four cycles from −3 to +10 ml. Results (`results/calibration/chamber_fit.{txt,png}`):
 
-- krzywa w węzłach różni się od prawdziwej krzywej szkieletowej o najwyżej 0,17% zakresu ciśnień, a po interpolacji w `Chamber` o 0,53%,
-- bez odrzucenia pierwszego cyklu: 1,7%,
-- pętla histerezy: 25 mJ na cykl przy pełnym suwie.
+- the curve at the nodes differs from the true skeleton curve by at most 0.17% of the pressure range, and after interpolation in `Chamber` by 0.53%,
+- without discarding the first cycle: 1.7%,
+- hysteresis loop: 25 mJ per cycle at full stroke.
 
-**Lekcja: czubki pętli nie leżą na krzywej szkieletowej.** W punkcie zawrócenia strzykawki obie gałęzie się spotykają, bo histereza potrzebuje trochę objętości, żeby się „przełączyć”. Węzły na samych końcach suwu dawały błąd 4,8% zakresu. Dlatego tabela kończy się 1 ml przed punktami zawrócenia (`--margin`), a dalej `Chamber` przedłuża krzywą liniowo, czyli przy rosnącej sztywności zaniża ciśnienie. Suw strzykawki trzeba więc zaplanować z zapasem ponad zakres pracy komory w robocie.
+**Lesson: the tips of the loop do not lie on the skeleton curve.** At the syringe reversal point both branches meet, because the hysteresis needs some volume to "switch over". Nodes at the very ends of the stroke gave an error of 4.8% of the range. That is why the table ends 1 ml before the reversal points (`--margin`), and beyond that `Chamber` extends the curve linearly, which with rising stiffness underestimates pressure. The syringe stroke must therefore be planned with a margin beyond the chamber's working range in the robot.
 
-**Czy brak histerezy w modelu ma znaczenie?** W scenariuszu `EnergyBudget` komory pracują między 6 a 10 ml, czyli 1–5 ml ponad spoczynek, przy 2–12 kPa. Syntetyczna komora traci w takim cyklu ok. 3,9 mJ. Dla dwóch komór przy 1 Hz to ok. 8 mW, czyli ok. 0,4% mocy napędu ogona (1,8 W). To więcej niż straty ogona w bilansie (0,1%), ale mniej niż przewody i łożyska. Prawdziwy silikon może mieć szerszą pętlę, więc tę liczbę trzeba policzyć ponownie z pomiaru. Jeśli wyjdzie istotna, `Chamber` trzeba rozszerzyć o tłumienie lepkosprężyste.
+**Does the lack of hysteresis in the model matter?** In the `EnergyBudget` scenario the chambers work between 6 and 10 ml, i.e. 1–5 ml above rest, at 2–12 kPa. The synthetic chamber loses about 3.9 mJ in such a cycle. For two chambers at 1 Hz that is about 8 mW, i.e. about 0.4% of the tail drive power (1.8 W). That is more than the tail losses in the balance (0.1%), but less than the pipes and bearings. Real silicone may have a wider loop, so this number has to be recomputed from the measurement. If it turns out significant, `Chamber` has to be extended with viscoelastic damping.
 
-### Zawór przelewowy (krok 6): `calibrate.py valve`
+### Relief valve (step 6): `calibrate.py valve`
 
-Pompa z kroku 3 tłoczy wodę przez zawór do zbiornika. Przepływ zwiększa się małymi krokami, a potem zmniejsza, i w każdym punkcie mierzy się przepływ i różnicę ciśnień na zaworze (`FishRobot.Calibration.ValveBench`). Plik pomiaru to CSV z kolumnami `dp [Pa], Q [m³/s], up` (1 przy rosnącym przepływie, 0 przy malejącym). Dopasowujemy `p_set`, `V_flow_nominal` i `dp_smooth` osobno dla obu gałęzi i wspólnie.
+The pump from step 3 pushes water through the valve into a reservoir. Flow is increased in small steps and then decreased, and at each point the flow and the pressure difference across the valve are measured (`FishRobot.Calibration.ValveBench`). The measurement file is a CSV with columns `dp [Pa], Q [m³/s], up` (1 for rising flow, 0 for falling). We fit `p_set`, `V_flow_nominal` and `dp_smooth` separately for both branches and jointly.
 
-**`dp_open` nie jest dopasowywane.** W modelu przewodność otwartego zaworu to `V_flow_nominal/dp_open`, więc pomiar wyznacza tylko ten iloraz. Dwa razy większe oba parametry dają identyczną charakterystykę, a jakobian ma wtedy dwie proporcjonalne kolumny. `dp_open` zostaje punktem odniesienia (5 kPa).
+**`dp_open` is not fitted.** In the model the conductance of the open valve is `V_flow_nominal/dp_open`, so the measurement determines only this ratio. Doubling both parameters gives an identical characteristic, and the Jacobian then has two proportional columns. `dp_open` stays as the reference point (5 kPa).
 
-Pomiar syntetyczny: zawór ze słabszą sprężyną (`p_set` = 46 kPa zamiast 50), z większą przewodnością, łagodniejszym otwarciem i histerezą grzybka 2 kPa (otwiera się przy 47 kPa, zamyka przy 45 kPa). 15 punktów w każdą stronę, szum przepływomierza 0,05 ml/s i czujnika 100 Pa. Wyniki (`results/calibration/valve_fit.{txt,png}`):
+Synthetic measurement: a valve with a weaker spring (`p_set` = 46 kPa instead of 50), higher conductance, a gentler opening and a 2 kPa poppet hysteresis (opens at 47 kPa, closes at 45 kPa). 15 points in each direction, flow meter noise 0.05 ml/s and sensor noise 100 Pa. Results (`results/calibration/valve_fit.{txt,png}`):
 
-| | `p_set` | Niepewność |
+| | `p_set` | Uncertainty |
 |---|---|---|
-| gałąź otwierania | 46,97 kPa | ±0,10 kPa |
-| gałąź zamykania | 45,08 kPa | ±0,11 kPa |
-| wspólnie | 46,06 kPa | ±0,72 kPa |
+| opening branch | 46.97 kPa | ±0.10 kPa |
+| closing branch | 45.08 kPa | ±0.11 kPa |
+| joint | 46.06 kPa | ±0.72 kPa |
 
-Histereza wyznaczona z różnicy gałęzi: 1,89 kPa przy prawdziwych 2 kPa.
+Hysteresis determined from the difference of the branches: 1.89 kPa against the true 2 kPa.
 
-**Lekcja: reszty pokazują, czego model nie umie.** Przy wspólnym dopasowaniu reszty układają się w dwa pasma przeciwnego znaku (dolny panel wykresu). Szum oszacowany z reszt wychodzi 1,9 ml/s, czyli prawie 40 razy więcej niż szum przepływomierza. To nie szum, tylko histereza, której model z jednym `p_set` nie ma. Niepewność wspólnego `p_set` (±0,72 kPa) jest przez to 7 razy większa niż każdej gałęzi z osobna, ale to uczciwa miara: tyle wynosi rozjazd modelu z zaworem. Przy histerezie 2 kPa (4% `p_set`) jedno `p_set` ze środka wystarcza do bilansu energii. Jeśli zawór ma ograniczać ciśnienie w komorach z zapasem, liczy się gałąź otwierania. `dp_smooth` jest wyznaczane słabo (±51%), bo zależy tylko od kilku punktów przy samym otwarciu. Wpływa jednak tylko na kształt kolanka charakterystyki. Jego „ogon” poniżej `p_set` działa w modelu jak dodatkowy przeciek (ok. 0,2 ml/s przy 35 kPa), więc osobno mierzony przeciek zamkniętego zaworu (`G_leak`, np. zbieranie kropel przez kilka minut) ma sens tylko wtedy, gdy jest większy.
+**Lesson: residuals show what the model cannot do.** In the joint fit the residuals form two bands of opposite sign (bottom panel of the plot). The noise estimated from the residuals comes out at 1.9 ml/s, almost 40 times the flow meter noise. It is not noise but the hysteresis, which a model with a single `p_set` lacks. The uncertainty of the joint `p_set` (±0.72 kPa) is therefore 7 times larger than that of either branch alone, but it is an honest measure: that is how far the model departs from the valve. With a 2 kPa hysteresis (4% of `p_set`) a single `p_set` from the middle is enough for the energy balance. If the valve is meant to limit chamber pressure with a margin, the opening branch is what matters. `dp_smooth` is poorly determined (±51%), because it depends on only a few points right at the opening. It affects only the shape of the knee of the characteristic, though. Its "tail" below `p_set` acts in the model as additional leakage (about 0.2 ml/s at 35 kPa), so a separately measured closed-valve leakage (`G_leak`, e.g. collecting drops for a few minutes) makes sense only if it is larger.
 
-### Ogon statycznie (krok 7): `calibrate.py tail-static`
+### Tail, static (step 7): `calibrate.py tail-static`
 
-Dwa pomiary przy różnicy ciśnień zadanej strzykawkami i mierzonej czujnikiem różnicowym:
+Two measurements with a pressure difference set by syringes and measured with a differential sensor:
 
-- **ogon zablokowany**, siłomierz na ramieniu: `τ = D_tail·Δp`, prosta przez zero daje `D_tail`,
-- **ogon swobodny**, kąt z kamery lub enkodera: `k·θ = D_tail·Δp`, nachylenie daje `D_tail/k`, a z `D_tail` wynika `k`.
+- **tail blocked**, force gauge on an arm: `τ = D_tail·Δp`, a line through zero gives `D_tail`,
+- **tail free**, angle from a camera or encoder: `k·θ = D_tail·Δp`, the slope gives `D_tail/k`, and `k` follows from `D_tail`.
 
-Plik pomiaru to CSV z kolumnami `dp_blocked, tau, dp_free, theta` (SI). Skrypt sprawdza też, czy kąt jest liniowy w Δp: dopasowuje dodatkowo człon `Δp³` i podaje jego statystykę t. Model ma stałe `k`, a prawdziwy silikon zwykle sztywnieje przy dużych kątach.
+The measurement file is a CSV with columns `dp_blocked, tau, dp_free, theta` (SI). The script also checks whether the angle is linear in Δp: it additionally fits a `Δp³` term and reports its t statistic. The model has a constant `k`, while real silicone usually stiffens at large angles.
 
-### Ogon dynamicznie (krok 8): `calibrate.py tail-dynamic`
+### Tail, dynamic (step 8): `calibrate.py tail-dynamic`
 
-Ogon wychylony i puszczony z bezruchu, komory otwarte do zbiornika, więc hydraulika nie dokłada sztywności ani tłumienia (`FishRobot.Calibration.TailDecay`). Najpierw w powietrzu, gdzie dopasowujemy `J` i `c`, potem w wodzie, gdzie dopasowujemy `J_added`, `c` i `c_h` przy `J` z powietrza. Wychylenie początkowe dopasowujemy jako parametr pomocniczy. Pliki pomiaru to CSV z kolumnami `time, theta`.
+The tail is deflected and released from rest, with the chambers open to the reservoir, so the hydraulics add no stiffness or damping (`FishRobot.Calibration.TailDecay`). First in air, where we fit `J` and `c`, then in water, where we fit `J_added`, `c` and `c_h` with `J` from air. The initial deflection is fitted as an auxiliary parameter. The measurement files are CSVs with columns `time, theta`.
 
-**Z drgań swobodnych nie da się wyznaczyć bezwładności bez sztywności.** Równanie podzielone przez `J` zawiera tylko `k/J`, `c/J` i `c_h/J`, więc dwa razy większe wszystkie parametry dają ten sam przebieg θ(t). Dlatego `k` pochodzi z kroku 7, a jego błąd przenosi się 1:1 na wszystkie parametry dynamiczne. Skrypt podaje osobno niepewność z dopasowania i całkowitą (z `k` i, dla `J_added`, z `J` z powietrza). W wodzie tłumienie liniowe `c` i kwadratowe `c_h` są skorelowane (−0,75). Rozróżnia je tylko zależność zaniku od amplitudy, więc `c` wychodzi z niepewnością ok. 7%. Pomogłyby dodatkowe drgania z małego wychylenia, gdzie dominuje `c`.
+**Inertia cannot be determined from free vibration without stiffness.** The equation divided by `J` contains only `k/J`, `c/J` and `c_h/J`, so doubling all parameters gives the same θ(t). That is why `k` comes from step 7, and its error carries over 1:1 to all dynamic parameters. The script reports separately the uncertainty from the fit and the total one (from `k` and, for `J_added`, from `J` in air). In water the linear damping `c` and the quadratic damping `c_h` are correlated (−0.75). Only the dependence of the decay on amplitude distinguishes them, so `c` comes out with about 7% uncertainty. Additional vibrations from a small deflection, where `c` dominates, would help.
 
-Pomiar syntetyczny: ogon z `D_tail` = 1,6e-5 m³/rad, sztywnością 2,6 N·m/rad przy małych kątach, rosnącą z kątem (`k·(1 + 0,6·θ²)`), i dynamiką liniową z tą sztywnością. 17 punktów statycznych do ±40 kPa (±14°), drgania próbkowane 500 Hz z szumem 0,17°. Wyniki (`results/calibration/tail_*`):
+Synthetic measurement: a tail with `D_tail` = 1.6e-5 m³/rad, stiffness 2.6 N·m/rad at small angles, rising with angle (`k·(1 + 0.6·θ²)`), and linear dynamics with this stiffness. 17 static points up to ±40 kPa (±14°), vibrations sampled at 500 Hz with 0.17° noise. Results (`results/calibration/tail_*`):
 
-| `--k` | `k` do kroku 8 | `J`: błąd | `J`: niepewność całkowita |
+| `--k` | `k` passed to step 8 | `J`: error | `J`: total uncertainty |
 |---|---|---|---|
-| `line` (prosta w całym zakresie) | 2,657 (+2,2%) | +2,2% | ±0,72% |
-| `small` (małe kąty, z członem Δp³) | 2,546 (−2,1%) | −2,1% | ±1,30% |
+| `line` (straight line over the whole range) | 2.657 (+2.2%) | +2.2% | ±0.72% |
+| `small` (small angles, with the Δp³ term) | 2.546 (−2.1%) | −2.1% | ±1.30% |
 
-**Lekcja: niezgodność modelu daje błąd, którego nie widać w σ.** Prosta w całym zakresie ma obciążenie: w 500 powtórzeniach średnio +2,3% przy rozrzucie tylko 0,6%. Jej σ jest małe, ale fałszywe, bo błąd `J` jest 3 razy większy od podanej niepewności. Sztywność przy małych kątach nie ma obciążenia (średnio 2,605 przy prawdziwych 2,6), ale ma większy rozrzut (1,5%). Tu błąd mieści się w σ. Który wariant wybrać, zależy od zakresu pracy: przy 1 Hz ogon macha o ok. 8°, a przy zaworze otwartym o ok. 31°. Ogólna zasada: jeśli test nieliniowości alarmuje, `k` trzeba mierzyć w zakresie kątów, w którym ogon naprawdę pracuje. Jeśli zakres jest duży, `TailEquivalent` potrzebuje nieliniowej sprężyny. Nieliniowości prawie nie widać na wykresie reszt, a test ją wykrywa (t = −3,5).
+**Lesson: model mismatch gives an error you cannot see in σ.** The straight line over the whole range is biased: over 500 repetitions +2.3% on average with a spread of only 0.6%. Its σ is small but false, because the error in `J` is 3 times the reported uncertainty. The small-angle stiffness has no bias (2.605 on average against the true 2.6), but a larger spread (1.5%). Here the error is within σ. Which variant to choose depends on the working range: at 1 Hz the tail flaps by about 8°, and with the valve open by about 31°. General rule: if the nonlinearity test raises an alarm, `k` has to be measured in the range of angles where the tail really works. If that range is large, `TailEquivalent` needs a nonlinear spring. The nonlinearity is hardly visible in the residual plot, but the test detects it (t = −3.5).
 
-### Ciąg płetwy (krok 9): `calibrate.py thrust`
+### Fin thrust (step 9): `calibrate.py thrust`
 
-Ryba przymocowana do siłomierza, w basenie (`U = 0`, na uwięzi) i w miarę możliwości w tunelu wodnym przy kilku prędkościach przepływu. W każdym punkcie mierzy się średni ciąg i amplitudę kąta ogona. W tunelu siłomierz widzi ciąg minus opór kadłuba, więc przy każdej prędkości trzeba też zmierzyć siłę przy nieruchomym ogonie (tara) i ją odjąć. Plik pomiaru to CSV z kolumnami `Theta [rad], f [Hz], U [m/s], T [N]`.
+The fish is attached to a force gauge, in a pool (`U = 0`, tethered) and if possible in a water tunnel at several flow speeds. At each point mean thrust and tail angle amplitude are measured. In the tunnel the force gauge sees thrust minus hull drag, so at each speed the force with the tail at rest (tare) also has to be measured and subtracted. The measurement file is a CSV with columns `Theta [rad], f [Hz], U [m/s], T [N]`.
 
-Średni ciąg dla zadanego sinusa kąta liczy `FishRobot.Calibration.ThrustBench` (`C_T = 1`). Ciąg jest liniowy w `C_T`, więc `C_T` wyznacza regresja przez zero. `s_fin` występuje w modelu tylko w iloczynie `C_T·s_fin²`, dlatego `s_fin` i `L_tail` mierzy się linijką. Skrypt sprawdza też postać modelu: dopasowuje osobno człon statyczny i karę za prędkość (`T = a·T(0) − b·(T(0) − T(U))`). W teorii Lighthilla `b/a = 1`.
+Mean thrust for a given angle sine is computed by `FishRobot.Calibration.ThrustBench` (`C_T = 1`). Thrust is linear in `C_T`, so `C_T` is determined by regression through zero. `s_fin` appears in the model only in the product `C_T·s_fin²`, which is why `s_fin` and `L_tail` are measured with a ruler. The script also checks the form of the model: it fits the static term and the speed penalty separately (`T = a·T(0) − b·(T(0) − T(U))`). In Lighthill's theory `b/a = 1`.
 
-**Wagi z modelu szumu czujnika.** Szum siłomierza ma część stałą (`--noise-abs`, tu 0,1 mN) i względną (`--noise-rel`, tu 5%). Przy połowie amplitudy ciąg to ok. 0,3 mN, więc dominuje część stała, a przy pełnej amplitudzie (ok. 3 mN) względna. W 2000 powtórzeniach zwykła regresja zaniżała niepewność `C_T` z uwięzi (σ 2,95% przy rozrzucie 3,86%). Regresja ważona tylko szumem względnym była jeszcze gorsza (rozrzut 5,1%). Dopiero wagi z pełnego modelu szumu dają σ zgodne z rozrzutem (3,64% i 3,64%).
+**Weights from the sensor noise model.** The force gauge noise has a constant part (`--noise-abs`, here 0.1 mN) and a relative part (`--noise-rel`, here 5%). At half amplitude thrust is about 0.3 mN, so the constant part dominates, and at full amplitude (about 3 mN) the relative part. Over 2000 repetitions ordinary regression underestimated the uncertainty of the tethered `C_T` (σ 2.95% with a spread of 3.86%). Regression weighted by relative noise only was even worse (spread 5.1%). Only weights from the full noise model give σ consistent with the spread (3.64% and 3.64%).
 
-Pomiar syntetyczny: płetwa z `C_T = 0,6` i karą za prędkość 1,5 razy większą niż w teorii (np. przez oderwanie przepływu). Amplitudy jak w przeglądzie częstotliwości (pompa ogranicza θ·f), pełna i połowa komendy, 4 częstotliwości × 4 prędkości (0–10 cm/s), razem 32 punkty. Wyniki z 2000 powtórzeń (`results/calibration/thrust_fit.{txt,png}`):
+Synthetic measurement: a fin with `C_T = 0.6` and a speed penalty 1.5 times larger than in theory (e.g. due to flow separation). Amplitudes as in the frequency sweep (the pump limits θ·f), full and half command, 4 frequencies × 4 speeds (0–10 cm/s), 32 points in total. Results from 2000 repetitions (`results/calibration/thrust_fit.{txt,png}`):
 
-| Estymator | Średnio | Rozrzut | σ |
+| Estimator | Mean | Spread | σ |
 |---|---|---|---|
-| `C_T`, wszystkie punkty | 0,584 (−2,6%) | 2,0% | 2,3% |
-| `C_T`, tylko na uwięzi | 0,600 (0,0%) | 3,6% | 3,6% |
-| kara za prędkość `b/a` | 1,50 | 0,12 | 0,14 |
+| `C_T`, all points | 0.584 (−2.6%) | 2.0% | 2.3% |
+| `C_T`, tethered only | 0.600 (0.0%) | 3.6% | 3.6% |
+| speed penalty `b/a` | 1.50 | 0.12 | 0.14 |
 
-**Lekcja: model o złej postaci daje obciążony parametr, ale nie zawsze ma to znaczenie.** `C_T` ze wszystkich punktów jest obciążone, bo model źle opisuje spadek ciągu z prędkością. `C_T` z samej uwięzi tego problemu nie ma, ale ma większy rozrzut. Skrypt wpisuje do modelu `C_T` z uwięzi, bo robot pływa wolno: przy 1 Hz krawędź spływu porusza się z prędkością ok. 63 cm/s, a robot płynie 6 cm/s. Kara za prędkość to tam ok. 1% ciągu, a jej błąd o 50% zmienia ciąg o ok. 0,5%. Ma ona znaczenie dopiero dla prędkości maksymalnej: ciąg znika przy `L·ω/√1,5` ≈ 51 cm/s zamiast 63 cm/s. Test postaci wykrywa `b/a = 1,5` (powyżej 3σ) tylko w 74% powtórzeń. Rozstrzygają go nieliczne punkty o dużym `U²/(L·ω)²`, czyli przy małej częstotliwości i dużej prędkości przepływu (prawy wykres), a nie liczba punktów.
+**Lesson: a model of the wrong form gives a biased parameter, but it does not always matter.** `C_T` from all points is biased, because the model describes the drop of thrust with speed incorrectly. `C_T` from the tether alone does not have this problem, but has a larger spread. The script writes the tethered `C_T` into the model, because the robot swims slowly: at 1 Hz the trailing edge moves at about 63 cm/s, while the robot swims at 6 cm/s. The speed penalty there is about 1% of thrust, and a 50% error in it changes thrust by about 0.5%. It matters only for the maximum speed: thrust vanishes at `L·ω/√1.5` ≈ 51 cm/s instead of 63 cm/s. The form test detects `b/a = 1.5` (above 3σ) in only 74% of repetitions. It is decided by the few points with large `U²/(L·ω)²`, i.e. at low frequency and high flow speed (right-hand plot), not by the number of points.
 
-### Kadłub (krok 10): `calibrate.py hull`
+### Hull (step 10): `calibrate.py hull`
 
-Dwa pomiary w basenie, oba z nieruchomym ogonem:
+Two measurements in a pool, both with the tail at rest:
 
-- **holowanie** ze stałą prędkością, siłomierz na wózku: `F = ½·ρ·C_d·A·U²`. Pole `A` mierzy się linijką (wyznaczalny jest tylko iloczyn `C_d·A`), a `C_d` wynika z regresji ważonej modelem szumu siłomierza. Plik: `U [m/s], F [N]`.
-- **wybieg** po puszczeniu z wózka, położenie z kamery nad basenem (`FishRobot.Calibration.CoastDown`). Plik: `time [s], x [m]`, z `x = 0` w chwili puszczenia.
+- **towing** at constant speed, force gauge on a carriage: `F = ½·ρ·C_d·A·U²`. The area `A` is measured with a ruler (only the product `C_d·A` can be determined), and `C_d` comes from regression weighted by the force gauge noise model. File: `U [m/s], F [N]`.
+- **coast-down** after release from the carriage, position from a camera above the pool (`FishRobot.Calibration.CoastDown`). File: `time [s], x [m]`, with `x = 0` at the moment of release.
 
-**Wybieg zależy tylko od `k_d/M`**, gdzie `k_d = ½·ρ·C_d·A`, a `M = m + m_added_x`. Dlatego `C_d` pochodzi z holowania, `m` z wagi (`--m`), a wybieg daje masę całkowitą `M` i dopiero z niej masę dodaną `m_added_x = M − m`. Prędkość początkową dopasowujemy jako parametr pomocniczy.
+**Coast-down depends only on `k_d/M`**, where `k_d = ½·ρ·C_d·A` and `M = m + m_added_x`. That is why `C_d` comes from towing, `m` from a scale (`--m`), and the coast-down gives the total mass `M`, and only from that the added mass `m_added_x = M − m`. The initial speed is fitted as an auxiliary parameter.
 
-Pomiar syntetyczny: `C_d = 0,4`, `A = 50 cm²`, `m = 1 kg`, `m_added_x = 0,08 kg`. Holowanie przy 10 prędkościach 2–20 cm/s (szum 0,1 mN + 3%), wybieg z 15 cm/s przez 20 s, kamera 30 kl./s z szumem 2 mm (`results/calibration/hull_fit.{txt,png}`):
+Synthetic measurement: `C_d = 0.4`, `A = 50 cm²`, `m = 1 kg`, `m_added_x = 0.08 kg`. Towing at 10 speeds 2–20 cm/s (noise 0.1 mN + 3%), coast-down from 15 cm/s for 20 s, camera 30 fps with 2 mm noise (`results/calibration/hull_fit.{txt,png}`):
 
-- `C_d` = 0,402 ± 0,9%,
-- masa całkowita z wybiegu: niepewność z samego dopasowania tylko 0,09%,
-- `m_added_x` = 0,084 ± 0,010 kg (12%), z czego 0,0097 kg pochodzi z `C_d`, a po 0,001 kg z dopasowania i z ważenia.
+- `C_d` = 0.402 ± 0.9%,
+- total mass from the coast-down: uncertainty from the fit alone only 0.09%,
+- `m_added_x` = 0.084 ± 0.010 kg (12%), of which 0.0097 kg comes from `C_d`, and 0.001 kg each from the fit and from weighing.
 
-W 200 powtórzeniach rozrzut `m_added_x` to 0,015 kg (ok. 18%), przy średnim σ 0,014 kg i bez obciążenia.
+Over 200 repetitions the spread of `m_added_x` is 0.015 kg (about 18%), with a mean σ of 0.014 kg and no bias.
 
-**Lekcja: mała różnica dużych liczb.** Masa dodana to tylko 8% masy całkowitej, więc każdy procent błędu `M` daje ok. 13% błędu `m_added_x`. Kamera wyznacza `k_d/M` bardzo dokładnie, ale błąd `C_d` z holowania przechodzi w `M` 1:1 i zjada całą precyzję. Żeby poprawić `m_added_x`, trzeba lepiej zmierzyć opór (więcej punktów holowania przy prędkościach z wybiegu, 5–15 cm/s), a nie dłużej filmować wybieg. Dla samego pływania to małe zmartwienie: `m_added_x` wpływa tylko na czas rozpędzania, a prędkość ustalona zależy wyłącznie od `C_d·A`, który jest wyznaczony z dokładnością 1%.
+**Lesson: a small difference of large numbers.** Added mass is only 8% of the total mass, so every percent of error in `M` gives about 13% error in `m_added_x`. The camera determines `k_d/M` very precisely, but the error of `C_d` from towing carries over 1:1 into `M` and eats up all the precision. To improve `m_added_x`, drag has to be measured better (more towing points at the coast-down speeds, 5–15 cm/s), not the coast-down filmed longer. For swimming itself this is a minor concern: `m_added_x` affects only the acceleration time, and the steady-state speed depends only on `C_d·A`, which is determined to within 1%.
 
-### Balast i pion (krok 11): `calibrate.py ballast`
+### Ballast and heave (step 11): `calibrate.py ballast`
 
-Trzy pomiary w basenie:
+Three measurements in a pool:
 
-1. **Ważenie pod wodą przy kilku położeniach tłoka** (licznik obrotów silnika strzykawki, 0 = pęcherz pusty). Ciężar pozorny `W = ρ·g·(V_b_neutral − A_tłoka·posuw·n)` jest liniowy w liczbie obrotów `n`. Wyraz wolny to `ρ·g·V_b_neutral`, niezależnie od geometrii tłoka. Nachylenie daje posuw tłoka na obrót silnika, czyli `lead/gear_ratio` (tylko ten iloraz), przy średnicy tłoka z suwmiarki. Plik: `turns, W [N]`.
-2. **Ważenie na kilku głębokościach** przy stałym tłoku: `W = W0 + ρ·g·V_air0·(1 − p_atm/(p_atm + ρ·g·h))`, regresja liniowa w `W0` i `V_air0`. Plik: `depth [m], W [N]`.
-3. **Wynurzanie po skoku pęcherza** z pływalności neutralnej (`FishRobot.Calibration.VerticalStep`), położenie z czujnika ciśnienia w kadłubie. Siła `ρ·g·dV` jest znana, więc prędkość graniczna wyznacza opór `C_dz`, a czas rozpędzania masę `m + m_added_z`. Plik: `time [s], z [m]`, skok w `t = 2 s`.
+1. **Underwater weighing at several piston positions** (syringe motor revolution counter, 0 = bladder empty). The apparent weight `W = ρ·g·(V_b_neutral − A_piston·travel·n)` is linear in the number of revolutions `n`. The intercept is `ρ·g·V_b_neutral`, independent of piston geometry. The slope gives the piston travel per motor revolution, i.e. `lead/gear_ratio` (only this ratio), with the piston diameter from calipers. File: `turns, W [N]`.
+2. **Weighing at several depths** with the piston fixed: `W = W0 + ρ·g·V_air0·(1 − p_atm/(p_atm + ρ·g·h))`, linear regression in `W0` and `V_air0`. File: `depth [m], W [N]`.
+3. **Ascent after a bladder step** from neutral buoyancy (`FishRobot.Calibration.VerticalStep`), position from a pressure sensor in the hull. The force `ρ·g·dV` is known, so the terminal velocity determines the drag `C_dz`, and the acceleration time the mass `m + m_added_z`. File: `time [s], z [m]`, step at `t = 2 s`.
 
-Pomiar syntetyczny (waga pod wodą 1 mN, czujnik głębokości 3 mm) (`results/calibration/ballast_fit.{txt,png}`):
+Synthetic measurement (underwater scale 1 mN, depth sensor 3 mm) (`results/calibration/ballast_fit.{txt,png}`):
 
-| Parametr | Wynik | Niepewność | Błąd |
+| Parameter | Result | Uncertainty | Error |
 |---|---|---|---|
-| `V_b_neutral` | 7,29 ml | ±0,06 ml | +1,3% |
-| posuw tłoka | 33,1 µm/obr | ±0,8% | +1,3% |
-| `V_air0` | 15,2 ml | ±0,7 ml | +1,2% |
-| `m_added_z` | 0,595 kg | ±1,6% | −0,8% |
-| `C_dz` | 1,304 | ±1,1% | +0,3% |
+| `V_b_neutral` | 7.29 ml | ±0.06 ml | +1.3% |
+| piston travel | 33.1 µm/rev | ±0.8% | +1.3% |
+| `V_air0` | 15.2 ml | ±0.7 ml | +1.2% |
+| `m_added_z` | 0.595 kg | ±1.6% | −0.8% |
+| `C_dz` | 1.304 | ±1.1% | +0.3% |
 
-**Lekcja 1: znana siła daje masę dodaną.** W kroku 10 wybieg wyznaczał tylko `k_d/M`, a masa dodana wynikała z różnicy dużych liczb z niepewnością 18%. Tu wymuszenie `ρ·g·dV` jest znane z położenia tłoka, więc jeden przebieg wyznacza i opór, i masę, a `m_added_z` wychodzi z niepewnością 1,6%. Masa dodana w pionie (60% masy ryby) jest też dużo większa niż wzdłuż osi (8%), więc łatwiej ją zmierzyć.
+**Lesson 1: a known force gives the added mass.** In step 10 the coast-down determined only `k_d/M`, and the added mass came from a difference of large numbers with 18% uncertainty. Here the forcing `ρ·g·dV` is known from the piston position, so a single run determines both drag and mass, and `m_added_z` comes out with 1.6% uncertainty. The vertical added mass (60% of the fish's mass) is also much larger than along the axis (8%), so it is easier to measure.
 
-**Lekcja 2: model może pasować idealnie i być zły.** Kieszeń powietrza w kadłubie (15 ml) rozpręża się przy wynurzaniu. Na 0,5 m drogi z 1,5 m to ok. 0,7 ml dodatkowego wyporu, prawie tyle co sam skok pęcherza (1 ml). Dopasowanie modelu bez ściśliwości daje `C_dz` = 1,01 (prawdziwe 1,3) i `m_added_z` = 0,71 kg (prawdziwe 0,6), a reszty mają 3,0 mm, czyli dokładnie szum czujnika. Rosnący wypór „chowa się” w oporze i masie, więc reszty niczego nie zdradzają. Dlatego `VerticalStep` ma włączoną ściśliwość, `V_air0` pochodzi z pomiaru 2, a jego niepewność jest doliczana do niepewności `C_dz` i `m_added_z` (przez ponowne dopasowanie przy `V_air0 + σ`).
+**Lesson 2: a model can fit perfectly and still be wrong.** The air pocket in the hull (15 ml) expands during ascent. Over 0.5 m of travel from 1.5 m that is about 0.7 ml of extra buoyancy, almost as much as the bladder step itself (1 ml). Fitting a model without compressibility gives `C_dz` = 1.01 (true 1.3) and `m_added_z` = 0.71 kg (true 0.6), and the residuals are 3.0 mm, exactly the sensor noise. The growing buoyancy "hides" in the drag and the mass, so the residuals give nothing away. That is why `VerticalStep` has compressibility enabled, `V_air0` comes from measurement 2, and its uncertainty is added to the uncertainty of `C_dz` and `m_added_z` (by refitting at `V_air0 + σ`).
 
-### Podsumowanie kalibracji
+### Calibration summary
 
-Każdy krok ma model stanowiska w `FishRobot.Calibration` (albo regresję, gdy zależności są liniowe), pomiar syntetyczny ze znanymi parametrami i sprawdzenie, czy podawana niepewność zgadza się z rozrzutem w powtórzeniach. Przy prawdziwych pomiarach wystarczy podać pliki CSV (`--data...`). Lekcje powtarzające się w wielu krokach:
+Each step has a bench model in `FishRobot.Calibration` (or a regression, where the relationships are linear), a synthetic measurement with known parameters and a check of whether the reported uncertainty matches the spread over repetitions. With real measurements it is enough to pass the CSV files (`--data...`). Lessons that recur across many steps:
 
-- **Nie każdy parametr da się wyznaczyć z danego pomiaru.** Często widać tylko iloraz albo iloczyn: `C_T·s_fin²`, `C_d·A`, `V_flow_nominal/dp_open`, `k/J`, `k_d/M`, `lead/gear_ratio`. Brakujący czynnik trzeba zmierzyć inaczej (linijka, waga, osobny pomiar statyczny), a jego błąd przenosi się na wynik.
-- **Wagi sygnałów i punktów muszą wynikać z modelu szumu czujników.** Inaczej podawana niepewność jest za mała (silnik, ciąg).
-- **Błąd czujnika zidentyfikowanego wcześniej nie uśrednia się.** Silnik jako czujnik momentu dla pompy, `k` ogona dla dynamiki, `C_d` dla masy dodanej, `V_air0` dla oporu w pionie.
-- **Niezgodność modelu z rzeczywistością daje błąd, którego nie ma w σ.** Czasem widać ją w resztach (histereza zaworu, przejście laminarne w przewodzie), czasem tylko w teście postaci (nieliniowa sztywność ogona, ciąg w funkcji prędkości), a czasem wcale (ściśliwość przy wynurzaniu). Dlatego pomiar syntetyczny z „rzeczywistością” bogatszą niż model to dobry sposób, żeby przed wyjazdem na basen sprawdzić, czy plan pomiarów w ogóle pozwoli wyznaczyć parametry.
+- **Not every parameter can be determined from a given measurement.** Often only a ratio or a product is visible: `C_T·s_fin²`, `C_d·A`, `V_flow_nominal/dp_open`, `k/J`, `k_d/M`, `lead/gear_ratio`. The missing factor has to be measured another way (ruler, scale, a separate static measurement), and its error carries over into the result.
+- **Signal and point weights must follow from the sensor noise model.** Otherwise the reported uncertainty is too small (motor, thrust).
+- **The error of a sensor identified earlier does not average out.** The motor as a torque sensor for the pump, the tail's `k` for the dynamics, `C_d` for the added mass, `V_air0` for vertical drag.
+- **A mismatch between model and reality gives an error that is not in σ.** Sometimes it is visible in the residuals (valve hysteresis, the laminar transition in the pipe), sometimes only in a form test (nonlinear tail stiffness, thrust as a function of speed), and sometimes not at all (compressibility during ascent). That is why a synthetic measurement with a "reality" richer than the model is a good way to check, before going to the pool, whether the measurement plan will let you determine the parameters at all.

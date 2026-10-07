@@ -78,15 +78,15 @@ def main():
 
     s, f = own["sol"], on_own
     plotting.panels(t, [
-        ("komenda u [-]", [(s["bridge.u_lim"], "u")]),
-        ("nadciśnienie [kPa]", [(s["p_L"] / 1e3, "L własny"), (f["p_L"] / 1e3, "L Fluid"),
-                                (s["p_R"] / 1e3, "R własny"), (f["p_R"] / 1e3, "R Fluid")]),
-        ("przepływ [ml/s]", [(s["Q_pump"] * 1e6, "pompa własny"), (f["Q_pump"] * 1e6, "pompa Fluid"),
-                             (s["Q_relief"] * 1e6, "zawory własny"), (f["Q_relief"] * 1e6, "zawory Fluid")]),
-        ("spadek ciśn.\nprzewód L [kPa]", [(s["pipeL.dp"] / 1e3, "własny (Haaland)"),
+        ("command u [-]", [(s["bridge.u_lim"], "u")]),
+        ("gauge pressure [kPa]", [(s["p_L"] / 1e3, "L own"), (f["p_L"] / 1e3, "L Fluid"),
+                                (s["p_R"] / 1e3, "R own"), (f["p_R"] / 1e3, "R Fluid")]),
+        ("flow [ml/s]", [(s["Q_pump"] * 1e6, "pump own"), (f["Q_pump"] * 1e6, "pump Fluid"),
+                             (s["Q_relief"] * 1e6, "valves own"), (f["Q_relief"] * 1e6, "valves Fluid")]),
+        ("pressure drop\npipe L [kPa]", [(s["pipeL.dp"] / 1e3, "own (Haaland)"),
                                            (f["pipeL.dp"] / 1e3, "Fluid (DetailedPipeFlow)")]),
-        ("prąd silnika [A]", [(s["i_motor"], "własny"), (f["i_motor"], "Fluid")]),
-    ], "HydraulicsStep: własny pakiet vs Modelica.Fluid", "fluid_vs_own.png", subdir="fluid")
+        ("motor current [A]", [(s["i_motor"], "own"), (f["i_motor"], "Fluid")]),
+    ], "HydraulicsStep: own package vs Modelica.Fluid", "fluid_vs_own.png", subdir="fluid")
     print(f"Wykres: {C.RESULTS_DIR / 'fluid' / 'fluid_vs_own.png'}")
     return 1 if failed else 0
 

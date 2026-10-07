@@ -77,7 +77,7 @@ MOTOR = {
     "params": {"motor.R": (1.0, "Ω"), "motor.L": (5e-4, "H"), "motor.k": (0.01, "V·s/rad"),
                "motor.J": (5e-6, "kg·m²"), "motor.b": (1e-6, "N·m·s/rad")},
     # sygnał: (jednostka, opis)
-    "signals": {"i": ("A", "prąd"), "w": ("rad/s", "prędkość")},
+    "signals": {"i": ("A", "current"), "w": ("rad/s", "speed")},
     # pomiar syntetyczny: „prawdziwy” silnik i szum czujników (odchylenie standardowe)
     "true": {"motor.R": 1.6, "motor.L": 8e-4, "motor.k": 0.0125, "motor.J": 3.5e-6, "motor.b": 2e-6},
     "noise": {"i": 0.03, "w": 2.0},
@@ -176,19 +176,19 @@ def plot(exp, t, meas, sim_fit, sim_start, title, name):
     fig, axes = plotting.plt.subplots(len(sig) + 1, 1, figsize=(9, 2.3 * (len(sig) + 1) + 0.6), sharex=True)
     for ax, s in zip(axes, sig):
         unit, label = exp["signals"][s]
-        ax.plot(t, meas[s], ".", color="#b9b8b3", markersize=2, label="pomiar")
+        ax.plot(t, meas[s], ".", color="#b9b8b3", markersize=2, label="measured")
         ax.plot(t, sim_start[s], color=plotting.SERIES[1], linestyle=(0, (4, 3)), linewidth=1.5,
-                label="start (placeholdery)")
-        ax.plot(t, sim_fit[s], color=plotting.SERIES[0], label="dopasowanie")
+                label="start (placeholders)")
+        ax.plot(t, sim_fit[s], color=plotting.SERIES[0], label="fit")
         ax.set_ylabel(f"{label} [{unit}]")
     axes[0].legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, borderaxespad=0.2)
     axes[0].set_title(title, loc="left", fontsize=11, pad=26)
     for j, s in enumerate(sig):
         r = (meas[s] - sim_fit[s]) / np.ptp(meas[s]) * 100
         axes[-1].plot(t, r, color=plotting.SERIES[j], linewidth=0.8, label=exp["signals"][s][1])
-    axes[-1].set_ylabel("reszty [% zakresu]")
+    axes[-1].set_ylabel("residuals [% of range]")
     axes[-1].legend(loc="center left", bbox_to_anchor=(1.01, 0.5))
-    axes[-1].set_xlabel("czas [s]")
+    axes[-1].set_xlabel("time [s]")
     fig.align_ylabels(axes)
     return plotting.save(fig, name, "calibration")
 
@@ -224,8 +224,8 @@ def motor_main(args):
 
     sim_fit = simulate(work_dir, exp, p_fit, "fit", setup, t)
     sim_start = simulate(work_dir, exp, [v for v, _ in exp["params"].values()], "start", setup, t)
-    src = "pomiar syntetyczny" if truth else args.data
-    print(plot(exp, t, meas, sim_fit, sim_start, f"Kalibracja silnika: skok {args.U:g} V, wolny wał ({src})",
+    src = "synthetic data" if truth else args.data
+    print(plot(exp, t, meas, sim_fit, sim_start, f"Motor calibration: {args.U:g} V step, free shaft ({src})",
                "motor_step_fit.png"))
 
 
@@ -323,10 +323,10 @@ def pump_plot(U, meas, extra, title, name):
         ax_t.plot(dp[sel], extra["tau"][sel] * 1e3, "o", color=plotting.SERIES[j], markersize=5, label=f"U = {u:g} V")
     ax_q.plot(line, -line * 1e3 * extra["k_leak"] * 1e6, color=plotting.TEXT_2, linewidth=1.2, label="−k_leak·Δp")
     ax_q.set_xlabel("Δp [kPa]")
-    ax_q.set_ylabel("Q − D·ω [ml/s]  (przeciek)")
+    ax_q.set_ylabel("Q − D·ω [ml/s]  (leakage)")
     ax_t.plot(line, line * 1e3 * extra["c"] * 1e3, color=plotting.TEXT_2, linewidth=1.2, label="D·Δp/η_m")
     ax_t.set_xlabel("Δp [kPa]")
-    ax_t.set_ylabel("k·i − b·ω [mN·m]  (moment na wale)")
+    ax_t.set_ylabel("k·i − b·ω [mN·m]  (shaft torque)")
     for ax in (ax_q, ax_t):
         ax.legend(loc="best")
     fig.suptitle(title, x=0.01, ha="left", fontsize=11)
@@ -353,8 +353,8 @@ def pump_main(args):
     text = pump_report(values, rel, extra, truth)
     print(text)
     (OUT / "pump_fit.txt").write_text(text + "\n")
-    src = "pomiar syntetyczny" if truth else args.data
-    print(pump_plot(U, meas, extra, f"Kalibracja pompy: {len(U)} punktów pracy ({src})", "pump_fit.png"))
+    src = "synthetic data" if truth else args.data
+    print(pump_plot(U, meas, extra, f"Pump calibration: {len(U)} operating points ({src})", "pump_fit.png"))
 
 
 # --- Krok 4: przewód -------------------------------------------------------------------------------
@@ -362,7 +362,7 @@ def pump_main(args):
 PIPE = {
     "model": "FishRobot.Calibration.PipeBench",
     "params": {"pipe.d": (4e-3, "m"), "pipe.zeta": (1.5, "–"), "pipe.roughness": (2.5e-5, "m")},
-    "signals": {"dp": ("Pa", "spadek ciśnienia")},
+    "signals": {"dp": ("Pa", "pressure drop")},
     "log": True,
     # „prawdziwy” przewód: wąż o średnicy wewnętrznej mniejszej od nominalnej, gładki, z kilkoma złączkami
     "true": {"pipe.d": 3.6e-3, "pipe.zeta": 2.5, "pipe.roughness": 5e-6},
@@ -380,12 +380,12 @@ def pipe_plot(Q, dp, sim_fit, sim_start, d_fit, title, name):
     q_re = [re * nu * np.pi * d_fit / 4 * 1e6 for re in (2000, 4000)]
     for a in (ax, ax_r):
         a.axvspan(*q_re, color=plotting.GRID, alpha=0.7, linewidth=0)
-    ax.annotate("przejście\nRe 2000–4000", (np.sqrt(q_re[0] * q_re[1]), 0.97), xycoords=("data", "axes fraction"),
+    ax.annotate("transition\nRe 2000–4000", (np.sqrt(q_re[0] * q_re[1]), 0.97), xycoords=("data", "axes fraction"),
                 ha="center", va="top", color=plotting.TEXT_2, fontsize=9)
-    ax.plot(q, dp / 1e3, "o", color="#9a9994", markersize=4, label="pomiar")
+    ax.plot(q, dp / 1e3, "o", color="#9a9994", markersize=4, label="measured")
     ax.plot(q, sim_start["dp"] / 1e3, color=plotting.SERIES[1], linestyle=(0, (4, 3)), linewidth=1.5,
-            label="start (placeholdery)")
-    ax.plot(q, sim_fit["dp"] / 1e3, color=plotting.SERIES[0], label="dopasowanie")
+            label="start (placeholders)")
+    ax.plot(q, sim_fit["dp"] / 1e3, color=plotting.SERIES[0], label="fit")
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_ylabel("Δp [kPa]")
@@ -393,7 +393,7 @@ def pipe_plot(Q, dp, sim_fit, sim_start, d_fit, title, name):
     ax.set_title(title, loc="left", fontsize=11, pad=26)
     ax_r.plot(q, (dp / sim_fit["dp"] - 1) * 100, "o-", color=plotting.SERIES[0], markersize=3, linewidth=0.8)
     ax_r.axhline(0, color=plotting.TEXT_2, linewidth=0.8)
-    ax_r.set_ylabel("reszty [%]")
+    ax_r.set_ylabel("residuals [%]")
     ax_r.set_xlabel("Q [ml/s]")
     fig.align_ylabels((ax, ax_r))
     return plotting.save(fig, name, "calibration")
@@ -424,8 +424,8 @@ def pipe_main(args):
     (OUT / "pipe_fit.txt").write_text(text + "\n")
     sim_fit = simulate(work_dir, exp, p_fit, "fit", setup, t)
     sim_start = simulate(work_dir, exp, [v for v, _ in exp["params"].values()], "start", setup, t)
-    src = "pomiar syntetyczny" if truth else args.data
-    print(pipe_plot(Q, dp, sim_fit, sim_start, p_fit[0], f"Kalibracja przewodu: l = {args.l:g} m ({src})",
+    src = "synthetic data" if truth else args.data
+    print(pipe_plot(Q, dp, sim_fit, sim_start, p_fit[0], f"Pipe calibration: l = {args.l:g} m ({src})",
                     "pipe_fit.png"))
 
 
@@ -558,23 +558,23 @@ def chamber_main(args):
     (OUT / "chamber_fit.txt").write_text(text + "\n")
 
     fig, ax = plotting.plt.subplots(figsize=(9, 5.5))
-    ax.plot(x * 1e6, p / 1e3, ".", color="#cfceca", markersize=2, label="pomiar")
+    ax.plot(x * 1e6, p / 1e3, ".", color="#cfceca", markersize=2, label="measured")
     a, b = r["strokes"][0]
-    ax.plot(x[:a] * 1e6, p[:a] / 1e3, ".", color=plotting.SERIES[3], markersize=2, label="pominięte (pierwszy cykl)")
-    ax.plot(r["nodes"] * 1e6, r["load"] / 1e3, "^", color=plotting.SERIES[1], markersize=6, label="napełnianie")
-    ax.plot(r["nodes"] * 1e6, r["unload"] / 1e3, "v", color=plotting.SERIES[2], markersize=6, label="opróżnianie")
+    ax.plot(x[:a] * 1e6, p[:a] / 1e3, ".", color=plotting.SERIES[3], markersize=2, label="skipped (first cycle)")
+    ax.plot(r["nodes"] * 1e6, r["load"] / 1e3, "^", color=plotting.SERIES[1], markersize=6, label="filling")
+    ax.plot(r["nodes"] * 1e6, r["unload"] / 1e3, "v", color=plotting.SERIES[2], markersize=6, label="emptying")
     ax.plot(xm_all := (sol["V"] - args.V_rest) * 1e6, sol["p"] / 1e3, color=plotting.SERIES[0],
-            label="Chamber z wyznaczoną krzywą")
+            label="Chamber with fitted curve")
     tab = np.loadtxt(C.PACKAGE_DIR / "Resources/Data/chamber_pV_placeholder.csv", delimiter=",", skiprows=1)
     ax.plot((tab[:, 0] - 5e-6) * 1e6, tab[:, 1] / 1e3, color=plotting.SERIES[4], linestyle=(0, (4, 3)),
-            linewidth=1.5, label="placeholder (spoczynek 5 ml)")
+            linewidth=1.5, label="placeholder (rest volume 5 ml)")
     ax.set_xlim(x.min() * 1e6 - 0.3, x.max() * 1e6 + 0.3)
     ax.set_ylim(min(p.min(), r["backbone"].min()) / 1e3 - 3, p.max() / 1e3 + 5)
-    ax.set_xlabel("ΔV ze strzykawki [ml]")
-    ax.set_ylabel("nadciśnienie [kPa]")
+    ax.set_xlabel("ΔV from syringe [ml]")
+    ax.set_ylabel("gauge pressure [kPa]")
     ax.legend(loc="upper left")
-    src = "pomiar syntetyczny" if truth else args.data
-    ax.set_title(f"Kalibracja komory: krzywa p–V ({src})", loc="left", fontsize=11)
+    src = "synthetic data" if truth else args.data
+    ax.set_title(f"Chamber calibration: p–V curve ({src})", loc="left", fontsize=11)
     print(plotting.save(fig, "chamber_fit.png", "calibration"))
 
 
@@ -583,7 +583,7 @@ def chamber_main(args):
 VALVE = {
     "model": "FishRobot.Calibration.ValveBench",
     "params": {"valve.p_set": (50e3, "Pa"), "valve.V_flow_nominal": (2e-5, "m³/s"), "valve.dp_smooth": (500.0, "Pa")},
-    "signals": {"Q": ("m³/s", "przepływ")},
+    "signals": {"Q": ("m³/s", "flow")},
     # „prawdziwy” zawór: sprężyna słabsza od nominalnej, większa przewodność, łagodniejsze otwarcie
     # i histereza grzybka: otwiera się o hyst wyżej, niż się zamyka
     "true": {"valve.p_set": 46e3, "valve.V_flow_nominal": 1.4e-5, "valve.dp_smooth": 1500.0},
@@ -641,22 +641,22 @@ def valve_main(args):
               for i, (k, v) in enumerate([("fit", p_fit), ("start", [v for v, _ in exp["params"].values()]),
                                           *branches.items()])}
     fig, (ax, ax_r) = plotting.plt.subplots(2, 1, figsize=(9, 6.2), sharex=True, gridspec_kw={"height_ratios": [3, 1.3]})
-    ax.plot(dp[up] / 1e3, Q[up] * 1e6, "^", color=plotting.SERIES[1], markersize=5, label="pomiar: otwieranie")
-    ax.plot(dp[~up] / 1e3, Q[~up] * 1e6, "v", color=plotting.SERIES[2], markersize=5, label="pomiar: zamykanie")
-    ax.plot(dp_plot / 1e3, curves["fit"] * 1e6, color=plotting.SERIES[0], label="dopasowanie (jedno p_set)")
+    ax.plot(dp[up] / 1e3, Q[up] * 1e6, "^", color=plotting.SERIES[1], markersize=5, label="measured: opening")
+    ax.plot(dp[~up] / 1e3, Q[~up] * 1e6, "v", color=plotting.SERIES[2], markersize=5, label="measured: closing")
+    ax.plot(dp_plot / 1e3, curves["fit"] * 1e6, color=plotting.SERIES[0], label="fit (single p_set)")
     ax.plot(dp_plot / 1e3, curves["start"] * 1e6, color=plotting.SERIES[4], linestyle=(0, (4, 3)), linewidth=1.5,
-            label="start (placeholdery)")
+            label="start (placeholders)")
     ax.set_xlim(dp.min() / 1e3 - 1, dp.max() / 1e3 + 1)
     ax.set_ylim(-1, Q.max() * 1e6 * 1.1)
     ax.set_ylabel("Q [ml/s]")
     ax.legend(loc="upper left")
-    src = "pomiar syntetyczny" if truth else args.data
-    ax.set_title(f"Kalibracja zaworu przelewowego ({src})", loc="left", fontsize=11)
+    src = "synthetic data" if truth else args.data
+    ax.set_title(f"Relief valve calibration ({src})", loc="left", fontsize=11)
     q_fit = np.interp(dp, dp_plot, curves["fit"])
     ax_r.plot(dp[up] / 1e3, (Q[up] - q_fit[up]) * 1e6, "^", color=plotting.SERIES[1], markersize=4)
     ax_r.plot(dp[~up] / 1e3, (Q[~up] - q_fit[~up]) * 1e6, "v", color=plotting.SERIES[2], markersize=4)
     ax_r.axhline(0, color=plotting.TEXT_2, linewidth=0.8)
-    ax_r.set_ylabel("reszty [ml/s]")
+    ax_r.set_ylabel("residuals [ml/s]")
     ax_r.set_xlabel("Δp [kPa]")
     fig.align_ylabels((ax, ax_r))
     print(plotting.save(fig, "valve_fit.png", "calibration"))
@@ -732,26 +732,26 @@ def tail_static_main(args):
 
     fig, axes = plotting.plt.subplots(2, 2, figsize=(10, 6), sharex="col", gridspec_kw={"height_ratios": [3, 1.3]})
     line = np.linspace(min(dp_b.min(), dp_f.min()), max(dp_b.max(), dp_f.max()), 50)
-    axes[0, 0].plot(dp_b / 1e3, tau * 1e3, "o", color=plotting.SERIES[0], markersize=5, label="pomiar")
+    axes[0, 0].plot(dp_b / 1e3, tau * 1e3, "o", color=plotting.SERIES[0], markersize=5, label="measured")
     axes[0, 0].plot(line / 1e3, r["D_tail"] * line * 1e3, color=plotting.TEXT_2, linewidth=1.2, label="D_tail·Δp")
-    axes[0, 0].set_ylabel("moment [mN·m]")
-    axes[0, 0].set_title("ogon zablokowany", loc="left", fontsize=10)
-    axes[0, 1].plot(dp_f / 1e3, np.degrees(theta), "o", color=plotting.SERIES[1], markersize=5, label="pomiar")
+    axes[0, 0].set_ylabel("torque [mN·m]")
+    axes[0, 0].set_title("tail blocked", loc="left", fontsize=10)
+    axes[0, 1].plot(dp_f / 1e3, np.degrees(theta), "o", color=plotting.SERIES[1], markersize=5, label="measured")
     axes[0, 1].plot(line / 1e3, np.degrees(r["slope"] * line), color=plotting.TEXT_2, linewidth=1.2,
                     label="D_tail·Δp/k")
-    axes[0, 1].set_ylabel("kąt [°]")
-    axes[0, 1].set_title("ogon swobodny", loc="left", fontsize=10)
+    axes[0, 1].set_ylabel("angle [°]")
+    axes[0, 1].set_title("tail free", loc="left", fontsize=10)
     axes[1, 0].plot(dp_b / 1e3, r["r_tau"] * 1e3, "o", color=plotting.SERIES[0], markersize=4)
-    axes[1, 0].set_ylabel("reszty [mN·m]")
+    axes[1, 0].set_ylabel("residuals [mN·m]")
     axes[1, 1].plot(dp_f / 1e3, np.degrees(r["r_theta"]), "o", color=plotting.SERIES[1], markersize=4)
-    axes[1, 1].set_ylabel("reszty [°]")
+    axes[1, 1].set_ylabel("residuals [°]")
     for ax in axes[1]:
         ax.axhline(0, color=plotting.TEXT_2, linewidth=0.8)
         ax.set_xlabel("Δp = p_L − p_R [kPa]")
     for ax in axes[0]:
         ax.legend(loc="upper left")
-    src = "pomiar syntetyczny" if truth else args.data
-    fig.suptitle(f"Kalibracja ogona statycznie ({src})", x=0.01, ha="left", fontsize=11)
+    src = "synthetic data" if truth else args.data
+    fig.suptitle(f"Static tail calibration ({src})", x=0.01, ha="left", fontsize=11)
     fig.tight_layout()
     print(plotting.save(fig, "tail_static_fit.png", "calibration"))
 
@@ -760,7 +760,7 @@ def tail_static_main(args):
 
 TAIL_DECAY = {
     "model": "FishRobot.Calibration.TailDecay",
-    "signals": {"theta": ("rad", "kąt ogona")},
+    "signals": {"theta": ("rad", "tail angle")},
     "component": "FishRobot.Tail.TailEquivalent tail",
     "air": {"params": {"tail.J": (5e-4, "kg·m²"), "tail.c": (5e-3, "N·m·s/rad"), "theta0": (0.3, "rad")},
             "true": {"tail.J": 4e-4, "tail.c": 3e-3, "theta0": 0.35},
@@ -805,14 +805,15 @@ def tail_dynamic_main(args):
         p_fit, sigma, cov, res, noise = fit(work_dir, exp, tt, meas, setup)
         results[medium] = (exp, p_fit, sigma)
         title = {"air": "w powietrzu", "water": "w wodzie"}[medium]
+        title_en = {"air": "in air", "water": "in water"}[medium]
         lines += [f"=== drgania swobodne {title} (k = {k:.4g} N·m/rad z kroku 7) ===",
                   report(exp, p_fit, sigma, cov, res, noise, truth), ""]
         if medium == "air":
             J_air = (p_fit[0], sigma[0])
         sim_fit = simulate(work_dir, exp, p_fit, f"fit_{medium}", setup, tt)
         sim_start = simulate(work_dir, exp, [v for v, _ in exp["params"].values()], f"start_{medium}", setup, tt)
-        src = "pomiar syntetyczny" if truth else getattr(args, f"data_{medium}")
-        print(plot(exp, tt, meas, sim_fit, sim_start, f"Kalibracja ogona: drgania swobodne {title} ({src})",
+        src = "synthetic data" if truth else getattr(args, f"data_{medium}")
+        print(plot(exp, tt, meas, sim_fit, sim_start, f"Tail calibration: free oscillation {title_en} ({src})",
                    f"tail_decay_{medium}.png"))
 
     # Niepewność całkowita: wszystkie parametry dynamiczne skalują się z k (z przebiegu wynikają tylko
@@ -941,20 +942,20 @@ def thrust_main(args):
                       color=plotting.SERIES[j], markersize=5, elinewidth=0.8, capsize=0)
     lim = [0, max(T_meas.max(), T_fit.max()) * 1e3 * 1.08]
     ax.plot(lim, lim, color=plotting.TEXT_2, linewidth=1)
-    ax.set_xlabel("model, C_T dopasowane [mN]")
-    ax.set_ylabel("pomiar [mN]")
-    ax.set_title("średni ciąg", loc="left", fontsize=10)
+    ax.set_xlabel("model, fitted C_T [mN]")
+    ax.set_ylabel("measured [mN]")
+    ax.set_title("mean thrust", loc="left", fontsize=10)
     ax.legend(loc="upper left")
     xx = np.linspace(0, x.max() * 1.05, 100)
     ax_r.plot(xx, -100 * (kappa - 1) * xx / (1 - xx), color=plotting.TEXT_2, linewidth=1.2,
-              label=f"kara × {kappa:.2f}")
+              label=f"penalty × {kappa:.2f}")
     ax_r.axhline(0, color=plotting.TEXT_2, linewidth=0.8, linestyle=(0, (2, 2)))
-    ax_r.set_xlabel("U² / (L·ω)²  (udział kary za prędkość)")
-    ax_r.set_ylabel("(pomiar − model)/model [%]")
-    ax_r.set_title("reszty względem kary za prędkość", loc="left", fontsize=10)
+    ax_r.set_xlabel("U² / (L·ω)²  (speed-penalty share)")
+    ax_r.set_ylabel("(measured − model)/model [%]")
+    ax_r.set_title("residuals vs speed penalty", loc="left", fontsize=10)
     ax_r.legend(loc="upper right")
-    src = "pomiar syntetyczny" if truth else args.data
-    fig.suptitle(f"Kalibracja ciągu płetwy ({src})", x=0.01, ha="left", fontsize=11)
+    src = "synthetic data" if truth else args.data
+    fig.suptitle(f"Fin thrust calibration ({src})", x=0.01, ha="left", fontsize=11)
     fig.tight_layout()
     print(plotting.save(fig, "thrust_fit.png", "calibration"))
 
@@ -970,7 +971,7 @@ HULL = {
     "noise_abs": 1e-4, "noise_rel": 0.03,  # siłomierz wózka: 0,1 mN + 3%
     "coast": {"t_end": 20.0, "dt": 1 / 30, "noise": 2e-3},  # kamera 30 kl./s, 2 mm
     "params": {"surge.m_added_x": (0.1, "kg"), "surge.U_start": (0.1, "m/s")},
-    "signals": {"x": ("m", "położenie")},
+    "signals": {"x": ("m", "position")},
     "component": "FishRobot.Propulsion.SurgeDynamics surge",
 }
 
@@ -1039,28 +1040,28 @@ def hull_main(args):
     sim_fit = simulate(work_dir, exp, p_fit, "fit", setup, t)
     fig, axes = plotting.plt.subplots(2, 2, figsize=(10.5, 6), gridspec_kw={"height_ratios": [3, 1.3]})
     uu = np.linspace(0, U.max() * 1.05, 100)
-    axes[0, 0].plot(U * 100, F * 1e3, "o", color=plotting.SERIES[0], markersize=5, label="pomiar")
+    axes[0, 0].plot(U * 100, F * 1e3, "o", color=plotting.SERIES[0], markersize=5, label="measured")
     axes[0, 0].plot(uu * 100, C_d * q * uu ** 2 * 1e3, color=plotting.TEXT_2, linewidth=1.2, label="½·ρ·C_d·A·U²")
-    axes[0, 0].set_ylabel("opór [mN]")
-    axes[0, 0].set_title("holowanie", loc="left", fontsize=10)
+    axes[0, 0].set_ylabel("drag [mN]")
+    axes[0, 0].set_title("towing", loc="left", fontsize=10)
     axes[0, 0].legend(loc="upper left")
     sig_tow = args.noise_abs + args.noise_rel * C_d * xr
     axes[1, 0].errorbar(U * 100, 100 * r_tow / (C_d * xr), yerr=100 * sig_tow / (C_d * xr), fmt="o",
                         color=plotting.SERIES[0], markersize=4, elinewidth=0.8, capsize=0)
-    axes[1, 0].set_ylabel("reszty [%]")
+    axes[1, 0].set_ylabel("residuals [%]")
     axes[1, 0].set_xlabel("U [cm/s]")
-    axes[0, 1].plot(t, meas["x"] * 100, ".", color="#b9b8b3", markersize=2, label="pomiar")
-    axes[0, 1].plot(t, sim_fit["x"] * 100, color=plotting.SERIES[0], label="dopasowanie")
-    axes[0, 1].set_ylabel("położenie [cm]")
-    axes[0, 1].set_title("wybieg", loc="left", fontsize=10)
+    axes[0, 1].plot(t, meas["x"] * 100, ".", color="#b9b8b3", markersize=2, label="measured")
+    axes[0, 1].plot(t, sim_fit["x"] * 100, color=plotting.SERIES[0], label="fit")
+    axes[0, 1].set_ylabel("position [cm]")
+    axes[0, 1].set_title("coast-down", loc="left", fontsize=10)
     axes[0, 1].legend(loc="upper left")
     axes[1, 1].plot(t, (meas["x"] - sim_fit["x"]) * 1e3, color=plotting.SERIES[0], linewidth=0.8)
-    axes[1, 1].set_ylabel("reszty [mm]")
-    axes[1, 1].set_xlabel("czas [s]")
+    axes[1, 1].set_ylabel("residuals [mm]")
+    axes[1, 1].set_xlabel("time [s]")
     for ax in axes[1]:
         ax.axhline(0, color=plotting.TEXT_2, linewidth=0.8)
-    src = "pomiar syntetyczny" if truth else f"{args.data_tow}, {args.data_coast}"
-    fig.suptitle(f"Kalibracja kadłuba ({src})", x=0.01, ha="left", fontsize=11)
+    src = "synthetic data" if truth else f"{args.data_tow}, {args.data_coast}"
+    fig.suptitle(f"Hull calibration ({src})", x=0.01, ha="left", fontsize=11)
     fig.tight_layout()
     print(plotting.save(fig, "hull_fit.png", "calibration"))
 
@@ -1080,7 +1081,7 @@ BALLAST = {
     "vertical": {"model": "FishRobot.Calibration.VerticalStep", "dV": 1e-6, "z_start": -1.5,
                  "dt": 0.05, "t_end": 20.0, "noise": 3e-3,  # czujnik ciśnienia: 3 mm wody
                  "params": {"fish.m_added_z": (0.5, "kg"), "fish.C_dz": (1.0, "–")},
-                 "signals": {"z": ("m", "położenie")},
+                 "signals": {"z": ("m", "position")},
                  "component": "FishRobot.Buoyancy.VerticalDynamics fish"},
 }
 
@@ -1179,24 +1180,24 @@ def ballast_main(args):
     axes[0].plot(n, W * 1e3, "o", color=plotting.SERIES[0], markersize=5)
     axes[0].plot(nn, (a + b * nn) * 1e3, color=plotting.TEXT_2, linewidth=1.2)
     axes[0].axhline(0, color=plotting.TEXT_2, linewidth=0.8, linestyle=(0, (2, 2)))
-    axes[0].set_xlabel("obroty silnika strzykawki")
-    axes[0].set_ylabel("ciężar pozorny w wodzie [mN]")
-    axes[0].set_title("położenie tłoka", loc="left", fontsize=10)
+    axes[0].set_xlabel("syringe motor revolutions")
+    axes[0].set_ylabel("apparent weight in water [mN]")
+    axes[0].set_title("piston position", loc="left", fontsize=10)
     hh = np.linspace(0, h.max(), 50)
     axes[1].plot(h, Wh * 1e3, "o", color=plotting.SERIES[1], markersize=5)
     axes[1].plot(hh, (W0 + V_air0 * rg * (1 - c["p_atm"] / (c["p_atm"] + rg * hh))) * 1e3, color=plotting.TEXT_2,
                  linewidth=1.2)
-    axes[1].set_xlabel("głębokość [m]")
-    axes[1].set_ylabel("przyrost ciężaru [mN]")
-    axes[1].set_title("ściskanie powietrza", loc="left", fontsize=10)
-    axes[2].plot(t, meas["z"], ".", color="#b9b8b3", markersize=2, label="pomiar")
-    axes[2].plot(t, sim_fit["z"], color=plotting.SERIES[0], label="dopasowanie")
-    axes[2].set_xlabel("czas [s]")
+    axes[1].set_xlabel("depth [m]")
+    axes[1].set_ylabel("weight increase [mN]")
+    axes[1].set_title("air compression", loc="left", fontsize=10)
+    axes[2].plot(t, meas["z"], ".", color="#b9b8b3", markersize=2, label="measured")
+    axes[2].plot(t, sim_fit["z"], color=plotting.SERIES[0], label="fit")
+    axes[2].set_xlabel("time [s]")
     axes[2].set_ylabel("z [m]")
-    axes[2].set_title(f"wynurzanie po +{args.dV * 1e6:g} ml", loc="left", fontsize=10)
+    axes[2].set_title(f"ascent after +{args.dV * 1e6:g} ml", loc="left", fontsize=10)
     axes[2].legend(loc="upper left")
-    src = "pomiar syntetyczny" if truth else "pomiar"
-    fig.suptitle(f"Kalibracja balastu i ruchu pionowego ({src})", x=0.01, ha="left", fontsize=11)
+    src = "synthetic data" if truth else "measured"
+    fig.suptitle(f"Ballast and vertical motion calibration ({src})", x=0.01, ha="left", fontsize=11)
     fig.tight_layout()
     print(plotting.save(fig, "ballast_fit.png", "calibration"))
 

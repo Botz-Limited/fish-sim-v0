@@ -27,8 +27,8 @@ def check_pipe_laminar(sol):
     dp, ref = sol["pipe.dp"], sol["dp_analytic"]
     mask = ref > 1e-3 * ref.max()  # pomijamy chwilę t = 0, gdzie oba są zerem
     err = np.max(np.abs(dp[mask] - ref[mask]) / ref[mask])
-    plotting.compare(sol["time"], dp, ref, "Δp [Pa]", "PipeLaminar: Δp w rurze vs Hagen–Poiseuille",
-                     "pipe_laminar.png", sim_label="symulacja pipe.dp", ref_label="analitycznie 128μlQ/(πd⁴)")
+    plotting.compare(sol["time"], dp, ref, "Δp [Pa]", "PipeLaminar: pipe Δp vs Hagen–Poiseuille",
+                     "pipe_laminar.png", sim_label="simulation pipe.dp", ref_label="analytical 128μlQ/(πd⁴)")
     return [("Δp zgodne z Hagenem–Poiseuille’em (< 1%)", err < 0.01, f"max błąd względny {err:.2e}"),
             ("zakres laminarny (Re < 2300)", sol["pipe.Re"].max() < 2300, f"Re_max = {sol['pipe.Re'].max():.0f}")]
 
@@ -37,8 +37,8 @@ def check_pipe_quadratic(sol):
     q, dp, ref = sol["pipe.V_flow"], sol["pipe.dp"], sol["dp_exact"]
     mask = np.abs(q) > 100 * 1e-8  # 100 * V_flow_small
     err = np.max(np.abs(dp[mask] - ref[mask]) / np.abs(ref[mask]))
-    plotting.compare(sol["time"], dp, ref, "Δp [Pa]", "PipeQuadratic: Δp przy przepływie zmieniającym kierunek",
-                     "pipe_quadratic.png", sim_label="symulacja (regularyzowana)", ref_label="R_lam·Q + R_local·|Q|·Q")
+    plotting.compare(sol["time"], dp, ref, "Δp [Pa]", "PipeQuadratic: Δp with flow reversing direction",
+                     "pipe_quadratic.png", sim_label="simulation (regularized)", ref_label="R_lam·Q + R_local·|Q|·Q")
     return [("Δp zgodne z charakterystyką bez regularyzacji (< 1%)", err < 0.01, f"max błąd względny {err:.2e}")]
 
 
@@ -48,7 +48,7 @@ def check_pipe_turbulent(sol):
     # MSL (WallFriction.Detailed) kończy zakres laminarny przy Re1 = (745·e)^0,97 ≈ 1600 (dla ε/d ≤ 0,0065).
     lam, trans, turb = (re_ > 100) & (re_ < 1500), (re_ >= 1500) & (re_ <= 4000), re_ > 4000
     plotting.compare(sol["time"], dp / 1e3, ref / 1e3, "Δp [kPa]",
-                     "PipeTurbulentVsMSL: Δp w rurze, Re od 0 do ok. 12 700", "pipe_turbulent_vs_msl.png",
+                     "PipeTurbulentVsMSL: pipe Δp, Re from 0 to approx. 12,700", "pipe_turbulent_vs_msl.png",
                      sim_label="Hydraulics.Pipe (Haaland)", ref_label="Modelica.Fluid StaticPipe (Colebrook)")
     return [("Re < 1500: zgodne z MSL (< 1%)", err[lam].max() < 0.01, f"max różnica {err[lam].max():.2%}"),
             ("Re 1500–4000 (przejście): zgodne z MSL (< 10%)", err[trans].max() < 0.10,
@@ -61,8 +61,8 @@ def check_pipe_inertance(sol):
     q, ref = sol["pipe.V_flow"], sol["Q_analytic"]
     q_end = ref[-1]
     err = np.max(np.abs(q - ref)) / q_end
-    plotting.compare(sol["time"], q * 1e6, ref * 1e6, "Q [ml/s]", "PipeInertance: narastanie przepływu po skoku Δp",
-                     "pipe_inertance.png", sim_label="symulacja pipe.V_flow", ref_label="analitycznie dp/R·(1−e^(−t/τ))")
+    plotting.compare(sol["time"], q * 1e6, ref * 1e6, "Q [ml/s]", "PipeInertance: flow build-up after a Δp step",
+                     "pipe_inertance.png", sim_label="simulation pipe.V_flow", ref_label="analytical dp/R·(1−e^(−t/τ))")
     return [("Q(t) zgodne z rozwiązaniem analitycznym (< 1% Q_ust)", err < 0.01, f"max błąd {err:.2e} Q_ust")]
 
 
@@ -76,10 +76,10 @@ def check_chamber_closed_loop(sol):
     # Energia: to, co ubyło ze ścianek i słupa cieczy, musi się rozproszyć w rurze.
     e_lost = sol["E_stored"][0] - sol["E_stored"][-1]
     e_err = abs(e_lost - sol["E_dissipated"][-1]) / e_lost
-    plotting.series(t, [(vl * 1e6, "V_L"), (vr * 1e6, "V_R")], "objętość [ml]",
-                    "ChamberClosedLoop: wymiana cieczy między komorami", "chamber_closed_loop.png",
-                    hlines=[(v_eq * 1e6, "równowaga")],
-                    bottom=((vt - vt[0]) * 1e6, "odchyłka\nV_L+V_R [ml]"))
+    plotting.series(t, [(vl * 1e6, "V_L"), (vr * 1e6, "V_R")], "volume [ml]",
+                    "ChamberClosedLoop: fluid exchange between chambers", "chamber_closed_loop.png",
+                    hlines=[(v_eq * 1e6, "equilibrium")],
+                    bottom=((vt - vt[0]) * 1e6, "deviation\nV_L+V_R [ml]"))
     return [("V_L + V_R = const (< 1e-9 względnie)", drift < 1e-9, f"max dryf {drift:.1e}"),
             ("równowaga: V_L = V_R, p_L = p_R (< 0,1%)", eq_err < 1e-3 and dp_end < 1e-3,
              f"błąd objętości {eq_err:.1e}, |p_L − p_R| = {dp_end:.1e} różnicy początkowej"),
@@ -91,8 +91,8 @@ def check_relief_valve(sol):
     t, pg, q_src, q_valve = sol["time"], sol["chamber.p_gauge"], sol["source.V_flow"], sol["valve.V_flow"]
     p_set, dp_open = sol["valve.p_set"][0], sol["valve.dp_open"][0]
     q_err = abs(q_valve[-1] - q_src[-1]) / q_src[-1]
-    plotting.series(t, [(pg / 1e3, "nadciśnienie w komorze")], "Δp [kPa]",
-                    "ReliefValveLimit: zawór przelewowy ogranicza ciśnienie", "relief_valve_limit.png",
+    plotting.series(t, [(pg / 1e3, "chamber gauge pressure")], "Δp [kPa]",
+                    "ReliefValveLimit: relief valve limits pressure", "relief_valve_limit.png",
                     hlines=[(p_set / 1e3, "p_set"), ((p_set + dp_open) / 1e3, "p_set + dp_open")])
     return [("p ≤ p_set + dp_open", pg.max() <= p_set + dp_open,
              f"max {pg.max() / 1e3:.2f} kPa, granica {(p_set + dp_open) / 1e3:.1f} kPa"),
@@ -109,9 +109,9 @@ def check_dc_motor(sol):
     w, w_ref = sol["motor.w"], sol["w_analytic"][0]
     w_err = abs(w[-1] - w_ref) / w_ref
     p_err = np.max(np.abs(sol["P_balance_error"])) / np.max(np.abs(sol["battery.P_chem"]))
-    plotting.series(sol["time"], [(w, "motor.w")], "prędkość [rad/s]",
-                    "DCMotorNoLoad: rozruch silnika bez obciążenia (u = 0,6)", "dc_motor_no_load.png",
-                    hlines=[(w_ref, "analitycznie")])
+    plotting.series(sol["time"], [(w, "motor.w")], "speed [rad/s]",
+                    "DCMotorNoLoad: motor start-up without load (u = 0.6)", "dc_motor_no_load.png",
+                    hlines=[(w_ref, "analytical")])
     return [("prędkość ustalona zgodna ze wzorem (< 1%)", w_err < 0.01, f"błąd {w_err:.1e}"),
             ("bilans mocy w każdej chwili (< 1% mocy szczytowej)", p_err < 0.01, f"max błąd {p_err:.1e}")]
 
@@ -125,8 +125,8 @@ def check_gear_pump(sol):
     p_mech_min = sol["pump.P_loss_mech"].min()
     bal = sol["pump.P_shaft"] - sol["pump.P_hyd"] - sol["pump.P_loss_leak"] - sol["pump.P_loss_mech"]
     bal_err = np.max(np.abs(bal)) / np.max(np.abs(sol["pump.P_shaft"]))
-    plotting.series(dp / 1e3, [(q * 1e6, "V_flow")], "przepływ [ml/s]",
-                    "GearPumpCharacteristic: przepływ vs przyrost ciśnienia (ω = 300 rad/s)",
+    plotting.series(dp / 1e3, [(q * 1e6, "V_flow")], "flow [ml/s]",
+                    "GearPumpCharacteristic: flow vs pressure rise (ω = 300 rad/s)",
                     "gear_pump_characteristic.png")
     return [("V_flow = D·ω − k_leak·Δp", q_err < 1e-6, f"błąd {q_err:.1e}"),
             ("tryb pompy: τ = D·Δp/η_m", tau_err < 1e-3, f"błąd {tau_err:.1e}"),
@@ -152,8 +152,8 @@ def check_tail_static_energy(sol):
     th, th_ref = sol["tail.theta"], sol["theta_analytic"][0]
     th_err = abs(th[-1] - th_ref) / th_ref
     e_err = np.max(np.abs(sol["E_balance_error"])) / sol["E_hyd"][-1]
-    plotting.series(sol["time"], [(np.degrees(th), "θ")], "kąt ogona [°]",
-                    "TailStaticEnergy: odpowiedź ogona na skok Δp = 30 kPa", "tail_static_energy.png",
+    plotting.series(sol["time"], [(np.degrees(th), "θ")], "tail angle [°]",
+                    "TailStaticEnergy: tail response to a Δp = 30 kPa step", "tail_static_energy.png",
                     hlines=[(np.degrees(th_ref), "D_tail·Δp/k")])
     return [("kąt statyczny θ = D_tail·Δp/k (< 1%)", th_err < 0.01, f"błąd {th_err:.1e}"),
             ("energia: hydrauliczna = kinetyczna + sprężysta + rozproszona (< 1%)", e_err < 0.01,
@@ -193,9 +193,9 @@ def check_ballast_statics(sol):
     rigid_drift = abs(sol["fishRigid.z"][-1] - sol["fishRigid.z"][0])
     comp_dev0 = abs(sol["fishComp.z"][0] + 3.0)
     comp_dev = abs(sol["fishComp.z"][-1] + 3.0)
-    plotting.series(t, [(sol["fishNeutral.z"], "neutralna"), (sol["fishLight.z"], "+1 ml"),
-                        (sol["fishHeavy.z"], "−1 ml"), (sol["fishComp.z"], "ściśliwy kadłub, start −3,01 m")],
-                    "z [m]", "BallastStatics: ryba bez regulatora przy stałej objętości pęcherza",
+    plotting.series(t, [(sol["fishNeutral.z"], "neutral"), (sol["fishLight.z"], "+1 ml"),
+                        (sol["fishHeavy.z"], "−1 ml"), (sol["fishComp.z"], "compressible hull, start −3.01 m")],
+                    "z [m]", "BallastStatics: fish without controller at constant bladder volume",
                     "ballast_statics.png")
     return [("V_b neutralne ⇒ z' → 0", np.max(np.abs(v_n)) < 1e-9, f"max |z'| {np.max(np.abs(v_n)):.1e} m/s"),
             ("V_b większe ⇒ wynurzanie, mniejsze ⇒ tonięcie", v_l[-1] > 0.01 and v_h[-1] < -0.01,
@@ -221,8 +221,8 @@ def check_depth_control(sol):
 def check_surge_terminal(sol):
     t, u, ref, u_ss = sol["time"], sol["surge.U"], sol["U_analytic"], sol["U_ss"][0]
     err = np.max(np.abs(u - ref)) / u_ss
-    plotting.compare(t, u * 100, ref * 100, "U [cm/s]", "SurgeTerminalVelocity: rozpędzanie przy stałym ciągu",
-                     "surge_terminal_velocity.png", sim_label="symulacja surge.U", ref_label="U_ss·tanh(t/τ)")
+    plotting.compare(t, u * 100, ref * 100, "U [cm/s]", "SurgeTerminalVelocity: acceleration under constant thrust",
+                     "surge_terminal_velocity.png", sim_label="simulation surge.U", ref_label="U_ss·tanh(t/τ)")
     return [("U(t) zgodne z U_ss·tanh(t/τ) (< 0,1% U_ss)", err < 1e-3, f"max błąd {err:.1e}, U_ss = {u_ss * 100:.1f} cm/s")]
 
 
