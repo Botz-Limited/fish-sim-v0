@@ -22,10 +22,15 @@ szkieletowej, a wynik zapisywany jako CSV dla Chamber(tableOnFile=true) i sprawd
   .venv/bin/python scripts/calibrate.py pump [--data punkty.csv]
   .venv/bin/python scripts/calibrate.py pipe [--data punkty.csv --l 0.2]
   .venv/bin/python scripts/calibrate.py chamber [--data cykle.csv --V-rest 5e-6]
+  .venv/bin/python scripts/calibrate.py valve [--data punkty.csv]
+
+Krok 6, zawór przelewowy (calibrate.py valve): charakterystyka Q(Δp) przy rosnącym i malejącym przepływie,
+dopasowanie jak w kroku 4, osobno dla obu gałęzi (histereza grzybka) i wspólnie.
 
 Pliki pomiaru: CSV z nagłówkiem; silnik: time [s], i [A], w [rad/s]; pompa: U [V], i [A], w [rad/s],
 dp [Pa], Q [m³/s];
-przewód: Q [m³/s], dp [Pa]; komora (w kolejności czasu): dV [m³], p [Pa]. Wyniki -> results/calibration/.
+przewód: Q [m³/s], dp [Pa]; komora (w kolejności czasu): dV [m³], p [Pa];
+zawór: dp [Pa], Q [m³/s], up (1 = przepływ rośnie). Wyniki -> results/calibration/.
 """
 
 import argparse
@@ -548,6 +553,90 @@ def chamber_main(args):
     print(plotting.save(fig, "chamber_fit.png", "calibration"))
 
 
+# --- Krok 6: zawór przelewowy -----------------------------------------------------------------------
+
+VALVE = {
+    "model": "FishRobot.Calibration.ValveBench",
+    "params": {"valve.p_set": (50e3, "Pa"), "valve.V_flow_nominal": (2e-5, "m³/s"), "valve.dp_smooth": (500.0, "Pa")},
+    "signals": {"Q": ("m³/s", "przepływ")},
+    # „prawdziwy” zawór: sprężyna słabsza od nominalnej, większa przewodność, łagodniejsze otwarcie
+    # i histereza grzybka: otwiera się o hyst wyżej, niż się zamyka
+    "true": {"valve.p_set": 46e3, "valve.V_flow_nominal": 1.4e-5, "valve.dp_smooth": 1500.0},
+    "hyst": 2e3,
+    "noise": {"Q": 5e-8, "dp": 100.0},  # przepływomierz 0,05 ml/s, czujnik różnicowy 100 Pa
+    "dp_range": (35e3, 56e3), "n": 15,
+    "component": "FishRobot.Hydraulics.ReliefValve valve",
+}
+
+
+def valve_main(args):
+    exp = VALVE
+    work_dir = om_fast.compile_model(exp["model"])
+    lo, hi = 30e3, 60e3
+    setup = {"dp_lo": lo, "dp_hi": hi}
+    if args.data:
+        data = np.genfromtxt(args.data, delimiter=",", names=True)
+        dp, Q, up = data["dp"], data["Q"], data["up"].astype(bool)
+        truth = None
+    else:
+        truth = exp["true"]
+        grid = np.linspace(*exp["dp_range"], exp["n"])
+        rng = np.random.default_rng(5)
+        dp_parts, Q_parts, up_parts = [], [], []
+        for direction, shift in ((True, exp["hyst"] / 2), (False, -exp["hyst"] / 2)):
+            values = [truth[n] + (shift if n == "valve.p_set" else 0) for n in exp["params"]]
+            q = simulate(work_dir, exp, values, f"true_{int(direction)}", setup, (grid - lo) / (hi - lo))["Q"]
+            dp_parts.append(grid + rng.normal(0, exp["noise"]["dp"], grid.size))
+            Q_parts.append(q + rng.normal(0, exp["noise"]["Q"], grid.size))
+            up_parts.append(np.full(grid.size, direction))
+        dp, Q, up = (np.concatenate(v) for v in (dp_parts, Q_parts, up_parts))
+        np.savetxt(OUT / "valve_synthetic.csv", np.column_stack([dp, Q, up]), delimiter=",", header="dp,Q,up",
+                   comments="", fmt="%.6g")
+
+    def fit_subset(mask):
+        order = np.argsort(dp[mask])
+        t = (dp[mask][order] - lo) / (hi - lo)
+        return fit(work_dir, exp, t, {"Q": Q[mask][order]}, setup)
+
+    p_fit, sigma, cov, res, noise = fit_subset(np.ones_like(up))
+    text = report(exp, p_fit, sigma, cov, res, noise, truth)
+    branches = {}
+    for name, mask in (("otwieranie", up), ("zamykanie", ~up)):
+        pb, sb, *_ = fit_subset(mask)
+        branches[name] = pb
+        text += f"\ngałąź {name}: p_set = {pb[0] / 1e3:.2f} kPa ± {sb[0] * pb[0] / 1e3:.2f}"
+    width = branches["otwieranie"][0] - branches["zamykanie"][0]
+    text += f"\nhistereza grzybka: {width / 1e3:.2f} kPa" + (f" (prawdziwa {exp['hyst'] / 1e3:g} kPa)" if truth else "")
+    print(text)
+    (OUT / "valve_fit.txt").write_text(text + "\n")
+
+    t_plot = np.linspace(0, 1, 301)
+    dp_plot = lo + (hi - lo) * t_plot
+    curves = {k: simulate(work_dir, exp, v, f"plot_{i}", setup, t_plot)["Q"]
+              for i, (k, v) in enumerate([("fit", p_fit), ("start", [v for v, _ in exp["params"].values()]),
+                                          *branches.items()])}
+    fig, (ax, ax_r) = plotting.plt.subplots(2, 1, figsize=(9, 6.2), sharex=True, gridspec_kw={"height_ratios": [3, 1.3]})
+    ax.plot(dp[up] / 1e3, Q[up] * 1e6, "^", color=plotting.SERIES[1], markersize=5, label="pomiar: otwieranie")
+    ax.plot(dp[~up] / 1e3, Q[~up] * 1e6, "v", color=plotting.SERIES[2], markersize=5, label="pomiar: zamykanie")
+    ax.plot(dp_plot / 1e3, curves["fit"] * 1e6, color=plotting.SERIES[0], label="dopasowanie (jedno p_set)")
+    ax.plot(dp_plot / 1e3, curves["start"] * 1e6, color=plotting.SERIES[4], linestyle=(0, (4, 3)), linewidth=1.5,
+            label="start (placeholdery)")
+    ax.set_xlim(dp.min() / 1e3 - 1, dp.max() / 1e3 + 1)
+    ax.set_ylim(-1, Q.max() * 1e6 * 1.1)
+    ax.set_ylabel("Q [ml/s]")
+    ax.legend(loc="upper left")
+    src = "pomiar syntetyczny" if truth else args.data
+    ax.set_title(f"Kalibracja zaworu przelewowego ({src})", loc="left", fontsize=11)
+    q_fit = np.interp(dp, dp_plot, curves["fit"])
+    ax_r.plot(dp[up] / 1e3, (Q[up] - q_fit[up]) * 1e6, "^", color=plotting.SERIES[1], markersize=4)
+    ax_r.plot(dp[~up] / 1e3, (Q[~up] - q_fit[~up]) * 1e6, "v", color=plotting.SERIES[2], markersize=4)
+    ax_r.axhline(0, color=plotting.TEXT_2, linewidth=0.8)
+    ax_r.set_ylabel("reszty [ml/s]")
+    ax_r.set_xlabel("Δp [kPa]")
+    fig.align_ylabels((ax, ax_r))
+    print(plotting.save(fig, "valve_fit.png", "calibration"))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="step", required=True)
@@ -567,9 +656,11 @@ def main():
     k.add_argument("--skip", type=int, default=2, help="liczba pierwszych suwów do pominięcia (efekt Mullinsa)")
     k.add_argument("--margin", type=float, default=1e-6,
                    help="odstęp węzłów od punktów zawrócenia strzykawki [m³] (czubki pętli histerezy)")
+    v = sub.add_parser("valve", help="krok 6: zawór przelewowy z charakterystyki Q(Δp)")
+    v.add_argument("--data", help="CSV z punktami (dp [Pa], Q [m³/s], up: 1 przy rosnącym przepływie, 0 przy malejącym)")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
-    {"motor": motor_main, "pump": pump_main, "pipe": pipe_main, "chamber": chamber_main}[args.step](args)
+    {"motor": motor_main, "pump": pump_main, "pipe": pipe_main, "chamber": chamber_main, "valve": valve_main}[args.step](args)
 
 
 if __name__ == "__main__":

@@ -2,4 +2,5 @@ MotorStep
 PumpBench
 PipeBench
 ChamberBench
+ValveBench
 LinearThrottle

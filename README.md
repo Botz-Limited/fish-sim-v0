@@ -50,6 +50,7 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/calibrate.py pump      # identyfikacja pompy (wymaga wyniku kroku motor)
 .venv/bin/python scripts/calibrate.py pipe [--data punkty.csv --l 0.2]   # identyfikacja przewodu z Δp(Q)
 .venv/bin/python scripts/calibrate.py chamber [--data cykle.csv --V-rest 5e-6]   # krzywa p–V komory -> CSV dla Chamber
+.venv/bin/python scripts/calibrate.py valve [--data punkty.csv]   # zawór przelewowy z Q(Δp), z histerezą grzybka
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -373,3 +374,21 @@ Pomiar syntetyczny: „prawdziwa” komora jest na początku bardziej miękka od
 **Lekcja: czubki pętli nie leżą na krzywej szkieletowej.** W punkcie zawrócenia strzykawki obie gałęzie się spotykają, bo histereza potrzebuje trochę objętości, żeby się „przełączyć”. Węzły na samych końcach suwu dawały błąd 4,8% zakresu. Dlatego tabela kończy się 1 ml przed punktami zawrócenia (`--margin`), a dalej `Chamber` przedłuża krzywą liniowo, czyli przy rosnącej sztywności zaniża ciśnienie. Suw strzykawki trzeba więc zaplanować z zapasem ponad zakres pracy komory w robocie.
 
 **Czy brak histerezy w modelu ma znaczenie?** W scenariuszu `EnergyBudget` komory pracują między 6 a 10 ml, czyli 1–5 ml ponad spoczynek, przy 2–12 kPa. Syntetyczna komora traci w takim cyklu ok. 3,9 mJ. Dla dwóch komór przy 1 Hz to ok. 8 mW, czyli ok. 0,4% mocy napędu ogona (1,8 W). To więcej niż straty ogona w bilansie (0,1%), ale mniej niż przewody i łożyska. Prawdziwy silikon może mieć szerszą pętlę, więc tę liczbę trzeba policzyć ponownie z pomiaru. Jeśli wyjdzie istotna, `Chamber` trzeba rozszerzyć o tłumienie lepkosprężyste.
+
+### Zawór przelewowy (krok 6): `calibrate.py valve`
+
+Pompa z kroku 3 tłoczy wodę przez zawór do zbiornika. Przepływ zwiększa się małymi krokami, a potem zmniejsza, i w każdym punkcie mierzy się przepływ i różnicę ciśnień na zaworze (`FishRobot.Calibration.ValveBench`). Plik pomiaru to CSV z kolumnami `dp [Pa], Q [m³/s], up` (1 przy rosnącym przepływie, 0 przy malejącym). Dopasowujemy `p_set`, `V_flow_nominal` i `dp_smooth` osobno dla obu gałęzi i wspólnie.
+
+**`dp_open` nie jest dopasowywane.** W modelu przewodność otwartego zaworu to `V_flow_nominal/dp_open`, więc pomiar wyznacza tylko ten iloraz. Dwa razy większe oba parametry dają identyczną charakterystykę, a jakobian ma wtedy dwie proporcjonalne kolumny. `dp_open` zostaje punktem odniesienia (5 kPa).
+
+Pomiar syntetyczny: zawór ze słabszą sprężyną (`p_set` = 46 kPa zamiast 50), z większą przewodnością, łagodniejszym otwarciem i histerezą grzybka 2 kPa (otwiera się przy 47 kPa, zamyka przy 45 kPa). 15 punktów w każdą stronę, szum przepływomierza 0,05 ml/s i czujnika 100 Pa. Wyniki (`results/calibration/valve_fit.{txt,png}`):
+
+| | `p_set` | Niepewność |
+|---|---|---|
+| gałąź otwierania | 46,97 kPa | ±0,10 kPa |
+| gałąź zamykania | 45,08 kPa | ±0,11 kPa |
+| wspólnie | 46,06 kPa | ±0,72 kPa |
+
+Histereza wyznaczona z różnicy gałęzi: 1,89 kPa przy prawdziwych 2 kPa.
+
+**Lekcja: reszty pokazują, czego model nie umie.** Przy wspólnym dopasowaniu reszty układają się w dwa pasma przeciwnego znaku (dolny panel wykresu). Szum oszacowany z reszt wychodzi 1,9 ml/s, czyli prawie 40 razy więcej niż szum przepływomierza. To nie szum, tylko histereza, której model z jednym `p_set` nie ma. Niepewność wspólnego `p_set` (±0,72 kPa) jest przez to 7 razy większa niż każdej gałęzi z osobna, ale to uczciwa miara: tyle wynosi rozjazd modelu z zaworem. Przy histerezie 2 kPa (4% `p_set`) jedno `p_set` ze środka wystarcza do bilansu energii. Jeśli zawór ma ograniczać ciśnienie w komorach z zapasem, liczy się gałąź otwierania. `dp_smooth` jest wyznaczane słabo (±51%), bo zależy tylko od kilku punktów przy samym otwarciu. Wpływa jednak tylko na kształt kolanka charakterystyki. Jego „ogon” poniżej `p_set` działa w modelu jak dodatkowy przeciek (ok. 0,2 ml/s przy 35 kPa), więc osobno mierzony przeciek zamkniętego zaworu (`G_leak`, np. zbieranie kropel przez kilka minut) ma sens tylko wtedy, gdy jest większy.
