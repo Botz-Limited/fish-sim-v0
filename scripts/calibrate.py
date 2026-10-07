@@ -13,14 +13,19 @@ służy jako czujnik momentu, a jego niepewność przenosi się na sprawność p
 Krok 4, przewód (calibrate.py pipe): charakterystyka Δp(Q) od laminarnej do turbulentnej, dopasowanie
 symulacji jak w kroku 2, ale reszty w skali logarytmicznej (szum czujnika ciśnienia jest względny).
 
+Krok 5, komora (calibrate.py chamber): krzywa p–V z kilku cykli strzykawki, bez dopasowania parametrów.
+Pierwszy cykl jest odrzucany (efekt Mullinsa), gałęzie napełniania i opróżniania uśredniane do krzywej
+szkieletowej, a wynik zapisywany jako CSV dla Chamber(tableOnFile=true) i sprawdzany w ChamberBench.
+
   .venv/bin/python scripts/calibrate.py motor                   # pomiar syntetyczny (znane parametry + szum)
   .venv/bin/python scripts/calibrate.py motor --data pomiar.csv --U 6 --t-step 0.01
   .venv/bin/python scripts/calibrate.py pump [--data punkty.csv]
   .venv/bin/python scripts/calibrate.py pipe [--data punkty.csv --l 0.2]
+  .venv/bin/python scripts/calibrate.py chamber [--data cykle.csv --V-rest 5e-6]
 
 Pliki pomiaru: CSV z nagłówkiem; silnik: time [s], i [A], w [rad/s]; pompa: U [V], i [A], w [rad/s],
 dp [Pa], Q [m³/s];
-przewód: Q [m³/s], dp [Pa]. Wyniki -> results/calibration/.
+przewód: Q [m³/s], dp [Pa]; komora (w kolejności czasu): dV [m³], p [Pa]. Wyniki -> results/calibration/.
 """
 
 import argparse
@@ -394,6 +399,155 @@ def pipe_main(args):
                     "pipe_fit.png"))
 
 
+# --- Krok 5: komora ---------------------------------------------------------------------------------
+
+CHAMBER = {
+    "model": "FishRobot.Calibration.ChamberBench",
+    # „prawdziwa” komora: krzywa szkieletowa p = E·V0·(exp(ΔV/V0) − 1), histereza i efekt Mullinsa
+    "E": 0.8e9, "V0": 3e-6,             # sztywność przy ΔV = 0 [Pa/m³] i skala usztywniania [m³]
+    "h0": 300.0, "h1": 0.06,           # półszerokość pętli: h0 + h1·|p| [Pa]
+    "x_h": 0.3e-6,                     # objętość, na której histereza „przełącza się” po zawróceniu [m³]
+    "mullins": 1.15,                   # pierwsze napełnienie o 15% sztywniejsze
+    "stroke": (-3e-6, 10e-6), "cycles": 4, "n_stroke": 200,
+    "noise_p": 150.0, "noise_V": 1e-8,  # czujnik ciśnienia [Pa], rozdzielczość strzykawki [m³]
+}
+
+
+def chamber_backbone(x, c=CHAMBER):
+    return c["E"] * c["V0"] * (np.exp(x / c["V0"]) - 1)
+
+
+def chamber_synthetic(seed=4):
+    """Kilka cykli strzykawki ΔV: 0 → max → min → max ... z histerezą (model „play” z wygładzeniem)."""
+    c = CHAMBER
+    lo, hi = c["stroke"]
+    path = [np.linspace(0, hi, c["n_stroke"])]
+    for k in range(c["cycles"]):
+        path += [np.linspace(hi, lo, 2 * c["n_stroke"])[1:], np.linspace(lo, hi, 2 * c["n_stroke"])[1:]]
+    path.append(np.linspace(hi, 0, c["n_stroke"])[1:])
+    x = np.concatenate(path)
+    first_max = c["n_stroke"] - 1
+    p = np.empty_like(x)
+    y = 0.0  # przesunięcie histerezy: dąży do ±(h0 + h1·|p|) w kierunku ruchu
+    for n in range(len(x)):
+        pb = chamber_backbone(x[n]) * (c["mullins"] if n <= first_max else 1.0)
+        if n:
+            dx = x[n] - x[n - 1]
+            target = np.sign(dx) * (c["h0"] + c["h1"] * abs(pb))
+            y += (target - y) * (1 - np.exp(-abs(dx) / c["x_h"]))
+        p[n] = pb + y
+    rng = np.random.default_rng(seed)
+    return x + rng.normal(0, c["noise_V"], x.size), p + rng.normal(0, c["noise_p"], x.size)
+
+
+def chamber_process(x, p, skip=2, n_nodes=15, margin=1e-6):
+    """Podział na suwy (między zawróceniami strzykawki), odrzucenie pierwszych `skip` suwów,
+    średnie gałęzie napełniania i opróżniania w węzłach, krzywa szkieletowa i pole pętli."""
+    xs = np.convolve(x, np.ones(9) / 9, mode="same")  # wygładzenie tylko do wykrycia kierunku
+    direction = np.sign(np.diff(xs))
+    direction[direction == 0] = 1
+    cut = np.flatnonzero(np.diff(direction)) + 1
+    strokes = [(a, b) for a, b in zip(np.r_[0, cut], np.r_[cut, len(x) - 1]) if b - a > 20][skip:]
+    # Zakres węzłów: mediana skrajnych położeń suwów (szum położenia nie przesuwa końców tabeli),
+    # pomniejszona o margines. W punkcie zawrócenia obie gałęzie spotykają się na czubku pętli, a nie na
+    # krzywej szkieletowej: histereza potrzebuje ok. x_h, żeby się „przełączyć”.
+    lo = np.median([x[a:b + 1].min() for a, b in strokes]) + margin
+    hi = np.median([x[a:b + 1].max() for a, b in strokes]) - margin
+    nodes = np.linspace(lo, hi, n_nodes)
+    half = (hi - lo) / (n_nodes - 1) / 2
+    branch = {1: [], -1: []}
+    for a, b in strokes:
+        xx, pp = x[a:b + 1], p[a:b + 1]
+        d = 1 if xx[-1] > xx[0] else -1
+        order = np.argsort(xx)
+        # tylko węzły, które ten suw w całości pokrywa (suwy częściowe nie zaniżają końców)
+        inside = (nodes >= xx.min() - half) & (nodes <= xx.max() + half)
+        row = np.full(n_nodes, np.nan)
+        # lokalna regresja liniowa w oknie wokół węzła zamiast interpolacji punktowej (mniej szumu)
+        for j in np.flatnonzero(inside):
+            win = np.abs(xx - nodes[j]) <= half
+            if win.sum() >= 3:
+                row[j] = np.polyval(np.polyfit(xx[win] - nodes[j], pp[win], 1), 0.0)
+        branch[d].append(row)
+    load, unload = (np.nanmean(branch[d], axis=0) for d in (1, -1))
+    backbone = (load + unload) / 2
+    # Energia tracona w cyklu: ∮ p dV wzdłuż drogi strzykawki, po parach suwów (tam i z powrotem)
+    # z surowych danych, w pełnym zakresie suwu (węzły są przycięte o margines, więc zaniżałyby pętlę).
+    cycles = [np.sum((p[a + 1:c + 1] + p[a:c]) / 2 * np.diff(x[a:c + 1]))
+              for (a, _), (_, c) in zip(strokes[0::2], strokes[1::2])]
+    loop = abs(np.mean(cycles))
+    return {"nodes": nodes, "load": load, "unload": unload, "backbone": backbone, "loop": loop,
+            "strokes": strokes, "monotone": bool(np.all(np.diff(backbone) > 0))}
+
+
+def chamber_main(args):
+    c = CHAMBER
+    if args.data:
+        data = np.genfromtxt(args.data, delimiter=",", names=True)
+        x, p = data["dV"], data["p"]
+        truth = False
+    else:
+        x, p = chamber_synthetic()
+        truth = True
+        np.savetxt(OUT / "chamber_synthetic.csv", np.column_stack([x, p]), delimiter=",", header="dV,p",
+                   comments="", fmt="%.6g")
+    r = chamber_process(x, p, skip=args.skip, margin=args.margin)
+    if not r["monotone"]:
+        print("UWAGA: krzywa szkieletowa nie jest rosnąca – Chamber jej nie przyjmie. Zmniejsz liczbę węzłów.")
+    V = args.V_rest + r["nodes"]
+    csv_path = OUT / "chamber_pV.csv"
+    np.savetxt(csv_path, np.column_stack([V, r["backbone"]]), delimiter=",", header="V_m3,p_gauge_Pa",
+               comments="", fmt="%.6g")
+
+    # Sprawdzenie w Modelice: komora z tableOnFile = true i tym plikiem przechodzi przez cały zakres
+    work_dir = om_fast.compile_model(c["model"])
+    sol = om_fast.run(work_dir, c["model"], "check", {"fileName": csv_path.as_posix(), "V_min": V[0],
+                                                       "V_max": V[-1]}, None, ["V", "p"])
+    p_model_nodes = np.interp(V, sol["V"], sol["p"])
+    span = np.ptp(r["backbone"])
+    lines = [
+        f"suwy użyte: {len(r['strokes'])} (pominięte pierwsze {args.skip}), węzły: {len(V)}, "
+        f"ΔV {r['nodes'][0] * 1e6:.2f} … {r['nodes'][-1] * 1e6:.2f} ml",
+        f"pętla histerezy (pełny suw ΔV {x.min() * 1e6:.1f} … {x.max() * 1e6:.1f} ml): {r['loop'] * 1e3:.1f} mJ na cykl",
+        f"Modelica (tableOnFile) vs węzły krzywej: max {np.max(np.abs(p_model_nodes - r['backbone'])):.2g} Pa",
+    ]
+    if truth:
+        xm = sol["V"] - args.V_rest
+        err = np.max(np.abs(sol["p"] - chamber_backbone(xm))) / span
+        err_nodes = np.max(np.abs(r["backbone"] - chamber_backbone(r["nodes"]))) / span
+        r0 = chamber_process(x, p, skip=args.skip, margin=0.0)
+        err_no_margin = np.max(np.abs(r0["backbone"] - chamber_backbone(r0["nodes"]))) / np.ptp(r0["backbone"])
+        lines.append(f"węzły vs prawdziwa krzywa szkieletowa: max {100 * err_nodes:.2f}% zakresu "
+                     f"(bez marginesu od zawróceń: {100 * err_no_margin:.1f}%)")
+        lines.append(f"Modelica vs prawdziwa krzywa szkieletowa (między węzłami też): max {100 * err:.2f}% zakresu")
+        lines.append(f"ta sama krzywa z pierwszym suwem (Mullins): "
+                     f"{100 * np.max(np.abs(chamber_process(x, p, skip=0, margin=args.margin)['backbone'] - chamber_backbone(r['nodes']))) / span:.1f}% zakresu")
+    lines.append(f"plik dla Chamber(tableOnFile=true, fileName=...): {csv_path}")
+    text = "\n".join(lines)
+    print(text)
+    (OUT / "chamber_fit.txt").write_text(text + "\n")
+
+    fig, ax = plotting.plt.subplots(figsize=(9, 5.5))
+    ax.plot(x * 1e6, p / 1e3, ".", color="#cfceca", markersize=2, label="pomiar")
+    a, b = r["strokes"][0]
+    ax.plot(x[:a] * 1e6, p[:a] / 1e3, ".", color=plotting.SERIES[3], markersize=2, label="pominięte (pierwszy cykl)")
+    ax.plot(r["nodes"] * 1e6, r["load"] / 1e3, "^", color=plotting.SERIES[1], markersize=6, label="napełnianie")
+    ax.plot(r["nodes"] * 1e6, r["unload"] / 1e3, "v", color=plotting.SERIES[2], markersize=6, label="opróżnianie")
+    ax.plot(xm_all := (sol["V"] - args.V_rest) * 1e6, sol["p"] / 1e3, color=plotting.SERIES[0],
+            label="Chamber z wyznaczoną krzywą")
+    tab = np.loadtxt(C.PACKAGE_DIR / "Resources/Data/chamber_pV_placeholder.csv", delimiter=",", skiprows=1)
+    ax.plot((tab[:, 0] - 5e-6) * 1e6, tab[:, 1] / 1e3, color=plotting.SERIES[4], linestyle=(0, (4, 3)),
+            linewidth=1.5, label="placeholder (spoczynek 5 ml)")
+    ax.set_xlim(x.min() * 1e6 - 0.3, x.max() * 1e6 + 0.3)
+    ax.set_ylim(min(p.min(), r["backbone"].min()) / 1e3 - 3, p.max() / 1e3 + 5)
+    ax.set_xlabel("ΔV ze strzykawki [ml]")
+    ax.set_ylabel("nadciśnienie [kPa]")
+    ax.legend(loc="upper left")
+    src = "pomiar syntetyczny" if truth else args.data
+    ax.set_title(f"Kalibracja komory: krzywa p–V ({src})", loc="left", fontsize=11)
+    print(plotting.save(fig, "chamber_fit.png", "calibration"))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="step", required=True)
@@ -406,9 +560,16 @@ def main():
     q = sub.add_parser("pipe", help="krok 4: przewód z charakterystyki Δp(Q)")
     q.add_argument("--data", help="CSV z punktami (Q [m³/s], dp [Pa]); bez tej opcji: pomiar syntetyczny")
     q.add_argument("--l", type=float, default=0.2, help="zmierzona długość przewodu [m]")
+    k = sub.add_parser("chamber", help="krok 5: krzywa p–V komory z cykli strzykawki")
+    k.add_argument("--data", help="CSV w kolejności czasu (dV [m³], p [Pa]); bez tej opcji: pomiar syntetyczny")
+    k.add_argument("--V-rest", type=float, default=5e-6,
+                   help="objętość komory w spoczynku (CAD lub ważenie) [m³]; tabela ma V = V_rest + ΔV")
+    k.add_argument("--skip", type=int, default=2, help="liczba pierwszych suwów do pominięcia (efekt Mullinsa)")
+    k.add_argument("--margin", type=float, default=1e-6,
+                   help="odstęp węzłów od punktów zawrócenia strzykawki [m³] (czubki pętli histerezy)")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
-    {"motor": motor_main, "pump": pump_main, "pipe": pipe_main}[args.step](args)
+    {"motor": motor_main, "pump": pump_main, "pipe": pipe_main, "chamber": chamber_main}[args.step](args)
 
 
 if __name__ == "__main__":

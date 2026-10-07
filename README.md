@@ -49,6 +49,7 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/calibrate.py motor --data pomiar.csv --U 6 --t-step 0.01   # to samo na prawdziwym pomiarze
 .venv/bin/python scripts/calibrate.py pump      # identyfikacja pompy (wymaga wyniku kroku motor)
 .venv/bin/python scripts/calibrate.py pipe [--data punkty.csv --l 0.2]   # identyfikacja przewodu z Δp(Q)
+.venv/bin/python scripts/calibrate.py chamber [--data cykle.csv --V-rest 5e-6]   # krzywa p–V komory -> CSV dla Chamber
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -350,3 +351,25 @@ Pomiar syntetyczny: 20 punktów od 1 do 40 ml/s (Re ok. 350–14 000), szum 1% o
 **Lekcja: nie każdy parametr da się wyznaczyć z danego eksperymentu.** Średnicę wyznacza głównie zakres laminarny, bo opór rośnie tam jak `1/d⁴`: 0,23% niepewności `d` to ok. 1% oporu. Dla tego węża placeholder 4 mm dawał prawie 2 razy za mały opór. Chropowatość ma niepewność 29%, bo przy Re poniżej ok. 15 000 gładki wąż zachowuje się prawie jak idealnie gładka rura i ścianka ledwo wpływa na tarcie. Taki parametr lepiej przyjąć z tablic, niż dopasowywać. Sprawdzenie: przy chropowatości z tablic 1,5 µm, czyli 3 razy za małej, `d` przesuwa się o 0,25%, a `zeta` o 3,4%, czyli o 1–1,6σ. Średnica i `zeta` są silnie skorelowane (0,96), bo obie podnoszą opór w całym zakresie. Gdyby `d` zmierzyć osobno (np. objętością wody w odcinku węża), niepewność `zeta` by spadła.
 
 Model przejścia laminarny–turbulentny (interpolacja między `Re_lam` a `Re_turb`) jest tu założeniem, a nie wynikiem. W pomiarze syntetycznym zgadza się z „rzeczywistością” z definicji. Na prawdziwym pomiarze błędne progi przejścia pokażą się jako garb reszt w szarym pasie na wykresie.
+
+### Krzywa p–V komory (krok 5): `calibrate.py chamber`
+
+Strzykawka (najlepiej pompa strzykawkowa) powoli wtłacza i wyciąga wodę z komory przy zablokowanym ogonie, a czujnik ciśnienia stoi przy komorze. Kilka cykli od lekkiego podciśnienia do ciśnienia otwarcia zaworu. Plik pomiaru to CSV w kolejności czasu z kolumnami `dV [m³]` (objętość ze strzykawki względem spoczynku) i `p [Pa]` (nadciśnienie). Wynikiem nie są parametry, tylko cała krzywa: `results/calibration/chamber_pV.csv` w formacie dla `Chamber(tableOnFile = true, fileName = ...)`. Objętość w spoczynku (`--V-rest`) nie wynika z tego pomiaru, trzeba ją wziąć z CAD albo z ważenia. W modelu liczy się zresztą tylko jej położenie względem `V_prefill`, czyli to, ile wody dolano ponad spoczynek przy zamykaniu obwodu.
+
+Przetwarzanie:
+
+1. Podział na suwy między zawróceniami strzykawki i odrzucenie pierwszego cyklu. Silikon przy pierwszym rozciągnięciu jest sztywniejszy (efekt Mullinsa).
+2. W 15 węzłach lokalna regresja liniowa osobno dla gałęzi napełniania i opróżniania, uśredniona po cyklach.
+3. Krzywa szkieletowa = średnia obu gałęzi. Skrypt sprawdza, czy jest rosnąca, bo innej `Chamber` nie przyjmie.
+4. Pole pętli histerezy `∮ p dV` z surowych danych, czyli energia tracona w każdym cyklu.
+5. Kontrola w Modelice: `FishRobot.Calibration.ChamberBench` z wyznaczonym plikiem (`fileName` przez `-override`) przechodzi przez cały zakres.
+
+Pomiar syntetyczny: „prawdziwa” komora jest na początku bardziej miękka od placeholdera, a potem mocniej sztywnieje. Ma histerezę o półszerokości `300 Pa + 6%·|p|`, pierwsze napełnienie o 15% sztywniejsze i szum (150 Pa, 0,01 ml). Cztery cykle od −3 do +10 ml. Wyniki (`results/calibration/chamber_fit.{txt,png}`):
+
+- krzywa w węzłach różni się od prawdziwej krzywej szkieletowej o najwyżej 0,17% zakresu ciśnień, a po interpolacji w `Chamber` o 0,53%,
+- bez odrzucenia pierwszego cyklu: 1,7%,
+- pętla histerezy: 25 mJ na cykl przy pełnym suwie.
+
+**Lekcja: czubki pętli nie leżą na krzywej szkieletowej.** W punkcie zawrócenia strzykawki obie gałęzie się spotykają, bo histereza potrzebuje trochę objętości, żeby się „przełączyć”. Węzły na samych końcach suwu dawały błąd 4,8% zakresu. Dlatego tabela kończy się 1 ml przed punktami zawrócenia (`--margin`), a dalej `Chamber` przedłuża krzywą liniowo, czyli przy rosnącej sztywności zaniża ciśnienie. Suw strzykawki trzeba więc zaplanować z zapasem ponad zakres pracy komory w robocie.
+
+**Czy brak histerezy w modelu ma znaczenie?** W scenariuszu `EnergyBudget` komory pracują między 6 a 10 ml, czyli 1–5 ml ponad spoczynek, przy 2–12 kPa. Syntetyczna komora traci w takim cyklu ok. 3,9 mJ. Dla dwóch komór przy 1 Hz to ok. 8 mW, czyli ok. 0,4% mocy napędu ogona (1,8 W). To więcej niż straty ogona w bilansie (0,1%), ale mniej niż przewody i łożyska. Prawdziwy silikon może mieć szerszą pętlę, więc tę liczbę trzeba policzyć ponownie z pomiaru. Jeśli wyjdzie istotna, `Chamber` trzeba rozszerzyć o tłumienie lepkosprężyste.
