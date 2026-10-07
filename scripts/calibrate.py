@@ -27,6 +27,7 @@ szkieletowej, a wynik zapisywany jako CSV dla Chamber(tableOnFile=true) i sprawd
   .venv/bin/python scripts/calibrate.py tail-dynamic [--data-air a.csv --data-water w.csv]
   .venv/bin/python scripts/calibrate.py thrust [--data punkty.csv --noise-abs 1e-4 --noise-rel 0.05]
   .venv/bin/python scripts/calibrate.py hull [--data-tow h.csv --data-coast w.csv --A 0.005 --m 1.0]
+  .venv/bin/python scripts/calibrate.py ballast [--data-turns t.csv --data-depth d.csv --data-vertical v.csv]
 
 Krok 6, zawór przelewowy (calibrate.py valve): charakterystyka Q(Δp) przy rosnącym i malejącym przepływie,
 dopasowanie jak w kroku 4, osobno dla obu gałęzi (histereza grzybka) i wspólnie.
@@ -43,13 +44,17 @@ dla C_T = 1, a C_T wynika z regresji ważonej modelem szumu siłomierza. Test po
 Krok 10, kadłub (calibrate.py hull): C_d z holowania (regresja ważona), m_added_x z wybiegu CoastDown
 (wybieg wyznacza tylko k_d/M, więc C_d i m pochodzą z innych pomiarów).
 
+Krok 11, balast i pion (calibrate.py ballast): ważenie pod wodą przy położeniach tłoka (V_b_neutral, posuw)
+i na głębokościach (V_air0), wynurzanie VerticalStep po skoku pęcherza (m_added_z, C_dz; siła ρ·g·dV jest znana).
+
 Pliki pomiaru: CSV z nagłówkiem; silnik: time [s], i [A], w [rad/s]; pompa: U [V], i [A], w [rad/s],
 dp [Pa], Q [m³/s];
 przewód: Q [m³/s], dp [Pa]; komora (w kolejności czasu): dV [m³], p [Pa];
 zawór: dp [Pa], Q [m³/s], up (1 = przepływ rośnie);
 ogon statycznie: dp_blocked [Pa], tau [N·m], dp_free [Pa], theta [rad]; ogon dynamicznie: time [s], theta [rad];
 ciąg: Theta [rad], f [Hz], U [m/s], T [N];
-kadłub: holowanie U [m/s], F [N]; wybieg time [s], x [m].
+kadłub: holowanie U [m/s], F [N]; wybieg time [s], x [m];
+balast: turns, W [N]; depth [m], W [N]; time [s], z [m].
 Wyniki -> results/calibration/.
 """
 
@@ -1060,6 +1065,142 @@ def hull_main(args):
     print(plotting.save(fig, "hull_fit.png", "calibration"))
 
 
+# --- Krok 11: balast i pion ---------------------------------------------------------------------------
+
+BALLAST = {
+    "rho": 998.2, "g": 9.80665, "p_atm": 1.01325e5,
+    "d_piston": 20e-3, "sigma_d": 0.02e-3,  # średnica tłoka z suwmiarki ± 0,02 mm
+    "m": 1.0, "A_z": 0.02,                    # masa z wagi, rzut z góry (linijka)
+    # „prawdziwa” ryba: posuw tłoka 0,98 mm na 30 obrotów silnika (gwint nieco krótszy od nominalnego)
+    "true": {"feed": 0.98e-3 / 30, "V_b_neutral": 7.2e-6, "V_air0": 15e-6,
+             "fish.m_added_z": 0.6, "fish.C_dz": 1.3},
+    "turns": np.linspace(0, 1200, 9).tolist(),  # licznik obrotów silnika strzykawki (0 = pęcherz pusty)
+    "depths": np.linspace(0.2, 3.0, 8).tolist(),
+    "noise_W": 1e-3,                            # waga pod wodą: 1 mN
+    "vertical": {"model": "FishRobot.Calibration.VerticalStep", "dV": 1e-6, "z_start": -1.5,
+                 "dt": 0.05, "t_end": 20.0, "noise": 3e-3,  # czujnik ciśnienia: 3 mm wody
+                 "params": {"fish.m_added_z": (0.5, "kg"), "fish.C_dz": (1.0, "–")},
+                 "signals": {"z": ("m", "położenie")},
+                 "component": "FishRobot.Buoyancy.VerticalDynamics fish"},
+}
+
+
+def linfit(X, y):
+    """Najmniejsze kwadraty z kowariancją parametrów (σ² z reszt)."""
+    beta, *_ = np.linalg.lstsq(X, y, rcond=None)
+    r = y - X @ beta
+    return beta, np.linalg.inv(X.T @ X) * (r @ r / (len(y) - X.shape[1])), r
+
+
+def ballast_main(args):
+    c = BALLAST
+    rg = c["rho"] * c["g"]
+    A = np.pi * args.d_piston ** 2 / 4
+    rng = np.random.default_rng(12)
+    truth = None if args.data_turns else c["true"]
+
+    # 1. Ważenie pod wodą przy kilku położeniach tłoka: W = ρ·g·(V_b_neutral − A·feed·n)
+    if args.data_turns:
+        d = np.genfromtxt(args.data_turns, delimiter=",", names=True)
+        n, W = d["turns"], d["W"]
+    else:
+        n = np.array(c["turns"])
+        W = rg * (truth["V_b_neutral"] - A * truth["feed"] * n) + rng.normal(0, c["noise_W"], n.size)
+    (a, b), cov1, r1 = linfit(np.column_stack([np.ones_like(n), n]), W)
+    V_bn, s_Vbn = a / rg, np.sqrt(cov1[0, 0]) / rg
+    feed = -b / (rg * A)
+    rel_feed = np.hypot(np.sqrt(cov1[1, 1]) / abs(b), 2 * args.sigma_d / args.d_piston)
+
+    # 2. Ważenie na kilku głębokościach przy stałym tłoku: W = W0 + ρ·g·V_air0·(1 − p_atm/(p_atm + ρ·g·h))
+    if args.data_depth:
+        d = np.genfromtxt(args.data_depth, delimiter=",", names=True)
+        h, Wh = d["depth"], d["W"]
+    else:
+        h = np.array(c["depths"])
+        Wh = rg * truth["V_air0"] * (1 - c["p_atm"] / (c["p_atm"] + rg * h)) + rng.normal(0, c["noise_W"], h.size)
+    comp = rg * (1 - c["p_atm"] / (c["p_atm"] + rg * h))
+    (W0, V_air0), cov2, r2 = linfit(np.column_stack([np.ones_like(h), comp]), Wh)
+    s_Vair = np.sqrt(cov2[1, 1])
+
+    # 3. Wynurzanie po skoku pęcherza: dopasowanie m_added_z i C_dz (siła ρ·g·dV jest znana)
+    v = c["vertical"]
+    exp = {k: v[k] for k in ("model", "params", "signals", "component")}
+    setup = {"dV": args.dV, "z_start": v["z_start"], "fish.m": args.m, "fish.A_z": args.A_z, "fish.V_air0": V_air0}
+    work_dir = om_fast.compile_model(v["model"])
+    if args.data_vertical:
+        d = np.genfromtxt(args.data_vertical, delimiter=",", names=True)
+        t, meas = d["time"], {"z": d["z"]}
+        setup["z_start"] = float(np.median(meas["z"][t < 1.0]))
+    else:
+        t = np.arange(0, v["t_end"] + 1e-9, v["dt"])
+        clean = simulate(work_dir, exp, [truth[k] for k in exp["params"]], "true",
+                         setup | {"fish.V_air0": truth["V_air0"]}, t)["z"]
+        meas = {"z": clean + rng.normal(0, v["noise"], t.size)}
+    p_fit, sigma, cov, res, noise = fit(work_dir, exp, t, meas, setup)
+    # Niepewność V_air0 z punktu 2: ponowne dopasowanie przy V_air0 + σ, przesunięcie doliczamy do σ
+    p_shift = fit(work_dir, exp, t, meas, setup | {"fish.V_air0": V_air0 + s_Vair})[0]
+    rel_air = np.abs(np.log(p_shift / p_fit))
+    sigma_tot = np.hypot(sigma, rel_air)
+
+    if truth:
+        np.savetxt(OUT / "ballast_turns_synthetic.csv", np.column_stack([n, W]), delimiter=",", header="turns,W",
+                   comments="", fmt="%.6g")
+        np.savetxt(OUT / "ballast_depth_synthetic.csv", np.column_stack([h, Wh]), delimiter=",", header="depth,W",
+                   comments="", fmt="%.6g")
+        np.savetxt(OUT / "ballast_vertical_synthetic.csv", np.column_stack([t, meas["z"]]), delimiter=",",
+                   header="time,z", comments="", fmt="%.6g")
+    tr = (lambda val, ref: f"   (prawdziwe {ref:.4g}, błąd {100 * (val / ref - 1):+.1f}%)") if truth else (lambda val, ref: "")
+    lines = [
+        "1. ważenie przy położeniach tłoka:",
+        f"   V_b_neutral = {V_bn * 1e6:.3f} ml ± {s_Vbn * 1e6:.3f} ml" + tr(V_bn * 1e6, truth["V_b_neutral"] * 1e6 if truth else 0),
+        f"   posuw tłoka = {feed * 1e6:.3f} µm/obr silnika ± {100 * rel_feed:.2f}%  (= lead/gear_ratio; "
+        f"przy gear_ratio = 30: lead = {feed * 30 * 1e3:.4f} mm)" + tr(feed * 1e6, truth["feed"] * 1e6 if truth else 0),
+        "2. ważenie na głębokościach:",
+        f"   V_air0 = {V_air0 * 1e6:.2f} ml ± {s_Vair * 1e6:.2f} ml" + tr(V_air0 * 1e6, truth["V_air0"] * 1e6 if truth else 0),
+        f"   przyrost ciężaru na 3 m głębokości: {rg * V_air0 * (1 - c['p_atm'] / (c['p_atm'] + rg * 3)) * 1e3:.1f} mN "
+        f"= {V_air0 * (1 - c['p_atm'] / (c['p_atm'] + rg * 3)) * 1e6:.2f} ml pęcherza",
+        f"3. wynurzanie po skoku pęcherza (V_air0 = {V_air0 * 1e6:.2f} ml z punktu 2):",
+        "\n".join("   " + l for l in report(exp, p_fit, sigma, cov, res, noise,
+                                             truth and {k: truth[k] for k in exp["params"]}).splitlines()
+                   if not l.startswith("do modelu")),
+        "   niepewność całkowita (dopasowanie ⊕ V_air0 ± 1σ): "
+        + ", ".join(f"{n.split('.')[-1]} ±{100 * st:.1f}%" for n, st in zip(exp["params"], sigma_tot)),
+        f"do modelu: FishRobot.Buoyancy.VerticalDynamics fish(m={args.m:g}, V_b_neutral={V_bn:.4g}, "
+        f"V_air0={V_air0:.4g}, m_added_z={p_fit[0]:.4g}, C_dz={p_fit[1]:.4g}, A_z={args.A_z:g});",
+        f"           FishRobot.Buoyancy.BallastSyringe syringe(d_piston={args.d_piston:g}, lead={feed * 30:.4g}, gear_ratio=30);",
+    ]
+    text = "\n".join(lines)
+    print(text)
+    (OUT / "ballast_fit.txt").write_text(text + "\n")
+
+    sim_fit = simulate(work_dir, exp, p_fit, "fit", setup, t)
+    fig, axes = plotting.plt.subplots(1, 3, figsize=(12, 4))
+    nn = np.linspace(n.min(), n.max(), 50)
+    axes[0].plot(n, W * 1e3, "o", color=plotting.SERIES[0], markersize=5)
+    axes[0].plot(nn, (a + b * nn) * 1e3, color=plotting.TEXT_2, linewidth=1.2)
+    axes[0].axhline(0, color=plotting.TEXT_2, linewidth=0.8, linestyle=(0, (2, 2)))
+    axes[0].set_xlabel("obroty silnika strzykawki")
+    axes[0].set_ylabel("ciężar pozorny w wodzie [mN]")
+    axes[0].set_title("położenie tłoka", loc="left", fontsize=10)
+    hh = np.linspace(0, h.max(), 50)
+    axes[1].plot(h, Wh * 1e3, "o", color=plotting.SERIES[1], markersize=5)
+    axes[1].plot(hh, (W0 + V_air0 * rg * (1 - c["p_atm"] / (c["p_atm"] + rg * hh))) * 1e3, color=plotting.TEXT_2,
+                 linewidth=1.2)
+    axes[1].set_xlabel("głębokość [m]")
+    axes[1].set_ylabel("przyrost ciężaru [mN]")
+    axes[1].set_title("ściskanie powietrza", loc="left", fontsize=10)
+    axes[2].plot(t, meas["z"], ".", color="#b9b8b3", markersize=2, label="pomiar")
+    axes[2].plot(t, sim_fit["z"], color=plotting.SERIES[0], label="dopasowanie")
+    axes[2].set_xlabel("czas [s]")
+    axes[2].set_ylabel("z [m]")
+    axes[2].set_title(f"wynurzanie po +{args.dV * 1e6:g} ml", loc="left", fontsize=10)
+    axes[2].legend(loc="upper left")
+    src = "pomiar syntetyczny" if truth else "pomiar"
+    fig.suptitle(f"Kalibracja balastu i ruchu pionowego ({src})", x=0.01, ha="left", fontsize=11)
+    fig.tight_layout()
+    print(plotting.save(fig, "ballast_fit.png", "calibration"))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="step", required=True)
@@ -1100,10 +1241,19 @@ def main():
     h.add_argument("--sigma-m", type=float, default=HULL["sigma_m"], help="niepewność ważenia [kg]")
     h.add_argument("--noise-abs", type=float, default=HULL["noise_abs"], help="szum stały siłomierza [N]")
     h.add_argument("--noise-rel", type=float, default=HULL["noise_rel"], help="szum względny siłomierza [–]")
+    bl = sub.add_parser("ballast", help="krok 11: V_b_neutral, posuw tłoka, V_air0, m_added_z, C_dz")
+    bl.add_argument("--data-turns", help="CSV (turns, W [N]) – ciężar pozorny pod wodą przy położeniach tłoka")
+    bl.add_argument("--data-depth", help="CSV (depth [m], W [N]) – przyrost ciężaru na głębokościach, tłok stały")
+    bl.add_argument("--data-vertical", help="CSV (time [s], z [m]) – wynurzanie po skoku pęcherza w t = 2 s")
+    bl.add_argument("--d-piston", type=float, default=BALLAST["d_piston"], help="średnica tłoka [m]")
+    bl.add_argument("--sigma-d", type=float, default=BALLAST["sigma_d"], help="niepewność średnicy tłoka [m]")
+    bl.add_argument("--m", type=float, default=BALLAST["m"], help="masa ryby [kg]")
+    bl.add_argument("--A-z", type=float, default=BALLAST["A_z"], help="pole rzutu z góry [m²]")
+    bl.add_argument("--dV", type=float, default=BALLAST["vertical"]["dV"], help="skok pęcherza [m³]")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     {"motor": motor_main, "pump": pump_main, "pipe": pipe_main, "chamber": chamber_main, "valve": valve_main,
-     "tail-static": tail_static_main, "tail-dynamic": tail_dynamic_main, "thrust": thrust_main, "hull": hull_main}[args.step](args)
+     "tail-static": tail_static_main, "tail-dynamic": tail_dynamic_main, "thrust": thrust_main, "hull": hull_main, "ballast": ballast_main}[args.step](args)
 
 
 if __name__ == "__main__":

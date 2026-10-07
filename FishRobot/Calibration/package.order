@@ -6,4 +6,5 @@ ValveBench
 TailDecay
 ThrustBench
 CoastDown
+VerticalStep
 LinearThrottle

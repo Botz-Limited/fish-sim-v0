@@ -15,6 +15,7 @@ Uproszczony, **edukacyjny i nieskalibrowany** model robota-ryby w Modelice: siln
 | 7 | `LighthillFin` (ciąg, placeholder), `SurgeDynamics` → `SwimForward`, `sweep.py --swim`, testy `SurgeTerminalVelocity`, `FinPrescribedMotion` | gotowe |
 | 8 | `TailDriveFMU` → FMU 2.0 CS (`export_fmu.py`), pętla FMPy i porównanie z OpenModelica (`fmu_demo.py`) | gotowe |
 | 9 | (opcja) `HydraulicsFluid` na złączach `Modelica.Fluid` → `HydraulicsMSLFluid`, porównanie (`compare_fluid.py`) | gotowe |
+| 10 | Kalibracja: stanowiska `FishRobot.Calibration` i `calibrate.py` dla kroków 2–11 planu kalibracji | gotowe, sprawdzone na pomiarach syntetycznych |
 
 ## Wersje
 
@@ -55,6 +56,7 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/calibrate.py tail-dynamic [--data-air a.csv --data-water w.csv]   # J, c, J_added, c_h
 .venv/bin/python scripts/calibrate.py thrust [--data punkty.csv --noise-abs 1e-4 --noise-rel 0.05]   # C_T płetwy
 .venv/bin/python scripts/calibrate.py hull [--data-tow h.csv --data-coast w.csv --A 0.005 --m 1.0]   # C_d, m_added_x
+.venv/bin/python scripts/calibrate.py ballast [--data-turns t.csv --data-depth d.csv --data-vertical v.csv]   # balast i pion
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -457,3 +459,34 @@ Pomiar syntetyczny: `C_d = 0,4`, `A = 50 cm²`, `m = 1 kg`, `m_added_x = 0,08 kg
 W 200 powtórzeniach rozrzut `m_added_x` to 0,015 kg (ok. 18%), przy średnim σ 0,014 kg i bez obciążenia.
 
 **Lekcja: mała różnica dużych liczb.** Masa dodana to tylko 8% masy całkowitej, więc każdy procent błędu `M` daje ok. 13% błędu `m_added_x`. Kamera wyznacza `k_d/M` bardzo dokładnie, ale błąd `C_d` z holowania przechodzi w `M` 1:1 i zjada całą precyzję. Żeby poprawić `m_added_x`, trzeba lepiej zmierzyć opór (więcej punktów holowania przy prędkościach z wybiegu, 5–15 cm/s), a nie dłużej filmować wybieg. Dla samego pływania to małe zmartwienie: `m_added_x` wpływa tylko na czas rozpędzania, a prędkość ustalona zależy wyłącznie od `C_d·A`, który jest wyznaczony z dokładnością 1%.
+
+### Balast i pion (krok 11): `calibrate.py ballast`
+
+Trzy pomiary w basenie:
+
+1. **Ważenie pod wodą przy kilku położeniach tłoka** (licznik obrotów silnika strzykawki, 0 = pęcherz pusty). Ciężar pozorny `W = ρ·g·(V_b_neutral − A_tłoka·posuw·n)` jest liniowy w liczbie obrotów `n`. Wyraz wolny to `ρ·g·V_b_neutral`, niezależnie od geometrii tłoka. Nachylenie daje posuw tłoka na obrót silnika, czyli `lead/gear_ratio` (tylko ten iloraz), przy średnicy tłoka z suwmiarki. Plik: `turns, W [N]`.
+2. **Ważenie na kilku głębokościach** przy stałym tłoku: `W = W0 + ρ·g·V_air0·(1 − p_atm/(p_atm + ρ·g·h))`, regresja liniowa w `W0` i `V_air0`. Plik: `depth [m], W [N]`.
+3. **Wynurzanie po skoku pęcherza** z pływalności neutralnej (`FishRobot.Calibration.VerticalStep`), położenie z czujnika ciśnienia w kadłubie. Siła `ρ·g·dV` jest znana, więc prędkość graniczna wyznacza opór `C_dz`, a czas rozpędzania masę `m + m_added_z`. Plik: `time [s], z [m]`, skok w `t = 2 s`.
+
+Pomiar syntetyczny (waga pod wodą 1 mN, czujnik głębokości 3 mm) (`results/calibration/ballast_fit.{txt,png}`):
+
+| Parametr | Wynik | Niepewność | Błąd |
+|---|---|---|---|
+| `V_b_neutral` | 7,29 ml | ±0,06 ml | +1,3% |
+| posuw tłoka | 33,1 µm/obr | ±0,8% | +1,3% |
+| `V_air0` | 15,2 ml | ±0,7 ml | +1,2% |
+| `m_added_z` | 0,595 kg | ±1,6% | −0,8% |
+| `C_dz` | 1,304 | ±1,1% | +0,3% |
+
+**Lekcja 1: znana siła daje masę dodaną.** W kroku 10 wybieg wyznaczał tylko `k_d/M`, a masa dodana wynikała z różnicy dużych liczb z niepewnością 18%. Tu wymuszenie `ρ·g·dV` jest znane z położenia tłoka, więc jeden przebieg wyznacza i opór, i masę, a `m_added_z` wychodzi z niepewnością 1,6%. Masa dodana w pionie (60% masy ryby) jest też dużo większa niż wzdłuż osi (8%), więc łatwiej ją zmierzyć.
+
+**Lekcja 2: model może pasować idealnie i być zły.** Kieszeń powietrza w kadłubie (15 ml) rozpręża się przy wynurzaniu. Na 0,5 m drogi z 1,5 m to ok. 0,7 ml dodatkowego wyporu, prawie tyle co sam skok pęcherza (1 ml). Dopasowanie modelu bez ściśliwości daje `C_dz` = 1,01 (prawdziwe 1,3) i `m_added_z` = 0,71 kg (prawdziwe 0,6), a reszty mają 3,0 mm, czyli dokładnie szum czujnika. Rosnący wypór „chowa się” w oporze i masie, więc reszty niczego nie zdradzają. Dlatego `VerticalStep` ma włączoną ściśliwość, `V_air0` pochodzi z pomiaru 2, a jego niepewność jest doliczana do niepewności `C_dz` i `m_added_z` (przez ponowne dopasowanie przy `V_air0 + σ`).
+
+### Podsumowanie kalibracji
+
+Każdy krok ma model stanowiska w `FishRobot.Calibration` (albo regresję, gdy zależności są liniowe), pomiar syntetyczny ze znanymi parametrami i sprawdzenie, czy podawana niepewność zgadza się z rozrzutem w powtórzeniach. Przy prawdziwych pomiarach wystarczy podać pliki CSV (`--data...`). Lekcje powtarzające się w wielu krokach:
+
+- **Nie każdy parametr da się wyznaczyć z danego pomiaru.** Często widać tylko iloraz albo iloczyn: `C_T·s_fin²`, `C_d·A`, `V_flow_nominal/dp_open`, `k/J`, `k_d/M`, `lead/gear_ratio`. Brakujący czynnik trzeba zmierzyć inaczej (linijka, waga, osobny pomiar statyczny), a jego błąd przenosi się na wynik.
+- **Wagi sygnałów i punktów muszą wynikać z modelu szumu czujników.** Inaczej podawana niepewność jest za mała (silnik, ciąg).
+- **Błąd czujnika zidentyfikowanego wcześniej nie uśrednia się.** Silnik jako czujnik momentu dla pompy, `k` ogona dla dynamiki, `C_d` dla masy dodanej, `V_air0` dla oporu w pionie.
+- **Niezgodność modelu z rzeczywistością daje błąd, którego nie ma w σ.** Czasem widać ją w resztach (histereza zaworu, przejście laminarne w przewodzie), czasem tylko w teście postaci (nieliniowa sztywność ogona, ciąg w funkcji prędkości), a czasem wcale (ściśliwość przy wynurzaniu). Dlatego pomiar syntetyczny z „rzeczywistością” bogatszą niż model to dobry sposób, żeby przed wyjazdem na basen sprawdzić, czy plan pomiarów w ogóle pozwoli wyznaczyć parametry.
