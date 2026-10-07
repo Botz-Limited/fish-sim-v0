@@ -1,437 +1,438 @@
-# fish-sim-v0 / SOFA – miękki hydrauliczny ogon (SOFA + SoftRobots)
+# fish-sim-v0 / SOFA – soft hydraulic tail (SOFA + SoftRobots)
 
-Edukacyjne demo FEM ogona robota-ryby. Specyfikacja: [SPEC_fish_sofa_demo.md](SPEC_fish_sofa_demo.md). **To nie jest skalibrowany model** – wszystkie parametry to placeholdery.
+Educational FEM demo of a robot-fish tail. Specification: [SPEC_fish_sofa_demo.md](SPEC_fish_sofa_demo.md). **This is not a calibrated model** – all parameters are placeholders.
 
-Stan: **etapy 0 (instalacja, API), 1 (siatka, ugięcie pod ciężarem), 2 (komora L quasi-statycznie), 3 (symetria L/R), 4 (machanie w powietrzu), 5 (woda) i 6 (przeglądy) zakończone; solver CHOLMOD (4–15× szybciej) dodany po etapie 2, OpenBLAS z condy i równoległe przeglądy po etapie 4.** Etap 7 (opcjonalny eksport PRBM do MuJoCo) świadomie pominięty (decyzja 6.10.2026); opis metody: spec, sekcja 8.
+Status: **stages 0 (installation, API), 1 (mesh, sag under own weight), 2 (chamber L quasi-static), 3 (L/R symmetry), 4 (flapping in air), 5 (water) and 6 (sweeps) complete; CHOLMOD solver (4–15× faster) added after stage 2, OpenBLAS from conda and parallel sweeps after stage 4.** Stage 7 (optional PRBM export to MuJoCo) deliberately skipped (decision 6.10.2026); method description: spec, section 8.
 
-## Instalacja (Linux x86_64, sprawdzone na Fedorze 44 i EndeavourOS/Arch)
+## Installation (Linux x86_64, tested on Fedora 44 and EndeavourOS/Arch)
 
-**Na nowym komputerze wystarczy jedna komenda** (potrzebna wcześniej: conda, np. [Miniforge](https://github.com/conda-forge/miniforge)):
+**On a new machine one command is enough** (prerequisite: conda, e.g. [Miniforge](https://github.com/conda-forge/miniforge)):
 
 ```bash
 git clone <repo> && cd fish-sim-v0
-SOFA/scripts/setup.sh --install-deps     # ~2 min + pobranie 230 MB; brakujące pakiety przez sudo dnf/apt
-source SOFA/scripts/env.sh               # w każdej nowej powłoce (bash lub zsh)
-SOFA/scripts/run_gui.sh                  # GUI: ogon macha (Animate)
+SOFA/scripts/setup.sh --install-deps     # ~2 min + 230 MB download; missing packages via sudo dnf/apt
+source SOFA/scripts/env.sh               # in every new shell (bash or zsh)
+SOFA/scripts/run_gui.sh                  # GUI: tail flaps (Animate)
 ```
 
-`setup.sh` pomija kroki już zrobione. Kolejno:
-1. Sprawdza zależności systemowe: kompilator, cmake, ninja, SuiteSparse/CHOLMOD, Eigen oraz biblioteki OpenGL/X11 dla gmsh i GUI. Bez `--install-deps` tylko wypisuje komendę `dnf` albo `apt`.
-2. Pobiera binarkę SOFA v26.06.00 do `~/sofa` i sprawdza sumę SHA-256.
-3. Tworzy środowisko conda `fishsofa` z `environment.yml`.
-4. Buduje wtyczkę CHOLMOD.
-5. Uruchamia `check_sofa.py` i `pytest`.
+`setup.sh` skips steps already done. In order:
+1. Checks system dependencies: compiler, cmake, ninja, SuiteSparse/CHOLMOD, Eigen and the OpenGL/X11 libraries for gmsh and the GUI. Without `--install-deps` it only prints the `dnf` or `apt` command.
+2. Downloads the SOFA v26.06.00 binary to `~/sofa` and verifies its SHA-256 checksum.
+3. Creates the conda environment `fishsofa` from `environment.yml`.
+4. Builds the CHOLMOD plugin.
+5. Runs `check_sofa.py` and `pytest`.
 
-Inny katalog niż `~/sofa`: `FISHSOFA_HOME=/sciezka` dla `setup.sh` **i** `env.sh`. Test czystej instalacji (5.10.2026, osobny katalog i osobne środowisko conda): 1 min 43 s, 33/33 testów. EndeavourOS (6.10.2026, od zera, z Miniforge): 1 min 58 s, 33/33.
+Directory other than `~/sofa`: `FISHSOFA_HOME=/path` for `setup.sh` **and** `env.sh`. Clean-install test (5.10.2026, separate directory and separate conda environment): 1 min 43 s, 33/33 tests. EndeavourOS (6.10.2026, from scratch, with Miniforge): 1 min 58 s, 33/33.
 
-| Co | Wersja / źródło |
+| What | Version / source |
 |---|---|
-| SOFA | **v26.06.00**, oficjalna binarka `SOFA_v26.06.00_Linux_Python3.12.zip` z [github.com/sofa-framework/sofa/releases](https://github.com/sofa-framework/sofa/releases), SHA-256 w `setup.sh` |
-| SoftRobots, SoftRobots.Inverse, STLIB, SofaPython3 | **w oficjalnej binarce** (nie trzeba kompilować ani używać DefrostSofaBundle) |
-| SofaCHOLMOD | źródła w repo: `third_party/SofaCHOLMOD`, z SOFA master, commit `6c3e21f`; opis w `VENDORED.md`. Budowane dla v26.06 przez `scripts/build_cholmod_plugin.sh` (solver `"cholmod"`, domyślny) |
-| Licencje | SOFA i SofaCHOLMOD: LGPL 2.1+ (`LICENSE-LGPL.md`); SoftRobots: **LGPL v3** (`plugins/SoftRobots/LICENSE`) |
-| Python | **3.12** w środowisku conda `fishsofa`; pakiety przypięte w `requirements.txt` (systemowy Python 3.14 nie pasuje do binarki) |
-| Siatki | generowane przy pierwszym użyciu do `SOFA/meshes/` (gmsh, deterministycznie; nie ma ich w repo) |
+| SOFA | **v26.06.00**, official binary `SOFA_v26.06.00_Linux_Python3.12.zip` from [github.com/sofa-framework/sofa/releases](https://github.com/sofa-framework/sofa/releases), SHA-256 in `setup.sh` |
+| SoftRobots, SoftRobots.Inverse, STLIB, SofaPython3 | **in the official binary** (no need to compile or use DefrostSofaBundle) |
+| SofaCHOLMOD | sources in the repo: `third_party/SofaCHOLMOD`, from SOFA master, commit `6c3e21f`; described in `VENDORED.md`. Built for v26.06 by `scripts/build_cholmod_plugin.sh` (solver `"cholmod"`, default) |
+| Licenses | SOFA and SofaCHOLMOD: LGPL 2.1+ (`LICENSE-LGPL.md`); SoftRobots: **LGPL v3** (`plugins/SoftRobots/LICENSE`) |
+| Python | **3.12** in the conda environment `fishsofa`; packages pinned in `requirements.txt` (system Python 3.14 does not match the binary) |
+| Meshes | generated on first use into `SOFA/meshes/` (gmsh, deterministic; not in the repo) |
 
-**Dlaczego tak:**
-- Binarka SOFA jest budowana na Ubuntu. Na Fedorze `ldd` pokazał tylko jeden brak: `libpython3.12.so.1.0`, który bierzemy z condy.
-  - `env.sh` tworzy katalog `~/sofa/fishsofa-pylib/` z jednym dowiązaniem do tej biblioteki i dodaje go do `LD_LIBRARY_PATH`.
-  - Celowo nie dodajemy całego `$CONDA_PREFIX/lib`, bo wtedy `libstdc++` z condy przesłoniłaby systemową, co grozi błędami sterowników OpenGL w GUI.
-- Pakiety systemowe są potrzebne tylko do wtyczki CHOLMOD (kompilator i nagłówki, w tym Boost: wymagają go configi CMake binarki SOFA, a binarka go nie zawiera) oraz do bibliotek graficznych, których używa gmsh z pip.
+**Why this way:**
+- The SOFA binary is built on Ubuntu. On Fedora `ldd` showed only one missing library: `libpython3.12.so.1.0`, which we take from conda.
+  - `env.sh` creates the directory `~/sofa/fishsofa-pylib/` with a single symlink to that library and adds it to `LD_LIBRARY_PATH`.
+  - We deliberately do not add the whole `$CONDA_PREFIX/lib`, because then conda's `libstdc++` would shadow the system one, which risks OpenGL driver errors in the GUI.
+- System packages are needed only for the CHOLMOD plugin (compiler and headers, including Boost: the SOFA binary's CMake configs require it, and the binary does not include it) and for the graphics libraries used by gmsh from pip.
 
-## Uruchamianie
+## Running
 
 ```bash
 source SOFA/scripts/env.sh
-python SOFA/scripts/check_sofa.py           # etap 0: nazwy komponentów i pól w tej wersji SOFA
-python SOFA/scripts/probe_volume_growth.py  # etap 0: jak działa SurfacePressureConstraint (~2.5 min)
-cd SOFA && pytest -q                        # testy (~3 min, gruba siatka "test" w katalogu tymczasowym)
-python -m fishsofa.mesh_gen --level all     # etap 1: siatki do meshes/ (fine ~10 s)
-python scripts/run_stage1.py                # etap 1: raport + wykres do results/ (~10 min, głównie fine)
-python scripts/run_stage2_variants.py       # etap 2a: warianty konstrukcji (~10 min)
-python scripts/run_stage2.py                # etap 2: krzywa p–V i kąt, 3 siatki (~25 min)
-python scripts/run_stage3.py                # etap 3: symetria L/R (~3 min)
-python scripts/run_stage4.py                # etap 4: machanie w powietrzu (~25 min)
-python scripts/run_stage5.py                # etap 5: woda vs powietrze (3 symulacje naraz, ~30 min)
-python scripts/run_stage6.py                # etap 6: przeglądy f i E (19 symulacji, ~1 h na 12 wątkach)
-FISHSOFA_ENV=water scripts/run_gui.sh       # GUI: ogon macha w wodzie
-scripts/run_gui.sh coarse                   # ogon w GUI; po Animate ugina się pod ciężarem
-# GUI z przykładem SoftRobots (komora ciśnieniowa vs objętościowa):
+python SOFA/scripts/check_sofa.py           # stage 0: component and field names in this SOFA version
+python SOFA/scripts/probe_volume_growth.py  # stage 0: how SurfacePressureConstraint works (~2.5 min)
+cd SOFA && pytest -q                        # tests (~3 min, coarse "test" mesh in a temporary directory)
+python -m fishsofa.mesh_gen --level all     # stage 1: meshes into meshes/ (fine ~10 s)
+python scripts/run_stage1.py                # stage 1: report + plot into results/ (~10 min, mostly fine)
+python scripts/run_stage2_variants.py       # stage 2a: construction variants (~10 min)
+python scripts/run_stage2.py                # stage 2: p–V curve and angle, 3 meshes (~25 min)
+python scripts/run_stage3.py                # stage 3: L/R symmetry (~3 min)
+python scripts/run_stage4.py                # stage 4: flapping in air (~25 min)
+python scripts/run_stage5.py                # stage 5: water vs air (3 simulations at once, ~30 min)
+python scripts/run_stage6.py                # stage 6: f and E sweeps (19 simulations, ~1 h on 12 threads)
+python scripts/run_stage1.py --plot-only    # any run_stage*.py: redraw the plots from results/*.csv only
+FISHSOFA_ENV=water scripts/run_gui.sh       # GUI: tail flaps in water
+scripts/run_gui.sh coarse                   # tail in GUI; after Animate it sags under its own weight
+# GUI with a SoftRobots example (pressure vs volume chamber):
 $SOFA_ROOT/bin/runSofa -l SofaPython3 $SOFA_ROOT/plugins/SoftRobots/share/sofa/examples/SoftRobots/component/constraint/SurfacePressureConstraint/PressureVsVolumeGrowthControl.py
-# to samo bez okna (np. 50 kroków):
-$SOFA_ROOT/bin/runSofa -g batch -n 50 -l SofaPython3 <scena.py>
+# the same without a window (e.g. 50 steps):
+$SOFA_ROOT/bin/runSofa -g batch -n 50 -l SofaPython3 <scene.py>
 ```
 
-## Ustalenia z etapu 0
+## Findings from stage 0
 
-### Nazwy komponentów w SOFA v26.06 (`check_sofa.py`)
+### Component names in SOFA v26.06 (`check_sofa.py`)
 
-| Rola | Używamy | Uwagi |
+| Role | We use | Notes |
 |---|---|---|
-| solver ograniczeń | `BlockGaussSeidelConstraintSolver` | `GenericConstraintSolver` **już nie istnieje**; jest też `NNCGConstraintSolver` |
-| mocowanie | `FixedProjectiveConstraint` | `FixedConstraint` jeszcze działa (stara nazwa) |
-| korekcja ograniczeń | `LinearSolverConstraintCorrection` | jest też `GenericConstraintCorrection` |
-| solver liniowy | `SparseLDLSolver`, `template="CompressedRowSparseMatrixMat3x3d"` | bloki 3×3 są szybsze dla węzłów 3D (sugestia SOFA) |
-| pozostałe | `FreeMotionAnimationLoop`, `EulerImplicitSolver`, `StaticSolver`, `TetrahedronFEMForceField`, `MeshMatrixMass`, `UniformMass`, `BoxROI`, `ConstantForceField`, `MeshVTKLoader`, `MeshGmshLoader`, `MeshSTLLoader`, `MeshOBJLoader`, `BarycentricMapping`, `SurfacePressureConstraint` | wszystkie są |
+| constraint solver | `BlockGaussSeidelConstraintSolver` | `GenericConstraintSolver` **no longer exists**; there is also `NNCGConstraintSolver` |
+| fixing | `FixedProjectiveConstraint` | `FixedConstraint` still works (old name) |
+| constraint correction | `LinearSolverConstraintCorrection` | there is also `GenericConstraintCorrection` |
+| linear solver | `SparseLDLSolver`, `template="CompressedRowSparseMatrixMat3x3d"` | 3×3 blocks are faster for 3D nodes (SOFA suggestion) |
+| others | `FreeMotionAnimationLoop`, `EulerImplicitSolver`, `StaticSolver`, `TetrahedronFEMForceField`, `MeshMatrixMass`, `UniformMass`, `BoxROI`, `ConstantForceField`, `MeshVTKLoader`, `MeshGmshLoader`, `MeshSTLLoader`, `MeshOBJLoader`, `BarycentricMapping`, `SurfacePressureConstraint` | all present |
 
-Pluginy: w Pythonie `SofaRuntime.importPlugin("Sofa.Component")` (meta-plugin ze wszystkimi standardowymi komponentami) + `"SoftRobots"`. W scenach: `RequiredPlugin` z polem **`pluginName`**, bo pole `name` jest przestarzałe.
+Plugins: in Python `SofaRuntime.importPlugin("Sofa.Component")` (meta-plugin with all standard components) + `"SoftRobots"`. In scenes: `RequiredPlugin` with the field **`pluginName`**, because the `name` field is deprecated.
 
-### Jak działa `SurfacePressureConstraint` (`probe_volume_growth.py`)
+### How `SurfacePressureConstraint` works (`probe_volume_growth.py`)
 
-Scena: pusty „królik” z przykładów SoftRobots, bez grawitacji.
+Scene: the hollow "bunny" from the SoftRobots examples, without gravity.
 
-1. **`valueType="volumeGrowth"`: `value` to przyrost CAŁKOWITY względem objętości początkowej** (`initialCavityVolume`), a nie przyrost na krok. Przy stałym `value = 40` zmierzone `cavityVolume − V0` = 40.000 od 0.25 s do 1.5 s. Zgadza się to z kodem SoftRobots (`dfree = V − V_initial`). Wniosek dla `hydraulics.py`: co krok zadajemy wprost `ΔV_L = V_prefill + V_p`, bez różniczkowania.
-2. **Znak:** dodatnie `value` powiększa wnękę i daje dodatnie ciśnienie (przy siatce komory z przykładu; dla naszej siatki sprawdzi to test znaku w etapie 1–2, a w razie potrzeby jest pole `flipNormal`).
-3. **Pole `pressure` to p·dt, a nie p.** Ten sam stan ustalony przy dt = 0.001 i 0.002 daje surowe `pressure` 2.2912 i 4.5824 (stosunek 2.000), a `pressure/dt` = 2291.2 w obu przypadkach. Powód: solver ograniczeń liczy **impuls** siły w kroku (λ = p·dt), nie siłę.
-4. **W trybie `valueType="pressure"` wejście `value` też jest w jednostkach p·dt.** Zadanie `value = p` (bez ·dt) dało ciśnienie 1000× za duże przy dt = 1 ms i FEM wybuchł (NaN), nawet z rampą. `value = p·dt` odtwarza ten sam przyrost objętości (9.993 przy zadanym 10) przy obu dt.
+1. **`valueType="volumeGrowth"`: `value` is the TOTAL growth relative to the initial volume** (`initialCavityVolume`), not the growth per step. With a constant `value = 40` the measured `cavityVolume − V0` = 40.000 from 0.25 s to 1.5 s. This matches the SoftRobots code (`dfree = V − V_initial`). Conclusion for `hydraulics.py`: every step we set `ΔV_L = V_prefill + V_p` directly, without differentiating.
+2. **Sign:** a positive `value` enlarges the cavity and gives positive pressure (with the example's chamber mesh; for our mesh the sign test in stages 1–2 will check this, and if needed there is the `flipNormal` field).
+3. **The `pressure` field is p·dt, not p.** The same steady state at dt = 0.001 and 0.002 gives raw `pressure` 2.2912 and 4.5824 (ratio 2.000), and `pressure/dt` = 2291.2 in both cases. Reason: the constraint solver computes the force **impulse** over the step (λ = p·dt), not the force.
+4. **In `valueType="pressure"` mode the `value` input is also in units of p·dt.** Setting `value = p` (without ·dt) gave a pressure 1000× too large at dt = 1 ms and the FEM blew up (NaN), even with a ramp. `value = p·dt` reproduces the same volume growth (9.993 for a target of 10) at both dt.
 
-Konsekwencje dla następnych etapów:
-- `hydraulics.py` (zawór na Δp) i wszystkie wykresy ciśnienia muszą dzielić `pressure` przez `dt`,
-- test „ten sam p → ugięcie ~1/E” (spec, sekcja 10) musi zadawać `value = p·dt`,
-- w obu trybach `value` zmienia się rampą: przykład SoftRobots zadaje `volumeGrowth = 40` skokiem w pierwszym kroku i działa tylko dzięki dużemu tłumieniu.
+Consequences for the next stages:
+- `hydraulics.py` (valve on Δp) and all pressure plots must divide `pressure` by `dt`,
+- the test "same p → deflection ~1/E" (spec, section 10) must set `value = p·dt`,
+- in both modes `value` changes via a ramp: the SoftRobots example sets `volumeGrowth = 40` as a step in the first step and works only thanks to heavy damping.
 
-Wydajność dla orientacji: królik z przykładu (dt = 1 ms) liczy się ~25 ms na krok na tej maszynie, ok. 40× wolniej niż czas rzeczywisty. SOFA sugeruje `ParallelTetrahedronFEMForceField` (plugin MultiThreading, maszyna ma 12 wątków) – do sprawdzenia w etapie 1.
+Performance for orientation: the example bunny (dt = 1 ms) takes ~25 ms per step on this machine, about 40× slower than real time. SOFA suggests `ParallelTetrahedronFEMForceField` (MultiThreading plugin, the machine has 12 threads) – to be checked in stage 1.
 
 ### GUI
 
-`runSofa` startuje pod Waylandem bez dodatkowych zmiennych. Domyślne GUI to **ImGui** (plugin SofaImGui). Przykład `PressureVsVolumeGrowthControl` działa: po **Animate** oba króliki się nadmuchują (sprawdzone ręcznie). Przy pierwszym uruchomieniu w logu pojawia się `[ERROR] [ImGuiGUIEngine] Cannot set window position/size from settings`. To tylko brak zapisanych ustawień okna, nieszkodliwe. Tryb `-g batch` działa (50 kroków przykładu w 5.9 s).
+`runSofa` starts under Wayland without extra variables. The default GUI is **ImGui** (SofaImGui plugin). The `PressureVsVolumeGrowthControl` example works: after **Animate** both bunnies inflate (checked manually). On first launch the log shows `[ERROR] [ImGuiGUIEngine] Cannot set window position/size from settings`. This is only missing saved window settings, harmless. The `-g batch` mode works (50 steps of the example in 5.9 s).
 
-## Etap 1 – siatka ogona i ugięcie pod własnym ciężarem
+## Stage 1 – tail mesh and sag under its own weight
 
-### Geometria (`fishsofa/config.py`, `fishsofa/mesh_gen.py`)
+### Geometry (`fishsofa/config.py`, `fishsofa/mesh_gen.py`)
 
-Wymiary są przepisane z `MuJoCo/fishsim/config.py`; test `test_dimensions_match_mujoco` pilnuje zgodności. Korpus ma 0.20 m, przekrój eliptyczny 0.06 × 0.08 m na nasadzie, liniowo zwężający się do 0.4 na końcu. Płetwa to płytka 0.07 × 0.12 m o grubości 6 mm. Dwie komory leżą na długości 3 napędzanych segmentów MuJoCo (0.12 m), ze ścianką i przegrodą po 4 mm.
+Dimensions are copied from `MuJoCo/fishsim/config.py`; the test `test_dimensions_match_mujoco` enforces consistency. The body is 0.20 m long, with an elliptical cross-section of 0.06 × 0.08 m at the root, tapering linearly to 0.4 at the end. The fin is a 0.07 × 0.12 m plate, 6 mm thick. The two chambers span the length of 3 actuated MuJoCo segments (0.12 m), with a wall and septum of 4 mm each.
 
-Jedno świadome odstępstwo: korzeń płetwy wchodzi 15 mm w koniec ogona, zamiast 2 mm jak w MuJoCo. W MuJoCo płetwa jest przyspawana sztywno. W FEM połączenie przez 2 mm byłoby przewężeniem ~6 × 40 mm, które działałoby jak zawias.
+One deliberate deviation: the fin root enters 15 mm into the tail end, instead of 2 mm as in MuJoCo. In MuJoCo the fin is rigidly welded. In FEM a 2 mm connection would be a ~6 × 40 mm constriction that would act as a hinge.
 
-Jak powstaje siatka:
-1. gmsh siatkuje **połowę** ogona (y ≥ 0) z jedną komorą.
-2. Drugą połowę dostajemy przez **odbicie lustrzane**. Dzięki temu siatka jest dokładnie symetryczna, a test symetrii L/R w etapie 3 sprawdzi kod, nie przypadek w siatkowaniu.
-3. Trójkąty wnęk są rozpoznawane geometrycznie po środku trójkąta, wewnątrz obrysu wnęki powiększonego o pół ścianki. Pierwsza wersja rozpoznawała je po bounding boxach gmsh, ale OpenCASCADE podaje dla powierzchni B-spline zbyt luźne bboxy i część wnęki trafiała do „skóry”. Wyłapał to test zamkniętości powierzchni.
-4. Orientacja: skóra ma normalne na zewnątrz, wnęki na zewnątrz wnęki (konwencja SoftRobots z etapu 0).
+How the mesh is built:
+1. gmsh meshes **half** of the tail (y ≥ 0) with one chamber.
+2. The other half is obtained by **mirroring**. This makes the mesh exactly symmetric, so the L/R symmetry test in stage 3 checks the code, not a meshing accident.
+3. Cavity triangles are identified geometrically by the triangle centroid, inside the cavity outline enlarged by half a wall. The first version identified them by gmsh bounding boxes, but OpenCASCADE reports overly loose bboxes for B-spline surfaces and part of the cavity ended up in the "skin". The surface closedness test caught this.
+4. Orientation: the skin has outward normals, the cavities point out of the cavity (SoftRobots convention from stage 0).
 
-Siatka jest zapisywana jako klasyczny VTK 4.2. meshio zapisuje VTK 5.1, na którym `MeshVTKLoader` z SOFA v26.06 kończy się segfaultem.
+The mesh is saved as legacy VTK 4.2. meshio writes VTK 5.1, on which `MeshVTKLoader` from SOFA v26.06 segfaults.
 
-### Poziomy siatki (`results/s1_mesh_report.txt`)
+### Mesh levels (`results/s1_mesh_report.txt`)
 
-| poziom | h przy powierzchni | czworościany | elem. na ściankę 4 mm | ugięcie końcówki Δz | statyka | dynamika |
+| level | h at surface | tetrahedra | elem. per 4 mm wall | tip deflection Δz | statics | dynamics |
 |---|---|---|---|---|---|---|
-| coarse | 4 mm | 28 112 | ~0.9 | −40.52 mm | 6 s | 0.77 s/krok |
-| medium | 3 mm | 51 818 | ~1.1 | −40.73 mm | 17 s | 2.3 s/krok |
-| fine | 2 mm | 142 096 | ~1.7 | −41.17 mm | 176 s | 19 s/krok |
+| coarse | 4 mm | 28 112 | ~0.9 | −40.52 mm | 6 s | 0.77 s/step |
+| medium | 3 mm | 51 818 | ~1.1 | −40.73 mm | 17 s | 2.3 s/step |
+| fine | 2 mm | 142 096 | ~1.7 | −41.17 mm | 176 s | 19 s/step |
 
-Wszystkie poziomy: zero tetr o objętości ≤ 0, SICN (jakość czworościanu, 1 = idealny) ≥ 0.06, 1. percentyl ≈ 0.35–0.40, powierzchnie zamknięte, węzły symetryczne. „Elementy na ściankę” to grubość podzielona przez średnią krawędź tetr przy wnęce, czyli przybliżenie, nie liczenie warstw. Spec chciał ≥ 3; to by wymagało ~450k tetr. Decyzja: studium zbieżności (patrz spec, sekcja 4).
+All levels: zero tets with volume ≤ 0, SICN (tetrahedron quality, 1 = ideal) ≥ 0.06, 1st percentile ≈ 0.35–0.40, closed surfaces, symmetric nodes. "Elements per wall" is the thickness divided by the mean tet edge near the cavity, i.e. an approximation, not a layer count. The spec wanted ≥ 3; that would require ~450k tets. Decision: a convergence study (see spec, section 4).
 
-**Komory są duże:** 91.6 ml każda, przy 245 ml silikonu. Przy ściance 4 mm w przekroju 6 × 8 cm ogon jest w większości pusty. Woda w komorach (183 g) to ~40% masy ogona. W demo MuJoCo `V0_chamber` = 30 ml (też placeholder). Ten rozjazd trzeba rozstrzygnąć przy eksporcie PRBM (etap 7) albo przez grubsze ścianki.
+**The chambers are large:** 91.6 ml each, with 245 ml of silicone. With a 4 mm wall in a 6 × 8 cm cross-section the tail is mostly hollow. The water in the chambers (183 g) is ~40% of the tail mass. In the MuJoCo demo `V0_chamber` = 30 ml (also a placeholder). This mismatch must be resolved at PRBM export (stage 7) or with thicker walls.
 
-### Masa i ciężar (`fishsofa/masses.py`)
+### Mass and weight (`fishsofa/masses.py`)
 
-Grawitacja SOFA jest wyłączona. Masa (silikon + woda z komór, przypisana do tetr przy ściankach wnęk) idzie do `MeshMatrixMass` jako gęstość na element. Ciężar idzie przez `ConstantForceField` na węzłach. Powód: w wodzie woda w komorach ma bezwładność, ale nie ma ciężaru (wypór = ciężar), a jeden wektor grawitacji SOFA tego nie rozróżni. W trybie `environment="water"` silikon ma ciężar pozorny `g·(1 − ρ_w/ρ_s)`.
+SOFA gravity is disabled. Mass (silicone + water in the chambers, assigned to tets near the cavity walls) goes into `MeshMatrixMass` as a per-element density. Weight is applied via `ConstantForceField` on the nodes. Reason: in water, the water in the chambers has inertia but no weight (buoyancy = weight), and a single SOFA gravity vector cannot distinguish that. In `environment="water"` mode the silicone has apparent weight `g·(1 − ρ_w/ρ_s)`.
 
-### Co pokazuje `results/s1_sag.png`
+### What `results/s1_sag.png` shows
 
-- **Lewy wykres:** statyczne ugięcie końcówki pod ciężarem na trzech siatkach. Różnica coarse → fine to tylko 1.6% (−40.5 → −41.2 mm). Zginanie całego ogona pod ciężarem przenosi głównie skóra i rdzeń, a nie cienkie ścianki komór, więc gruba siatka wystarcza. To **nie** przesądza o etapie 2: tam ciśnienie odkształca właśnie ścianki, więc tam zbieżność trzeba zmierzyć osobno.
-- **Prawy wykres:** ogon „puszczony” w t = 0 (ciężar włączony skokowo) na siatce coarse. Oscyluje wokół równowagi statycznej (linia przerywana) z okresem ~0.33 s, czyli pierwsza częstość własna w powietrzu to ~3 Hz, a drgania gasną przez tłumienie Rayleigha i numeryczne. Pierwsze wychylenie (−68 mm) jest ~1.7× większe od statycznego (dla nietłumionego układu przy skoku obciążenia byłoby 2×).
+- **Left plot:** static tip sag under its own weight on three meshes. The coarse → fine difference is only 1.6% (−40.5 → −41.2 mm). Bending of the whole tail under its weight is carried mainly by the skin and core, not by the thin chamber walls, so the coarse mesh is sufficient. This does **not** settle stage 2: there the pressure deforms precisely the walls, so convergence must be measured separately there.
+- **Right plot:** the tail "released" at t = 0 (weight applied as a step) on the coarse mesh. It oscillates around the static equilibrium (dashed line) with a period of ~0.33 s, i.e. the first natural frequency in air is ~3 Hz, and the oscillations decay through Rayleigh and numerical damping. The first excursion (−68 mm) is ~1.7× larger than the static one (an undamped system under a step load would give 2×).
 
 ### GUI
 
-`scripts/run_gui.sh coarse` otwiera ogon. Po **Animate** ogon opada i się kołysze (sprawdzone ręcznie). Ruch jest wolny, bo jeden krok to ~0.8 s – patrz „Otwarty problem” niżej.
+`scripts/run_gui.sh coarse` opens the tail. After **Animate** the tail drops and sways (checked manually). The motion is slow because one step takes ~0.8 s – see "Open problem" below.
 
-### Statyka w SOFA v26.06
+### Statics in SOFA v26.06
 
-`StaticSolver` wymaga osobnego komponentu `NewtonRaphsonSolver` (od v25.12 parametry Newtona przeniesiono tam) i **nie działa z `FreeMotionAnimationLoop`** (ogon się nie rusza), więc statyka używa `DefaultAnimationLoop`. Pierwsza iteracja Newtona przestrzeliwuje (ostrzeżenie „Line search failed at Newton iteration 0”), kolejne zbiegają (residuum 42 → 0.13 → 0.006 → …). Drugi krok statyki nic już nie zmienia (test).
+`StaticSolver` requires a separate `NewtonRaphsonSolver` component (Newton parameters were moved there in v25.12) and **does not work with `FreeMotionAnimationLoop`** (the tail does not move), so statics uses `DefaultAnimationLoop`. The first Newton iteration overshoots (warning "Line search failed at Newton iteration 0"), the following ones converge (residual 42 → 0.13 → 0.006 → …). A second static step changes nothing (test).
 
-### Wydajność dynamiki: solver „warp” (przed etapem 2; ograniczenie z komorami niżej)
+### Dynamics performance: "warp" solver (before stage 2; limitation with chambers below)
 
-Domyślny `SparseLDLSolver` robi pełny rozkład LDLᵀ macierzy w każdym kroku, bo korotacyjny FEM zmienia macierz sztywności co krok. To dawało 383× wolniej niż czas rzeczywisty na coarse.
+The default `SparseLDLSolver` does a full LDLᵀ factorization of the matrix every step, because corotational FEM changes the stiffness matrix every step. That gave 383× slower than real time on coarse.
 
-**Rozwiązanie** (z dokumentacji i kodu SOFA na GitHubie, `fishsofa/scene.py:_add_warp_solver`, `linear_solver="warp"`, domyślne):
-1. Rozkład LDLᵀ liczony **raz, w stanie spoczynku**: `RotationMatrixSystem` z bardzo dużym `assemblingRate`.
-2. W każdym kroku tylko „obracany” o aktualne obroty elementów (`WarpPreconditioner`, `rotationFinder=@fem`). Dla korotacyjnego FEM sztywność odkształconego ogona ≈ R·K₀·Rᵀ.
-3. Obrócony rozkład jest prekondycjonerem dla PCG (`PCGLinearSolver` + `PreconditionedMatrixFreeSystem`), który kilkoma iteracjami doprowadza wynik do dokładnego.
-4. Korekcja ograniczeń komór linkuje prekondycjoner (`LinearSolverConstraintCorrection linearSolver=@warp`), bo sam PCG nie składa macierzy.
+**Solution** (from the SOFA documentation and code on GitHub, `fishsofa/scene.py:_add_warp_solver`, `linear_solver="warp"`, default):
+1. The LDLᵀ factorization is computed **once, in the rest state**: `RotationMatrixSystem` with a very large `assemblingRate`.
+2. Every step it is only "rotated" by the current element rotations (`WarpPreconditioner`, `rotationFinder=@fem`). For corotational FEM the stiffness of the deformed tail ≈ R·K₀·Rᵀ.
+3. The rotated factorization is the preconditioner for PCG (`PCGLinearSolver` + `PreconditionedMatrixFreeSystem`), which brings the result to the exact one in a few iterations.
+4. The chamber constraint correction links the preconditioner (`LinearSolverConstraintCorrection linearSolver=@warp`), because PCG alone does not assemble the matrix.
 
-| siatka | LDL (dt 2 ms) | warp (dt 2 ms) | przyspieszenie |
+| mesh | LDL (dt 2 ms) | warp (dt 2 ms) | speedup |
 |---|---|---|---|
-| test (12k tetr) | 196 ms/krok | 31 ms/krok | 6.2× |
-| coarse (28k) | 726 ms/krok | 84 ms/krok | 8.6× |
-| medium (52k) | 2306 ms/krok | 260 ms/krok | 8.9× |
-| fine (142k) | 19 337 ms/krok | 1510 ms/krok | 12.8× |
+| test (12k tets) | 196 ms/step | 31 ms/step | 6.2× |
+| coarse (28k) | 726 ms/step | 84 ms/step | 8.6× |
+| medium (52k) | 2306 ms/step | 260 ms/step | 8.9× |
+| fine (142k) | 19 337 ms/step | 1510 ms/step | 12.8× |
 
-**Dokładność:** trajektoria końcówki na coarse przez 0.4 s jest identyczna z LDL (różnica < 0.001 mm; test `test_warp_solver_matches_ldl`).
+**Accuracy:** the tip trajectory on coarse over 0.4 s is identical to LDL (difference < 0.001 mm; test `test_warp_solver_matches_ldl`).
 
-**Ale z komorą warp jest błędny** (sprawdzone w planie etapu 2, siatka test, 30 ml w komorze L, stan ustalony):
+**But with a chamber warp is wrong** (checked in the stage 2 plan, test mesh, 30 ml in chamber L, steady state):
 
-| solver | ciśnienie |
+| solver | pressure |
 |---|---|
-| LDL, wolna rampa, dt 2 ms | 1950.4 Pa |
-| LDL, pseudo-statyka dt 10 / 50 ms | 1950.4 Pa |
+| LDL, slow ramp, dt 2 ms | 1950.4 Pa |
+| LDL, pseudo-static dt 10 / 50 ms | 1950.4 Pa |
 | warp, dt 2 ms | **1471 Pa (−25%)** |
 
-Przy 5 ml różnica była 1.7%, więc błąd rośnie z odkształceniem. Przyczyna: korekcja ograniczeń używa przybliżonej podatności J·A_warp⁻¹·Jᵀ, więc rozkład siły ciśnienia na węzły jest zły i równowaga się przesuwa. Dlatego **domyślny solver to znowu `"ldl"`**, a scena z komorami wymusza LDL (test `test_warp_is_replaced_by_ldl_with_chambers`). Warp jest użyteczny tylko bez komór. Dla dynamiki z komorami rozwiązaniem jest CHOLMOD (sekcja niżej), który od tej pory jest domyślnym solverem.
+At 5 ml the difference was 1.7%, so the error grows with deformation. Cause: the constraint correction uses the approximate compliance J·A_warp⁻¹·Jᵀ, so the distribution of the pressure force over the nodes is wrong and the equilibrium shifts. Therefore **the default solver is `"ldl"` again**, and a scene with chambers forces LDL (test `test_warp_is_replaced_by_ldl_with_chambers`). Warp is useful only without chambers. For dynamics with chambers the solution is CHOLMOD (section below), which from then on is the default solver.
 
-Trzy błędy wcześniejszych prób (etap 1), dla przyszłych czytelników:
-- `assemblingRate=15` (jak w przykładzie SOFA): macierz składana w stanie odkształconym, a obrót z `TetrahedronFEMForceField` (liczony względem spoczynku) nakłada się drugi raz, więc symulacja wybucha.
-- Brak jawnego linku `EulerImplicitSolver linearSolver=@linsolver`: integrator brał pierwszy solver w węźle (LDL z prekondycjonera) i PCG nie był używany.
-- Linki `@…` w SofaPython3 muszą wskazywać obiekty, które już istnieją, więc kolejność tworzenia ma znaczenie.
+Three bugs in earlier attempts (stage 1), for future readers:
+- `assemblingRate=15` (as in the SOFA example): the matrix is assembled in the deformed state, and the rotation from `TetrahedronFEMForceField` (computed relative to rest) is applied a second time, so the simulation blows up.
+- Missing explicit link `EulerImplicitSolver linearSolver=@linsolver`: the integrator took the first solver in the node (the LDL from the preconditioner) and PCG was not used.
+- `@…` links in SofaPython3 must point to objects that already exist, so creation order matters.
 
-**Większy krok czasu** (warp, coarse): dt 5 ms daje 2× krótszy czas całości, ale różnica trajektorii to 3.4 mm (~5% amplitudy). Przy dt 10 ms jest 3.5× szybciej, ale z różnicą 7.8 mm (~11%). Niejawny Euler przy dużym kroku tłumi ruch numerycznie. Domyślnie zostaje 2 ms; większy krok tylko świadomie, z podanym błędem.
+**Larger time step** (warp, coarse): dt 5 ms gives a 2× shorter total time, but the trajectory difference is 3.4 mm (~5% of amplitude). At dt 10 ms it is 3.5× faster, but with a 7.8 mm difference (~11%). Implicit Euler at a large step damps motion numerically. The default stays 2 ms; a larger step only deliberately, with the error stated.
 
-**Sprawdzone bez zysku:** numeracja Metis/AMD/COLAMD (domyślna jest dobra), `nbThreads`, `ParallelTetrahedronFEMForceField` (składanie macierzy zostaje sekwencyjne), CG na złożonej macierzy (~10%), sam `AsyncSparseLDLSolver` (niestabilny, co dokumentacja SOFA przyznaje).
+**Tried without gain:** Metis/AMD/COLAMD ordering (the default is good), `nbThreads`, `ParallelTetrahedronFEMForceField` (matrix assembly stays sequential), CG on the assembled matrix (~10%), `AsyncSparseLDLSolver` alone (unstable, as the SOFA documentation admits).
 
-**Niewykorzystane opcje:**
-- Redukcja rzędu modelu (plugin ModelOrderReduction, w binarce) daje nawet ~50×, ale wymaga treningu offline i działa tylko w wytrenowanym zakresie. To kandydat dopiero na etap 6.
+**Unused options:**
+- Model order reduction (ModelOrderReduction plugin, in the binary) gives up to ~50×, but requires offline training and works only within the trained range. A candidate only for stage 6.
 
-### Wydajność: CHOLMOD (po etapie 2, domyślny solver)
+### Performance: CHOLMOD (after stage 2, default solver)
 
-`linear_solver="cholmod"`: `EigenCholmodSupernodalLLT` z wtyczki SofaCHOLMOD. To ten sam dokładny rozkład macierzy co LDL, tylko supernodalny: gęste bloki liczy zoptymalizowany BLAS (OpenBLAS przez FlexiBLAS). W przeciwieństwie do warp **działa z komorami**, bo korekcja ograniczeń dostaje dokładny rozkład. Pomiar: dt 2 ms, z komorą L i włóknami, 1 wątek BLAS (4 i 6 wątków dają ten sam czas):
+`linear_solver="cholmod"`: `EigenCholmodSupernodalLLT` from the SofaCHOLMOD plugin. This is the same exact matrix factorization as LDL, only supernodal: the dense blocks are computed by an optimized BLAS (OpenBLAS via FlexiBLAS). Unlike warp it **works with chambers**, because the constraint correction gets the exact factorization. Measurement: dt 2 ms, with chamber L and fibers, 1 BLAS thread (4 and 6 threads give the same time):
 
-| siatka | LDL | CHOLMOD | przyspieszenie | ciśnienie LDL = CHOLMOD |
+| mesh | LDL | CHOLMOD | speedup | pressure LDL = CHOLMOD |
 |---|---|---|---|---|
-| coarse | 871 ms/krok | 203 ms/krok | 4.3× | tak (10588.97 Pa) |
-| medium | 2447 ms/krok | 471 ms/krok | 5.2× | tak (14642.81 Pa) |
-| fine | 19785 ms/krok | 1324 ms/krok | **15×** | tak (13071.41 Pa) |
+| coarse | 871 ms/step | 203 ms/step | 4.3× | yes (10588.97 Pa) |
+| medium | 2447 ms/step | 471 ms/step | 5.2× | yes (14642.81 Pa) |
+| fine | 19785 ms/step | 1324 ms/step | **15×** | yes (13071.41 Pa) |
 
-Zgodność z LDL pilnuje test `test_cholmod_matches_ldl_with_chamber`. Testy (25) trwają teraz ~63 s zamiast ~82 s.
+Agreement with LDL is enforced by the test `test_cholmod_matches_ldl_with_chamber`. The tests (25) now take ~63 s instead of ~82 s.
 
-**Dlaczego wtyczka z master na v26.06, a nie cała SOFA master.** Zbudowałem SOFA master (v26.12-dev, commit `6c3e21f`, 5.10.2026) razem z SofaPython3, SoftRobots i STLIB w wersjach master. Działa, ale ma **błąd w połączeniu komory ze sztywnymi włóknami**:
-- z włóknami tylko na rozciąganie (V4) ogon nie dochodzi do równowagi, tylko stale drga (ciśnienie ±0.5%), a średnie ciśnienie jest o ~9% niższe niż w v26.06 (siatka test, 8 ml: 2790 zamiast 3056 Pa);
-- z włóknami działającymi też na ściskanie symulacja się rozbiega (v26.06: stabilnie, 3633 Pa);
-- bez włókien obie wersje dają identyczne ciśnienie (1321.52 Pa). Siły też są identyczne (to samo obciążenie zadane siłami węzłowymi daje ten sam kąt), a włókna są poprawnie zmapowane (różnica pozycji < 1e-16 m). Minimalna scena ze sztywną zmapowaną sprężyną bez komory działa w obu wersjach.
+**Why the master plugin on v26.06, and not all of SOFA master.** I built SOFA master (v26.12-dev, commit `6c3e21f`, 5.10.2026) together with SofaPython3, SoftRobots and STLIB in their master versions. It works, but has **a bug in the coupling of a chamber with stiff fibers**:
+- with tension-only fibers (V4) the tail does not reach equilibrium but keeps vibrating (pressure ±0.5%), and the mean pressure is ~9% lower than in v26.06 (test mesh, 8 ml: 2790 instead of 3056 Pa);
+- with fibers that also act in compression the simulation diverges (v26.06: stable, 3633 Pa);
+- without fibers both versions give identical pressure (1321.52 Pa). The forces are identical too (the same load applied as nodal forces gives the same angle), and the fibers are correctly mapped (position difference < 1e-16 m). A minimal scene with a stiff mapped spring without a chamber works in both versions.
 
-v26.06 dochodzi do spoczynku (prędkość 1e-13 m/s), a przy tych samych siłach to jest prawdziwa równowaga. Dlatego zostajemy na v26.06. Prawdopodobna przyczyna to przejście ograniczeń z impulsów na siły (SOFA PR #6117), ale tego nie potwierdziłem. Inne zmiany w master, gdyby kiedyś przechodzić: pole `pressure` i wejście trybu ciśnienia `SurfacePressureConstraint` są w Pa, a nie p·dt (sonda `probe_volume_growth.py` rozpoznaje obie konwencje), `NewtonRaphsonSolver` jest usunięty (statyka: `StaticEquilibriumIntegrationScheme` z `alwaysAdvanceNewton=True`), integratory mają nowe nazwy (`EulerImplicitIntegrationScheme`, moduł `Sofa.Component.IntegrationScheme.Backward`).
+v26.06 comes to rest (velocity 1e-13 m/s), and with the same forces that is a true equilibrium. So we stay on v26.06. The likely cause is the switch of constraints from impulses to forces (SOFA PR #6117), but I have not confirmed it. Other changes in master, should we ever migrate: the `pressure` field and the pressure-mode input of `SurfacePressureConstraint` are in Pa, not p·dt (the probe `probe_volume_growth.py` detects both conventions), `NewtonRaphsonSolver` is removed (statics: `StaticEquilibriumIntegrationScheme` with `alwaysAdvanceNewton=True`), integrators have new names (`EulerImplicitIntegrationScheme`, module `Sofa.Component.IntegrationScheme.Backward`).
 
-**Jak zbudowana jest wtyczka** (`scripts/build_cholmod_plugin.sh`): źródła samej wtyczki z master (skopiowane do `third_party/SofaCHOLMOD`, bo master bywa przepisywany), skompilowane na nagłówkach binarki v26.06 z dwiema poprawkami. (1) Nowszy `EigenSolverFactory.h`, bo wtyczka używa szablonu `registerProxyType`, który doszedł po v26.06. To czysty dodatek w nagłówku, bez zmiany układu klasy, więc SOFA nie trzeba przebudowywać. (2) `FindCHOLMOD.cmake` bez configu CMake z SuiteSparse, bo config z Fedory odwołuje się do nieistniejących plików `*_static.cmake`. `env.sh` dopisuje katalog wtyczki do `SOFA_PLUGIN_PATH`; tak samo widzi ją `runSofa`.
+**How the plugin is built** (`scripts/build_cholmod_plugin.sh`): sources of the plugin alone from master (copied into `third_party/SofaCHOLMOD`, because master gets rewritten), compiled against the headers of the v26.06 binary with two fixes. (1) A newer `EigenSolverFactory.h`, because the plugin uses the `registerProxyType` template, which was added after v26.06. This is a pure header addition, with no change in class layout, so SOFA does not need rebuilding. (2) `FindCHOLMOD.cmake` without SuiteSparse's CMake config, because the Fedora config refers to non-existent `*_static.cmake` files. `env.sh` appends the plugin directory to `SOFA_PLUGIN_PATH`; `runSofa` sees it the same way.
 
-### Wydajność: OpenBLAS z condy i równoległe przeglądy (6.10.2026, EndeavourOS)
+### Performance: OpenBLAS from conda and parallel sweeps (6.10.2026, EndeavourOS)
 
-**Profil kroku** (machanie, coarse, CHOLMOD, `py-spy --native`): 45% składanie macierzy układu (w tym FEM 34%), 30% rozkład CHOLMOD, 8% analiza symboliczna wzorca macierzy, 6% solver ograniczeń. Wszystko na jednym rdzeniu.
+**Step profile** (flapping, coarse, CHOLMOD, `py-spy --native`): 45% system matrix assembly (of which FEM 34%), 30% CHOLMOD factorization, 8% symbolic analysis of the matrix pattern, 6% constraint solver. All on one core.
 
-**1. BLAS: 2.2× szybciej na Archu.** CHOLMOD supernodalny liczy gęste bloki w BLAS. Na Fedorze BLAS to OpenBLAS (przez FlexiBLAS), a na Archu systemowy `libblas.so.3` to wzorcowy, nieoptymalizowany BLAS z netlib. Tam krok trwał 470 ms zamiast ~200 ms. Teraz OpenBLAS przychodzi z condy (`environment.yml`: `libblas=*=*openblas`), a `env.sh` dowiązuje go w katalogu `fishsofa-pylib` (tak jak libpython), niezależnie od systemu: **470 → 217 ms/krok**, wynik identyczny co do ostatniej cyfry.
+**1. BLAS: 2.2× faster on Arch.** Supernodal CHOLMOD computes the dense blocks in BLAS. On Fedora the BLAS is OpenBLAS (via FlexiBLAS), but on Arch the system `libblas.so.3` is the reference, unoptimized netlib BLAS. There a step took 470 ms instead of ~200 ms. Now OpenBLAS comes from conda (`environment.yml`: `libblas=*=*openblas`), and `env.sh` symlinks it in the `fishsofa-pylib` directory (like libpython), independent of the system: **470 → 217 ms/step**, result identical to the last digit.
 
-**2. Analiza symboliczna co krok – sprawdzone, bez zysku.** SOFA wyrzuca z macierzy dokładne zera, a włókna `elongationOnly` w stanie luźnym mają zerową sztywność, więc wzorzec macierzy zmienia się i CHOLMOD powtarza analizę. Spróbowałem łatki we wtyczce (analiza tylko, gdy nowy wzorzec nie jest podzbiorem poprzedniego). Pomiar: analiza powtarza się tylko w pierwszych ~300 krokach (prefill, gdy kolejne włókna napinają się pierwszy raz), potem już nigdy, także bez łatki. W ustalonym ruchu oba warianty dają 204–206 ms/krok, więc łatkę wycofałem (wtyczka zostaje bez zmian).
+**2. Symbolic analysis every step – checked, no gain.** SOFA removes exact zeros from the matrix, and `elongationOnly` fibers in the slack state have zero stiffness, so the matrix pattern changes and CHOLMOD repeats the analysis. I tried a patch in the plugin (analysis only when the new pattern is not a subset of the previous one). Measurement: the analysis repeats only in the first ~300 steps (prefill, when successive fibers tension for the first time), never afterwards, even without the patch. In steady motion both variants give 204–206 ms/step, so I reverted the patch (the plugin stays unchanged).
 
-**3. Jedna symulacja = jeden rdzeń, więc przeglądy liczymy równolegle.** Składanie macierzy w SOFA jest sekwencyjne (`ParallelTetrahedronFEMForceField` tego nie zmienia), bloki CHOLMOD są za małe na wiele wątków BLAS, a kolejne kroki czasu zależą od poprzednich. Dlatego `top` pokazuje ~1/12 procesora na symulację. Za to punkty przeglądów (etapy 5–6) są niezależne: `fishsofa/parallel.py` liczy je w osobnych procesach (do 10 naraz na 12 wątkach, ~0.5 GB RAM każdy; `FISHSOFA_WORKERS` zmienia limit). `env.sh` ustawia `OPENBLAS_NUM_THREADS=1`, żeby procesy nie walczyły o rdzenie.
+**3. One simulation = one core, so sweeps run in parallel.** Matrix assembly in SOFA is sequential (`ParallelTetrahedronFEMForceField` does not change that), CHOLMOD blocks are too small for many BLAS threads, and successive time steps depend on the previous ones. That is why `top` shows ~1/12 of the CPU per simulation. The sweep points (stages 5–6), however, are independent: `fishsofa/parallel.py` runs them in separate processes (up to 10 at once on 12 threads, ~0.5 GB RAM each; `FISHSOFA_WORKERS` changes the limit). `env.sh` sets `OPENBLAS_NUM_THREADS=1` so the processes do not fight over cores.
 
-Pozostałe rezerwy, nieużyte: redukcja rzędu modelu (ModelOrderReduction, wymaga treningu), elementy wyższego rzędu (mniej węzłów przy tej samej dokładności ciśnienia, ale SOFA ich nie ma dla korotacyjnego FEM z komorami), własne równoległe składanie macierzy FEM (zmiana w C++ SOFA).
+Remaining reserves, unused: model order reduction (ModelOrderReduction, requires training), higher-order elements (fewer nodes for the same pressure accuracy, but SOFA does not have them for corotational FEM with chambers), custom parallel FEM matrix assembly (a change in SOFA's C++).
 
-## Etap 2a – dlaczego ogon się nie zginał i co pomogło
+## Stage 2a – why the tail did not bend and what helped
 
-**Problem:** przy geometrii z etapu 1 (V0: ścianki 4 mm, jednorodny silikon) 72 ml w komorze L zgina ogon tylko o 1.3°. Ciecz idzie w wybrzuszanie ścianki zewnętrznej (jak balon) i w uginanie przegrody w stronę komory R, a nie w wydłużanie lewego boku ogona. Dopiero wydłużenie jednego boku daje zgięcie.
+**Problem:** with the stage 1 geometry (V0: 4 mm walls, homogeneous silicone) 72 ml in chamber L bends the tail by only 1.3°. The fluid goes into bulging the outer wall (like a balloon) and into deflecting the septum towards chamber R, not into elongating the left side of the tail. Only elongation of one side produces bending.
 
-**Przegląd wariantów** (`scripts/run_stage2_variants.py`, coarse, quasi-statycznie, komora R odpowietrzona, bez ciężaru; `results/s2_variants.png`, `.csv`):
+**Variant sweep** (`scripts/run_stage2_variants.py`, coarse, quasi-static, chamber R vented, no weight; `results/s2_variants.png`, `.csv`):
 
-| wariant | max \|θ\| (przy ΔV) | p przy max | 15° przy |
+| variant | max \|θ\| (at ΔV) | p at max | 15° at |
 |---|---|---|---|
-| V0 obecny | 1.3° (72.5 ml) | 7.2 kPa | – |
-| V1 kręgosłup E×20 | 2.8° (72.5 ml) | 13.4 kPa | – |
-| V2 ścianka 8 mm | 0.6° (47.5 ml) | 9.1 kPa | – |
-| V3 włókna obwodowe | 9.0° (72.5 ml) | 10.4 kPa | – |
-| **V4 kręgosłup + włókna** | **31° (72.5 ml)** | 33.8 kPa | **47.0 ml, 17.5 kPa** |
+| V0 current | 1.3° (72.5 ml) | 7.2 kPa | – |
+| V1 spine E×20 | 2.8° (72.5 ml) | 13.4 kPa | – |
+| V2 wall 8 mm | 0.6° (47.5 ml) | 9.1 kPa | – |
+| V3 hoop fibers | 9.0° (72.5 ml) | 10.4 kPa | – |
+| **V4 spine + fibers** | **31° (72.5 ml)** | 33.8 kPa | **47.0 ml, 17.5 kPa** |
 
-Co pokazuje wykres:
-- Każdy element osobno daje mało. Włókna obwodowe nie pozwalają ściance się wybrzuszać, a kręgosłup (przegroda E×20 na całej długości) działa jak nierozciągliwa warstwa w osi zginania. Dopiero razem zamieniają wtłoczoną objętość w wydłużenie boku, czyli w zgięcie.
-- Grubsza ścianka **pogarsza** sprawę: komora jest mniejsza, a ogon sztywniejszy.
-- To ta sama zasada, której używają prawdziwe miękkie aktuatory: oplot włóknem i warstwa ograniczająca odkształcenie (strain-limiting layer).
+What the plot shows:
+- Each element alone gives little. The hoop fibers stop the wall from bulging, and the spine (septum E×20 along the whole length) acts as an inextensible layer on the bending axis. Only together do they turn the injected volume into elongation of the side, i.e. into bending.
+- A thicker wall **makes things worse**: the chamber is smaller and the tail stiffer.
+- This is the same principle real soft actuators use: fiber reinforcement and a strain-limiting layer.
 
-**Wybór:** V4. Kryterium (15° przy p ≤ 50 kPa i ΔV ≤ 50% objętości komory) V4 przekracza o włos: 51.4% objętości przy 17.5 kPa. Decyzja użytkownika: V4 bez zmian, bo ciśnienie ma duży zapas, a przekroczenie mieści się w niepewności siatki coarse. V4 jest teraz domyślną konstrukcją w `config.py`. Etap 1 był liczony jeszcze dla V0.
+**Choice:** V4. V4 misses the criterion (15° at p ≤ 50 kPa and ΔV ≤ 50% of chamber volume) by a hair: 51.4% of the volume at 17.5 kPa. User decision: V4 unchanged, because the pressure has a large margin and the overshoot is within the coarse mesh uncertainty. V4 is now the default construction in `config.py`. Stage 1 was still computed for V0.
 
-**Jak to jest modelowane:**
-- **Kręgosłup:** tetry ze środkiem w |y| ≤ septum/2 dostają E×20 (`spine_E_factor`, PLACEHOLDER). Przy ~1 elemencie na grubość przegrody to przybliżenie; raport siatki podaje objętość regionu względem nominalnej.
-- **Włókna:** pierścienie punktów co 4 mm na długości komór, 0.5 mm pod skórą, połączone sprężynami pracującymi tylko na rozciąganie (`StiffSpringForceField elongationOnly`). Do FEM są przyczepione przez `BarycentricMapping`. Sztywność odpowiada membranie K = 2·10⁵ N/m (np. tkanina ~1 GPa × 0.2 mm, PLACEHOLDER). W symulacji nić wydłuża się < 0.15%.
-- Dwa błędy złapane po drodze: `elongationOnly=True` jest w SOFA v26.06 po cichu ignorowane, bo to lista z jedną wartością na sprężynę, a SOFA czyta `"1 1 1 …"` (test `test_hoop_fibers_work_in_tension_only`). Do tego po zmianie domyślnego configu na V4 wariant „V0 = {}” liczył się jako V4, więc teraz każdy wariant ustawia wszystkie przełączniki jawnie.
-- Pierwsza wersja włókien kładła sprężyny na krawędziach siatki skóry. Siatka z loftu nie ma jednak krawędzi obwodowych (są tylko osiowe i ukośne 45–72°), więc oplotu w praktyce nie było i V3/V4 wyglądały na bezużyteczne. Wyłapał to brak jakiejkolwiek zmiany wybrzuszenia.
+**How it is modeled:**
+- **Spine:** tets with centroid at |y| ≤ septum/2 get E×20 (`spine_E_factor`, PLACEHOLDER). With ~1 element across the septum thickness this is an approximation; the mesh report gives the region volume relative to nominal.
+- **Fibers:** rings of points every 4 mm along the chambers, 0.5 mm below the skin, connected by tension-only springs (`StiffSpringForceField elongationOnly`). They are attached to the FEM via `BarycentricMapping`. The stiffness corresponds to a membrane K = 2·10⁵ N/m (e.g. fabric ~1 GPa × 0.2 mm, PLACEHOLDER). In the simulation the thread elongates < 0.15%.
+- Two bugs caught along the way: `elongationOnly=True` is silently ignored in SOFA v26.06, because it is a list with one value per spring, and SOFA reads `"1 1 1 …"` (test `test_hoop_fibers_work_in_tension_only`). In addition, after changing the default config to V4, the variant "V0 = {}" was computed as V4, so now every variant sets all switches explicitly.
+- The first version of the fibers placed springs on the skin mesh edges. The loft mesh, however, has no hoop edges (only axial and diagonal at 45–72°), so in practice there was no reinforcement and V3/V4 looked useless. This was caught by the complete absence of any change in bulging.
 
-**Uwaga do miary „wybrzuszenia”:** to przesunięcie skrajnego węzła skóry po stronie komory **względem osi** ogona, a przy odpowietrzonej komorze R oś też się przesuwa, bo przegroda ugina się w stronę R. Pomiar pierścienia włókien pokazał, że sama ścianka V4 wychodzi na zewnątrz tylko o ~0.4 mm przy 8 ml.
+**Note on the "bulging" measure:** it is the displacement of the outermost skin node on the chamber side **relative to the tail axis**, and with chamber R vented the axis also moves, because the septum deflects towards R. Measuring the fiber ring showed that the V4 wall itself moves outward by only ~0.4 mm at 8 ml.
 
-**Tryb komory R** (siatka test, V4, 12 ml w L): odpowietrzona −3.0°, zamknięta (stała objętość) −2.6°, antagonistyczna (ΔV_R = −ΔV_L, czyli praca pompy) −2.8°. Tryb R zmienia wynik o ~15%.
+**Chamber R mode** (test mesh, V4, 12 ml in L): vented −3.0°, closed (constant volume) −2.6°, antagonistic (ΔV_R = −ΔV_L, i.e. pump operation) −2.8°. The R mode changes the result by ~15%.
 
-## Etap 2 – komora L quasi-statycznie: krzywa p–V i kąt końcówki
+## Stage 2 – chamber L quasi-static: p–V curve and tip angle
 
-`scripts/run_stage2.py`. Konstrukcja V4, komora L dostaje zadany przyrost objętości 0…50 ml, komora R jest odpowietrzona (ciśnienie 0, jak drugi króciec otwarty na stanowisku), bez ciężaru. Liczone pseudo-statycznie: niejawny Euler z dt = 50 ms i LDL (wyniki etapu 2 policzone jeszcze z LDL; CHOLMOD daje te same liczby). Po każdym punkcie objętość jest trzymana, aż energia kinetyczna < 1% pracy ciśnienia ∫p dV; w praktyce wychodzi ≤ 0.4%. Ta metoda daje ten sam stan co wolna rampa przy dt = 2 ms (sprawdzone na siatce test: 1950.4 Pa w obu przypadkach), a jest 5–25× tańsza. `StaticSolver` odpada, bo nie działa z ograniczeniami Lagrange'a komory.
+`scripts/run_stage2.py`. Construction V4, chamber L gets a prescribed volume growth of 0…50 ml, chamber R is vented (pressure 0, like the second port open on the test rig), no weight. Computed pseudo-statically: implicit Euler with dt = 50 ms and LDL (stage 2 results were still computed with LDL; CHOLMOD gives the same numbers). After each point the volume is held until kinetic energy < 1% of the pressure work ∫p dV; in practice it comes out ≤ 0.4%. This method gives the same state as a slow ramp at dt = 2 ms (checked on the test mesh: 1950.4 Pa in both cases), and is 5–25× cheaper. `StaticSolver` is ruled out because it does not work with the chamber's Lagrange constraints.
 
-### Wyniki (`results/s2_pv_curve.png`, `results/s2_tip_angle.png`, `results/s2_curves.csv`)
+### Results (`results/s2_pv_curve.png`, `results/s2_tip_angle.png`, `results/s2_curves.csv`)
 
-| siatka | p przy 50 ml | θ_tip przy 50 ml | czas |
+| mesh | p at 50 ml | θ_tip at 50 ml | time |
 |---|---|---|---|
-| coarse (28k tetr) | 19.3 kPa | −16.3° | 35 s |
+| coarse (28k tets) | 19.3 kPa | −16.3° | 35 s |
 | medium (52k) | 18.4 kPa | −15.7° | 1.7 min |
 | fine (142k) | 16.1 kPa | −15.4° | 16 min |
 
-- **Krzywa p–V** (`s2_pv_curve.png`) jest prawie liniowa na początku i coraz bardziej stroma. Ogon zgięty o 15° trudniej dalej zginać, a włókna przenoszą coraz więcej siły. Przy 50 ml potrzeba ~16 kPa, czyli 1/3 ciśnienia otwarcia zaworu z MuJoCo (50 kPa). Pompa ma zapas.
-- **Kąt końcówki** (`s2_tip_angle.png`): komora L (+Y) wydłuża lewy bok, więc ogon zgina się w **−Y** (θ < 0, w prawo). Zależność też jest lekko wypukła: ~0.25°/ml na początku i ~0.45°/ml przy 50 ml. Tę samą krzywą zmierzysz na prawdziwym ogonie (strzykawka dozująca objętość, manometr, zdjęcie z góry), i to jest główny wynik demo.
+- **The p–V curve** (`s2_pv_curve.png`) is almost linear at first and increasingly steep. A tail bent by 15° is harder to bend further, and the fibers carry more and more force. At 50 ml ~16 kPa is needed, i.e. 1/3 of the valve opening pressure from MuJoCo (50 kPa). The pump has margin.
+- **Tip angle** (`s2_tip_angle.png`): chamber L (+Y) elongates the left side, so the tail bends towards **−Y** (θ < 0, to the right). The relation is also slightly convex: ~0.25°/ml at first and ~0.45°/ml at 50 ml. You will measure the same curve on the real tail (volume-dosing syringe, pressure gauge, photo from above), and this is the main result of the demo.
 
-### Zbieżność siatki (`results/s2_convergence.txt`)
+### Mesh convergence (`results/s2_convergence.txt`)
 
 | | p @ 25 ml | θ @ 25 ml | p @ 50 ml | θ @ 50 ml |
 |---|---|---|---|---|
 | coarse vs fine | +26.6% | +4.8% | +20.3% | +5.9% |
 | medium vs fine | +19.9% | +2.7% | +14.5% | +2.5% |
 
-**Kąt zbiega dobrze** (coarse już w ~5%). **Ciśnienie zbiega słabo**: nawet medium jest 15–20% za wysoko, a fine pewnie też jeszcze nie jest granicą. Kąt wynika z kinematyki (ile objętości wtłoczono i jak długi jest bok), a ciśnienie ze sztywności cienkich ścianek, a te przy ~1–2 elementach na grubość są za sztywne (locking liniowych czworościanów). Wnioski:
-- do kształtu ruchu (kąt, etapy 4–6) wystarczy coarse, z błędem ~5%,
-- ciśnienia z coarse są zawyżone o ~20–25%; do porównań z pomiarem ciśnienia trzeba podawać ten błąd albo liczyć na fine,
-- dokładniejsze ciśnienie wymagałoby elementów kwadratowych albo ≥ 3 elementów na ściankę (~450k tetr), czego binarka SOFA tu nie udźwignie w rozsądnym czasie.
+**The angle converges well** (coarse already within ~5%). **The pressure converges poorly**: even medium is 15–20% too high, and fine is probably not the limit yet either. The angle follows from kinematics (how much volume was injected and how long the side is), while the pressure follows from the stiffness of the thin walls, and with ~1–2 elements across the thickness those are too stiff (locking of linear tetrahedra). Conclusions:
+- for the shape of the motion (angle, stages 4–6) coarse is sufficient, with an error of ~5%,
+- pressures from coarse are overestimated by ~20–25%; for comparisons with pressure measurements this error must be stated, or computed on fine,
+- more accurate pressure would require quadratic elements or ≥ 3 elements per wall (~450k tets), which the SOFA binary cannot handle here in reasonable time.
 
-### Jak to zmierzyć na prawdziwym ogonie (kalibracja)
+### How to measure it on a real tail (calibration)
 
-1. Ogon przykręcony nasadą do stołu, komora R z otwartym króćcem.
-2. Strzykawka lub pompa dozująca w komorę L po 5 ml, manometr na wlocie i zdjęcie z góry (kąt cięciwy od nasady do środka płetwy, tak jak `geometry.tip_angle`).
-3. Dopasowanie: najpierw `young_modulus` do krzywej p–V (ciśnienie skaluje się ~liniowo z E), potem `spine_E_factor` i `hoop_stiffness` do krzywej θ–V. Na grubej siatce trzeba uwzględnić jej +20% na ciśnieniu.
+1. Tail bolted to the table by its root, chamber R with its port open.
+2. Syringe or dosing pump into chamber L in 5 ml increments, pressure gauge at the inlet and a photo from above (angle of the chord from the root to the fin center, same as `geometry.tip_angle`).
+3. Fitting: first `young_modulus` to the p–V curve (pressure scales ~linearly with E), then `spine_E_factor` and `hoop_stiffness` to the θ–V curve. On the coarse mesh, account for its +20% on pressure.
 
-## Etap 3 – symetria: komora R jako lustro komory L
+## Stage 3 – symmetry: chamber R as the mirror of chamber L
 
-`scripts/run_stage3.py` (~3 min z CHOLMOD). Te same warunki co w etapie 2: V4, bez ciężaru, druga komora odpowietrzona, 5…50 ml. Liczone osobno dla komory L i R, na trzech poziomach siatki. Siatka jest lustrzana z konstrukcji: każdy węzeł ma parę w odbiciu względem płaszczyzny XZ, w odległości 0.0 m. Pierścienie włókien też są symetryczne.
+`scripts/run_stage3.py` (~3 min with CHOLMOD). Same conditions as in stage 2: V4, no weight, the other chamber vented, 5…50 ml. Computed separately for chamber L and R, on three mesh levels. The mesh is mirrored by construction: every node has a pair in the reflection about the XZ plane, at a distance of 0.0 m. The fiber rings are symmetric too.
 
-**Wynik** (`results/s3_symmetry.png`, `.csv`, `.txt`): przy 50 ml na fine komora R daje p = 16.050 kPa i θ = +15.352°, a komora L te same 16.050 kPa i −15.352°. Największy błąd symetrii na całym zakresie:
+**Result** (`results/s3_symmetry.png`, `.csv`, `.txt`): at 50 ml on fine chamber R gives p = 16.050 kPa and θ = +15.352°, and chamber L the same 16.050 kPa and −15.352°. Largest symmetry error over the whole range:
 
-| siatka | kąt | ciśnienie | wydymanie |
+| mesh | angle | pressure | bulging |
 |---|---|---|---|
 | coarse | 0.75% | 0.023% | 0.14% |
 | medium | 0.11% | 0.008% | 0.014% |
 | fine | 0.34% | 0.012% | 0.11% |
 
-Spec wymaga < 5%; test `test_chamber_R_mirrors_L` pilnuje 1% na siatce test.
+The spec requires < 5%; the test `test_chamber_R_mirrors_L` enforces 1% on the test mesh.
 
-**Skąd resztkowy błąd:** to nie siatka, tylko kryterium końca trzymania punktu (energia kinetyczna < 1% pracy ciśnienia). Symulacje L i R zatrzymują się w trochę innym momencie zanikającego ruchu. Dlatego błąd jest największy w pierwszym punkcie (5 ml), gdzie ruch po rampie jest największy względem ugięcia. Przy 30–50 ml spada do 1e-5…1e-7%. Na fine zostaje na poziomie ~1e-3%: to szum zaokrągleń rozkładu macierzy przy innej kolejności elementów w lustrzanej połowie.
+**Where the residual error comes from:** not the mesh, but the criterion for ending the hold of a point (kinetic energy < 1% of pressure work). The L and R simulations stop at slightly different moments of the decaying motion. That is why the error is largest at the first point (5 ml), where the post-ramp motion is largest relative to the deflection. At 30–50 ml it drops to 1e-5…1e-7%. On fine it stays at ~1e-3%: this is round-off noise of the matrix factorization with a different element order in the mirrored half.
 
-**Kontrola CHOLMOD:** krzywa L z tego etapu (CHOLMOD) różni się od etapu 2 (LDL) o ≤ 0.0006% w kącie i ≤ 0.0002% w ciśnieniu na wszystkich poziomach. Wyniki etapu 2 nie wymagają przeliczenia.
+**CHOLMOD check:** the L curve from this stage (CHOLMOD) differs from stage 2 (LDL) by ≤ 0.0006% in angle and ≤ 0.0002% in pressure on all levels. The stage 2 results do not need recomputation.
 
-## Etap 4 – hydraulika antagonistyczna: machanie w powietrzu
+## Stage 4 – antagonistic hydraulics: flapping in air
 
-`scripts/run_stage4.py` (~25 min). Siatka coarse, powietrze, ciężar włączony, komory pełne wody. Przebieg: 0–1 s prefill obu komór do 20 ml, potem rytm V_ref(t) z rampą 1 s, łącznie 4.5 s. Pompa przetacza ciecz z R do L (`fishsofa/hydraulics.py`), a kontroler SOFA (`fishsofa/controller.py`) co krok ustawia przyrost objętości obu komór: ΔV_L = prefill + V_p, ΔV_R = prefill − V_p. **+V_p (komora L) zgina ogon w −Y, w prawo. To odpowiada +V_bias w MuJoCo („skręt w prawo”).**
+`scripts/run_stage4.py` (~25 min). Coarse mesh, air, weight on, chambers full of water. Sequence: 0–1 s prefill of both chambers to 20 ml, then the V_ref(t) rhythm with a 1 s ramp, 4.5 s in total. The pump transfers fluid from R to L (`fishsofa/hydraulics.py`), and the SOFA controller (`fishsofa/controller.py`) sets the volume growth of both chambers every step: ΔV_L = prefill + V_p, ΔV_R = prefill − V_p. **+V_p (chamber L) bends the tail towards −Y, to the right. This corresponds to +V_bias in MuJoCo ("turn right").**
 
-### Parametry: dlaczego nie 1:1 z MuJoCo
-Komora SOFA ma 91 ml, a w MuJoCo `V0_chamber` = 30 ml. A_V = 8 ml z MuJoCo dałoby tu ~±3°. Do tego Q_max = 60 ml/s nie nadąża przy 2 Hz (potrzeba 2π·f·A_V), więc wyszłoby jeszcze mniej. Wybrany jest największy ruch, który się bezpiecznie mieści: **A_V = 17 ml, V_prefill = 20 ml, Q_max = 250 ml/s**. Pozostałe wartości są jak w MuJoCo: f = 2 Hz, K_v = 10 1/s, τ_pump = 30 ms, p_max = 50 kPa.
+### Parameters: why not 1:1 with MuJoCo
+The SOFA chamber is 91 ml, while in MuJoCo `V0_chamber` = 30 ml. A_V = 8 ml from MuJoCo would give ~±3° here. In addition, Q_max = 60 ml/s cannot keep up at 2 Hz (2π·f·A_V is needed), so it would come out even less. The largest motion that fits safely was chosen: **A_V = 17 ml, V_prefill = 20 ml, Q_max = 250 ml/s**. The other values are as in MuJoCo: f = 2 Hz, K_v = 10 1/s, τ_pump = 30 ms, p_max = 50 kPa.
 
-**Górna granica prefillu: wyboczenie kręgosłupa.** Napełnienie obu komór wydłuża ogon wzdłuż, a sztywny kręgosłup jest wtedy ściskany. Pomiar statyczny na siatce coarse:
+**Upper prefill limit: spine buckling.** Filling both chambers elongates the tail lengthwise, and the stiff spine is then compressed. Static measurement on the coarse mesh:
 
-| prefill | ciśnienie wspólne | stan symetryczny |
+| prefill | common pressure | symmetric state |
 |---|---|---|
-| 10 ml | 25 kPa | prosty |
-| 20 ml | 53 kPa | prosty |
-| 24 ml | 64 kPa | θ = 0.02°, a Δp ma zły znak (L bardziej napełniona, a ciśnienie niższe) |
-| 30 ml | 78 kPa | θ = 0.34°: ogon wygina się bez różnicy objętości |
+| 10 ml | 25 kPa | straight |
+| 20 ml | 53 kPa | straight |
+| 24 ml | 64 kPa | θ = 0.02°, and Δp has the wrong sign (L more filled, yet lower pressure) |
+| 30 ml | 78 kPa | θ = 0.34°: the tail bends with no volume difference |
 
-±15° wymagałoby prefillu > 24 ml, czyli już w tym zakresie. Wniosek projektowy: przy konstrukcji V4 prefill ogranicza amplitudę, bo ciśnienie wspólne obciąża kręgosłup osiowo.
+±15° would require a prefill > 24 ml, i.e. already in this range. Design conclusion: with construction V4 the prefill limits the amplitude, because the common pressure loads the spine axially.
 
-**Kompensacja opóźnienia pompy (zmiana względem MuJoCo).** Komenda z MuJoCo, u = (dV_ref/dt + K_v·(V_ref − V_p))/Q_max, przy 2 Hz przeregulowywała: V_p dochodziło do 1.16·A_V, czyli 19.7 ml, i komora R prawie do objętości spoczynkowej. Działo się tak nawet bez nasycenia pompy (Q_max 400 ml/s: 1.17×). Pompa I rzędu ma ωτ = 0.38, więc samo sprzężenie w przód jest spóźnione. Dodany człon τ_pump·d²V_ref/dt² odwraca to opóźnienie: błąd śledzenia spada do 1.2% A_V, bez nasycenia (test `test_pump_tracks_v_ref`). **Ten sam problem jest w MuJoCo** (`MuJoCo/fishsim/controllers.py`), tam nic nie zmieniałem.
+**Pump lag compensation (change relative to MuJoCo).** The MuJoCo command, u = (dV_ref/dt + K_v·(V_ref − V_p))/Q_max, overshot at 2 Hz: V_p reached 1.16·A_V, i.e. 19.7 ml, and chamber R nearly reached its rest volume. This happened even without pump saturation (Q_max 400 ml/s: 1.17×). The first-order pump has ωτ = 0.38, so feedforward alone lags. The added term τ_pump·d²V_ref/dt² inverts this lag: the tracking error drops to 1.2% of A_V, without saturation (test `test_pump_tracks_v_ref`). **The same problem exists in MuJoCo** (`MuJoCo/fishsim/controllers.py`); I changed nothing there.
 
-### Wyniki (`results/s4_air_flapping.png`, `.csv`, `results/s4_summary.txt`)
+### Results (`results/s4_air_flapping.png`, `.csv`, `results/s4_summary.txt`)
 
 | | dt = 2 ms | dt = 1 ms |
 |---|---|---|
-| amplituda θ (ustalony cykl) | **±12.66°** | ±13.33° |
-| zmiana amplitudy w ostatnim cyklu | 0.00% | 0.00% |
-| opóźnienie fazy θ względem −V_ref | 50° | 47° |
+| θ amplitude (steady cycle) | **±12.66°** | ±13.33° |
+| amplitude change in the last cycle | 0.00% | 0.00% |
+| θ phase lag relative to −V_ref | 50° | 47° |
 | p_L, p_R | 50.1–56.4 kPa | 50.2–56.3 kPa |
-| \|Δp\| max | 5.7 kPa (zawór nie otwiera się) | 5.5 kPa |
-| ΔV_L + ΔV_R zmierzone (zadane 40 ml) | 39.9991–40.0025 ml | 39.9992–40.0003 ml |
-| solver ograniczeń | ≤ 30 iteracji, błąd ≤ 2e-9 | ≤ 28 iteracji |
-| czas obliczeń | 198 ms/krok = **99× wolniej niż czas rzeczywisty** | 181 ms/krok = 181× |
+| \|Δp\| max | 5.7 kPa (valve does not open) | 5.5 kPa |
+| ΔV_L + ΔV_R measured (target 40 ml) | 39.9991–40.0025 ml | 39.9992–40.0003 ml |
+| constraint solver | ≤ 30 iterations, error ≤ 2e-9 | ≤ 28 iterations |
+| compute time | 198 ms/step = **99× slower than real time** | 181 ms/step = 181× |
 
-Obserwacje:
-- Cykl ustala się już w drugim cyklu po rampie, a średni kąt wynosi 0.000°: przy prefillu 20 ml wyboczenia nie ma.
-- Kąt opóźnia się o ~50° za objętością, a przy statyce opóźnienia nie byłoby. Za opóźnienie odpowiada bezwładność ogona z wodą w komorach, a nie pompa (V_p pokrywa się z V_ref, dolny panel wykresu).
-- Różnica ciśnień jest mała (±5.7 kPa) na tle ciśnienia wspólnego 53 kPa. W układzie antagonistycznym ruch steruje różnica, a i tak do 50 kPa daleko.
+Observations:
+- The cycle settles already in the second cycle after the ramp, and the mean angle is 0.000°: with a 20 ml prefill there is no buckling.
+- The angle lags the volume by ~50°, while in statics there would be no lag. The lag is due to the inertia of the tail with water in the chambers, not the pump (V_p coincides with V_ref, bottom panel of the plot).
+- The pressure difference is small (±5.7 kPa) against the common pressure of 53 kPa. In the antagonistic system the motion is driven by the difference, and it is still far from 50 kPa.
 
-**Wpływ dt (spec, sekcja 5):** przy dt = 2 ms amplituda jest o 5.1% mniejsza niż przy 1 ms. Niejawny Euler tłumi numerycznie i to tłumienie rośnie z dt. Dla etapów 5–6 to znany błąd systematyczny (−5% amplitudy). Jeśli porównania mają być ilościowe, trzeba liczyć przy 1 ms, kosztem 2× dłuższego czasu.
+**Effect of dt (spec, section 5):** at dt = 2 ms the amplitude is 5.1% smaller than at 1 ms. Implicit Euler damps numerically and this damping grows with dt. For stages 5–6 this is a known systematic error (−5% of amplitude). If comparisons are to be quantitative, compute at 1 ms, at the cost of 2× longer run time.
 
-**GUI (sprawdzone 5.10.2026: ogon macha):** `scripts/run_gui.sh` (domyślnie tryb `flap`, Animate) pokazuje ten sam przebieg z rysowaniem ciśnienia komór (`drawPressure`). Pierwsza sekunda to prefill (ogon prawie stoi), a 1 s symulacji liczy się ~2 min. Ugięcie pod ciężarem z etapu 1: `scripts/run_gui.sh coarse sag`.
+**GUI (checked 5.10.2026: the tail flaps):** `scripts/run_gui.sh` (default `flap` mode, Animate) shows the same sequence with the chamber pressures drawn (`drawPressure`). The first second is the prefill (the tail almost stands still), and 1 s of simulation takes ~2 min to compute. Sag under its own weight from stage 1: `scripts/run_gui.sh coarse sag`.
 
-## Etap 5 – woda: opór, ciąg na uwięzi
+## Stage 5 – water: drag, tethered thrust
 
-`scripts/run_stage5.py` (~60 min zegarowo, 3 symulacje naraz). Ten sam przebieg co w etapie 4 (coarse, prefill 20 ml, 2 Hz, A_V = 17 ml), ale `environment="water"`: silikon ma ciężar pozorny g·(1 − ρ_w/ρ_s), woda w komorach ma bezwładność bez ciężaru, a na skórę działa opór wody. GUI: `FISHSOFA_ENV=water scripts/run_gui.sh`.
+`scripts/run_stage5.py` (~60 min wall-clock, 3 simulations at once). Same sequence as in stage 4 (coarse, prefill 20 ml, 2 Hz, A_V = 17 ml), but `environment="water"`: the silicone has apparent weight g·(1 − ρ_w/ρ_s), the water in the chambers has inertia without weight, and water drag acts on the skin. GUI: `FISHSOFA_ENV=water scripts/run_gui.sh`.
 
-### Model oporu (`fishsofa/water.py`, `controller.WaterDragController`)
+### Drag model (`fishsofa/water.py`, `controller.WaterDragController`)
 
-Każdy trójkąt skóry dostaje siłę zależną tylko od własnej prędkości v (średnia z 3 węzłów), normalnej zewnętrznej n i pola A:
-- normalna F_n = −½ρ·C_n·A·(v·n)|v·n|·n (opór ciśnieniowy),
-- styczna F_t = −½ρ·C_t·A·|v_t|·v_t (tarcie skóry).
+Each skin triangle gets a force depending only on its own velocity v (average of its 3 nodes), outward normal n and area A:
+- normal F_n = −½ρ·C_n·A·(v·n)|v·n|·n (pressure drag),
+- tangential F_t = −½ρ·C_t·A·|v_t|·v_t (skin friction).
 
-Siła trójkąta idzie po 1/3 na jego węzły, przez `ConstantForceField` "water" aktualizowany na początku każdego kroku. C_n = 1 i C_t = 0.01 to PLACEHOLDER. C_n działa na każdą stronę powierzchni, więc cienka płytka w przepływie poprzecznym ma C_d ≈ 2·C_n ≈ 2, jak płaska płytka (test `test_drag_on_flat_plate`). Funkcje są czystym numpy i mają testy bez SOFA: moc oporu F·v ≤ 0 na każdym trójkącie, zerowa prędkość daje zerową siłę.
+The triangle force goes 1/3 to each of its nodes, through a `ConstantForceField` "water" updated at the start of every step. C_n = 1 and C_t = 0.01 are PLACEHOLDERs. C_n acts on each side of the surface, so a thin plate in cross-flow has C_d ≈ 2·C_n ≈ 2, like a flat plate (test `test_drag_on_flat_plate`). The functions are pure numpy and have tests without SOFA: drag power F·v ≤ 0 on every triangle, zero velocity gives zero force.
 
-**Stabilność.** Siła liczona z prędkości z poprzedniego kroku to jawne tłumienie. Węzeł o masie m i lokalnym współczynniku c = ρ·C_n·A_węzła·|v_n| jest stabilny tylko przy c·dt/m wyraźnie < 1. Najgorsze są węzły płetwy (6 mm grubości, lekkie i o dużej powierzchni):
+**Stability.** A force computed from the previous step's velocity is explicit damping. A node with mass m and local coefficient c = ρ·C_n·A_node·|v_n| is stable only for c·dt/m clearly < 1. The worst are the fin nodes (6 mm thick, light and with a large area):
 
-| dt | max(c·dt/m) w ustalonym cyklu |
+| dt | max(c·dt/m) in the steady cycle |
 |---|---|
-| 2 ms | ~0.7 (siatka test), za dużo |
-| 1 ms | **0.536**, chwilowo w szczycie prędkości płetwy, tuż powyżej 0.5 |
-| 0.5 ms | **0.272**, wynik etapu |
+| 2 ms | ~0.7 (test mesh), too much |
+| 1 ms | **0.536**, momentarily at peak fin velocity, just above 0.5 |
+| 0.5 ms | **0.272**, the stage result |
 
-Między 1 ms a 0.5 ms amplituda różni się o 1.4%, a ciąg o 5%. Siły nie są obcinane. Krok 0.5 ms kosztuje 2×. Tańsza droga byłaby niejawna: opór jako `ForceField` z członem tłumienia w macierzy układu (rozszerzenie ze specu, niezrobione).
+Between 1 ms and 0.5 ms the amplitude differs by 1.4%, and the thrust by 5%. Forces are not clipped. The 0.5 ms step costs 2×. The cheaper route would be implicit: drag as a `ForceField` with a damping term in the system matrix (an extension from the spec, not done).
 
-### Wyniki (`results/s5_water_vs_air.png`, `.csv`, `results/s5_summary.txt`)
+### Results (`results/s5_water_vs_air.png`, `.csv`, `results/s5_summary.txt`)
 
-| | powietrze (dt 1 ms) | woda (dt 0.5 ms) |
+| | air (dt 1 ms) | water (dt 0.5 ms) |
 |---|---|---|
-| amplituda θ (ustalony cykl) | ±13.33° | **±7.32°** (0.55×) |
-| opóźnienie fazy θ względem −V_ref | 47° | 77° (+30°) |
+| θ amplitude (steady cycle) | ±13.33° | **±7.32°** (0.55×) |
+| θ phase lag relative to −V_ref | 47° | 77° (+30°) |
 | \|Δp\| max | 5.5 kPa | 5.6 kPa |
-| ciąg na uwięzi (średnie F_x) | – | **+67 mN** |
-| siła boczna F_y | – | ±755 mN |
-| średnia moc oporu | – | 125 mW |
+| tethered thrust (mean F_x) | – | **+67 mN** |
+| lateral force F_y | – | ±755 mN |
+| mean drag power | – | 125 mW |
 
-Obserwacje:
-- **Ta sama komenda objętości, prawie dwa razy mniejsze machanie.** W powietrzu ogon (z ~3 Hz częstością własną, etap 1) przy 2 Hz jest blisko rezonansu i bezwładność wzmacnia ruch ponad wychylenie statyczne. Woda tłumi to wzmocnienie i przesuwa fazę o +30°: kąt jeszcze bardziej spóźnia się za objętością.
-- **Δp prawie się nie zmienia.** Ciśnienie w komorach ustala głównie sztywność ogona i ścianek (rząd 10⁴ Pa), a siły wody są małe w porównaniu z siłami sprężystymi. Dla pompy i zaworu woda niewiele zmienia przy tych parametrach.
-- **Ciąg jest ~10× mniejszy niż siła boczna**, a jego składowa F_x pulsuje z 2f (dwa „pchnięcia” na cykl, po jednym na każdy ruch w bok). Średnio +67 mN. To tylko jakościowo: model ma sam opór, bez masy dodanej i bez śladu wirowego, a to te efekty dominują w ciągu ryb (Lighthill). Prawdziwy ogon da prawdopodobnie inną liczbę; do porównania służy pomiar na wadze w wannie (sekcja „Jak kalibrować”).
-- 361–408 ms/krok przy 3 równoległych procesach i 11 procesach razem z etapem 6 (pojedynczo ~220 ms). Woda przy dt 0.5 ms liczy się ~800× wolniej niż czas rzeczywisty.
+Observations:
+- **Same volume command, almost half the flapping.** In air the tail (with its ~3 Hz natural frequency, stage 1) is close to resonance at 2 Hz and inertia amplifies the motion beyond the static excursion. Water damps this amplification and shifts the phase by +30°: the angle lags the volume even more.
+- **Δp barely changes.** The chamber pressure is set mainly by the stiffness of the tail and walls (order of 10⁴ Pa), and the water forces are small compared with the elastic forces. For the pump and valve, water changes little at these parameters.
+- **Thrust is ~10× smaller than the lateral force**, and its F_x component pulses at 2f (two "pushes" per cycle, one for each sideways stroke). On average +67 mN. This is only qualitative: the model has drag only, without added mass and without a vortex wake, and those effects dominate fish thrust (Lighthill). The real tail will probably give a different number; for comparison use a measurement on a scale in a tub (section "How to calibrate").
+- 361–408 ms/step with 3 parallel processes and 11 processes together with stage 6 (alone ~220 ms). Water at dt 0.5 ms computes ~800× slower than real time.
 
-## Etap 6 – przeglądy: częstotliwość i moduł Younga
+## Stage 6 – sweeps: frequency and Young's modulus
 
-`scripts/run_stage6.py`: 19 niezależnych symulacji (siatka coarse) liczonych równolegle przez `fishsofa/parallel.py`. **Czas całego przeglądu: 68 min zegarowo**, w tym 444 min CPU samych symulacji dynamicznych, czyli 6.5× szybciej niż po kolei (8 procesów naraz obok 3 z etapu 5). Wyniki: `results/s6_freq_sweep.png/.csv`, `results/s6_young_sweep.png/.csv`, `results/s6_summary.txt`.
+`scripts/run_stage6.py`: 19 independent simulations (coarse mesh) run in parallel via `fishsofa/parallel.py`. **Time for the whole sweep: 68 min wall-clock**, including 444 CPU-min of the dynamic simulations alone, i.e. 6.5× faster than sequentially (8 processes at once alongside 3 from stage 5). Results: `results/s6_freq_sweep.png/.csv`, `results/s6_young_sweep.png/.csv`, `results/s6_summary.txt`.
 
-### a) Częstotliwość 0.5–3 Hz w wodzie (`s6_freq_sweep.png`)
+### a) Frequency 0.5–3 Hz in water (`s6_freq_sweep.png`)
 
-Te same punkty co `MuJoCo/scripts/sweep_frequency.py` (co 0.25 Hz), ta sama amplituda objętości A_V = 17 ml. Protokół: prefill 1 s, 2 cykle rozbiegu (pierwszy to rampa amplitudy), 3 cykle uśredniania. Krok: 1 ms do 2 Hz, wyżej 1 ms·2/f.
+Same points as `MuJoCo/scripts/sweep_frequency.py` (every 0.25 Hz), same volume amplitude A_V = 17 ml. Protocol: prefill 1 s, 2 run-in cycles (the first is the amplitude ramp), 3 averaging cycles. Step: 1 ms up to 2 Hz, above that 1 ms·2/f.
 
 | f [Hz] | 0.5 | 1.0 | 1.5 | 2.0 | 2.25 | 2.5 | 3.0 |
 |---|---|---|---|---|---|---|---|
-| amplituda θ [°] | 11.8 | 10.8 | 8.9 | 7.2 | 6.5 | 5.7 | 4.3 |
-| opóźnienie fazy [°] | 17 | 40 | 61 | 77 | 84 | 91 | 106 |
-| ciąg [mN] | 1.5 | 19.6 | 45.9 | 63.2 | **67.9** | 62.8 | 47.0 |
+| θ amplitude [°] | 11.8 | 10.8 | 8.9 | 7.2 | 6.5 | 5.7 | 4.3 |
+| phase lag [°] | 17 | 40 | 61 | 77 | 84 | 91 | 106 |
+| thrust [mN] | 1.5 | 19.6 | 45.9 | 63.2 | **67.9** | 62.8 | 47.0 |
 | \|Δp\| max [kPa] | 1.7 | 3.5 | 4.9 | 5.7 | 5.9 | 5.9 | 5.4 |
-| pompa nasycona [% czasu] | 0 | 0 | 0 | 0 | 18 | 36 | 53 |
+| pump saturated [% of time] | 0 | 0 | 0 | 0 | 18 | 36 | 53 |
 
-Co pokazuje wykres:
-- **Amplituda spada z f przez cały zakres.** W wodzie ogon nie ma rezonansu: opór rośnie z kwadratem prędkości i tłumi go silniej niż w powietrzu (tam częstość własna to ~3 Hz, etap 1). Przy niskim f kąt dochodzi do quasi-statycznego (~12°, porównaj etap 2) i prawie nie spóźnia się za objętością.
-- **Ciąg ma maksimum przy ~2.25 Hz.** Rośnie, bo rośnie prędkość płetwy (opór ~ v²), a spada, bo maleje amplituda i od 2.25 Hz pompa się nasyca: potrzebny szczytowy przepływ 2π·f·A_V (240 ml/s przy 2.25 Hz, plus kompensacja opóźnienia pompy) przekracza Q_max = 250 ml/s.
-- **Zawór nie otwiera się nigdzie:** |Δp| ≤ 6 kPa wobec p_max = 50 kPa. Przy tej konstrukcji ograniczeniem jest wydajność pompy, nie ciśnienie.
-- **Porównanie z MuJoCo** (`MuJoCo/results/s5_sweep.png`, na wykresie przeskalowana linia przerywana, tylko kształt): MuJoCo ma pik amplitudy przy 1.5 Hz, SOFA nie ma piku. Przyczyny: MuJoCo modeluje pływającą rybę z masą dodaną i rezonansem pasywnym (`passive_resonance_hz`), a tu ogon jest przymocowany, z samym oporem, który przy tej sztywności tłumi rezonans całkowicie. Spadek powyżej 2 Hz (nasycenie pompy) wygląda w obu podobnie.
-- **Stabilność oporu:** max(c·dt/m) wynosi 0.52 przy 1.75 Hz i 0.54 przy 2 Hz (dt 1 ms), wszędzie indziej < 0.5. Etap 5 zmierzył skutek takiego przekroczenia: przy dt/2 amplituda +1.4%, ciąg +5%. Lepsza reguła na przyszłość: dt = 1 ms·min(1, 1.6/f).
+What the plot shows:
+- **Amplitude decreases with f over the whole range.** In water the tail has no resonance: drag grows with the square of velocity and damps it more strongly than in air (where the natural frequency is ~3 Hz, stage 1). At low f the angle approaches the quasi-static one (~12°, compare stage 2) and barely lags the volume.
+- **Thrust peaks at ~2.25 Hz.** It rises because fin velocity rises (drag ~ v²), and falls because the amplitude decreases and from 2.25 Hz the pump saturates: the required peak flow 2π·f·A_V (240 ml/s at 2.25 Hz, plus pump lag compensation) exceeds Q_max = 250 ml/s.
+- **The valve opens nowhere:** |Δp| ≤ 6 kPa versus p_max = 50 kPa. With this construction the limit is pump capacity, not pressure.
+- **Comparison with MuJoCo** (`MuJoCo/results/s5_sweep.png`, rescaled dashed line on the plot, shape only): MuJoCo has an amplitude peak at 1.5 Hz, SOFA has no peak. Reasons: MuJoCo models a swimming fish with added mass and passive resonance (`passive_resonance_hz`), while here the tail is clamped, with drag only, which at this stiffness damps the resonance completely. The drop above 2 Hz (pump saturation) looks similar in both.
+- **Drag stability:** max(c·dt/m) is 0.52 at 1.75 Hz and 0.54 at 2 Hz (dt 1 ms), everywhere else < 0.5. Stage 5 measured the effect of such an exceedance: at dt/2 amplitude +1.4%, thrust +5%. A better rule for the future: dt = 1 ms·min(1, 1.6/f).
 
-### b) Moduł Younga silikonu ×0.5 / ×1 / ×2 (`s6_young_sweep.png`)
+### b) Silicone Young's modulus ×0.5 / ×1 / ×2 (`s6_young_sweep.png`)
 
-Zmieniany jest tylko silikon (z kręgosłupem, bo jego E to 20× silikon). Włókna obwodowe to inny materiał i ich sztywność zostaje.
+Only the silicone is changed (together with the spine, because its E is 20× the silicone). The hoop fibers are a different material and their stiffness stays.
 
 | | E×0.5 | E×1 | E×2 |
 |---|---|---|---|
-| **sterowanie objętością**, 40 ml: ciśnienie | 7.1 kPa | 14.2 kPa | 27.9 kPa |
-| ten sam przypadek: kąt | −11.35° | −11.35° | −11.16° |
-| **sterowanie ciśnieniem**, 8 kPa: kąt | −12.91° | −6.03° | −2.73° |
-| **dynamicznie w wodzie, 2 Hz**: amplituda | ±5.8° | ±7.2° | ±8.2° |
-| ten sam przypadek: opóźnienie fazy | 96° | 77° | 59° |
+| **volume control**, 40 ml: pressure | 7.1 kPa | 14.2 kPa | 27.9 kPa |
+| same case: angle | −11.35° | −11.35° | −11.16° |
+| **pressure control**, 8 kPa: angle | −12.91° | −6.03° | −2.73° |
+| **dynamic in water, 2 Hz**: amplitude | ±5.8° | ±7.2° | ±8.2° |
+| same case: phase lag | 96° | 77° | 59° |
 
-**Lekcja: sterowanie objętością a sterowanie ciśnieniem.**
-- Pompa wymusza **objętość**. Gdy cała konstrukcja jest „jednym materiałem razy k” i nie ma obciążeń zewnętrznych, równowaga przy zadanym ΔV w ogóle nie zależy od k: ten sam kształt, tylko ciśnienie ×k. Tu widać to prawie dokładnie (kąt przy 40 ml różni się o < 2%, ciśnienie skaluje się 0.50 / 1 / 1.97). Odstępstwo przy 10 ml dla E×0.5 (−1.68° vs −1.93°) pochodzi od włókien, które się nie skalują: przy miękkim silikonie są relatywnie sztywniejsze. Test `test_young_x2_same_volume_doubles_pressure_keeps_angle` skaluje też włókna i sprawdza prawo dokładnie.
-- Sztywność decyduje więc o **wymaganym ciśnieniu**: dobór pompy, zaworu, szczelności, zmęczenie silikonu. Na ruch wpływa dopiero przez obciążenia zewnętrzne: wodę, bezwładność, ciężar.
-- **Przy sterowaniu ciśnieniem jest odwrotnie:** ten sam p daje ugięcie ~1/E (8 kPa: 12.9° / 6.0° / 2.7°, test `test_young_x2_same_pressure_halves_angle`). Nawet szybciej niż 1/E, bo krzywa p–V się usztywnia (etap 2), a miękki ogon wchodzi głębiej w jej nieliniową część.
-- **Dynamicznie w wodzie E jednak zmienia ruch:** sztywniejszy ogon ma wyższą częstość własną, więc przy 2 Hz mniej spóźnia się za objętością (59° vs 96°) i mniej ruchu „gubi” na oporze. Miękki ogon przy tej samej objętości macha mniej, bo woda przy jego wolniejszej odpowiedzi zabiera większą część ruchu.
+**Lesson: volume control vs pressure control.**
+- The pump imposes **volume**. When the whole construction is "one material times k" and there are no external loads, the equilibrium at a prescribed ΔV does not depend on k at all: the same shape, only pressure ×k. This is seen here almost exactly (the angle at 40 ml differs by < 2%, the pressure scales 0.50 / 1 / 1.97). The deviation at 10 ml for E×0.5 (−1.68° vs −1.93°) comes from the fibers, which do not scale: with soft silicone they are relatively stiffer. The test `test_young_x2_same_volume_doubles_pressure_keeps_angle` also scales the fibers and checks the law exactly.
+- Stiffness therefore determines the **required pressure**: choice of pump, valve, sealing, silicone fatigue. It affects the motion only through external loads: water, inertia, weight.
+- **With pressure control it is the opposite:** the same p gives a deflection ~1/E (8 kPa: 12.9° / 6.0° / 2.7°, test `test_young_x2_same_pressure_halves_angle`). Even faster than 1/E, because the p–V curve stiffens (stage 2), and the soft tail goes deeper into its nonlinear part.
+- **Dynamically in water E does change the motion:** a stiffer tail has a higher natural frequency, so at 2 Hz it lags the volume less (59° vs 96°) and "loses" less motion to drag. The soft tail flaps less at the same volume, because with its slower response the water takes away a larger part of the motion.
 
-## Podgląd w czasie rzeczywistym: nagranie, odtwarzanie, wideo
+## Real-time preview: recording, playback, video
 
-Na żywo ogon w GUI rusza się 100–800× wolniej niż w rzeczywistości (krok liczy się 200–400 ms, a symuluje 0.5–2 ms). Dlatego ruch liczymy offline, zapisujemy i odtwarzamy w prawdziwym tempie:
+Live in the GUI the tail moves 100–800× slower than in reality (a step takes 200–400 ms to compute and simulates 0.5–2 ms). So we compute the motion offline, save it and replay it at true speed:
 
 ```bash
 source SOFA/scripts/env.sh
-python SOFA/scripts/record.py               # nagrania powietrze + woda, równolegle (~40 min) -> SOFA/recordings/*.npz
-SOFA/scripts/run_replay.sh                  # GUI SOFA: odtwarzanie wody w czasie rzeczywistym, w pętli
-SOFA/scripts/run_replay.sh SOFA/recordings/air.npz 0.25   # powietrze, 4× zwolnione
-pip install pyvista==0.49.0                 # raz, tylko do wideo
-python SOFA/scripts/render_video.py         # wideo -> SOFA/results/flapping.mp4 (~3 min)
+python SOFA/scripts/record.py               # air + water recordings, in parallel (~40 min) -> SOFA/recordings/*.npz
+SOFA/scripts/run_replay.sh                  # SOFA GUI: real-time water replay, looped
+SOFA/scripts/run_replay.sh SOFA/recordings/air.npz 0.25   # air, 4× slowed down
+pip install pyvista==0.49.0                 # once, only for video
+python SOFA/scripts/render_video.py         # video -> SOFA/results/flapping.mp4 (~3 min)
 ```
 
-- **Nagranie** (`scripts/record.py`, `headless.run_flapping(record_fps=60)`): pozycje wszystkich węzłów co 1/60 s czasu symulacji, ciśnienia i kąt. ~25 MB na nagranie, katalog `recordings/` jest poza repo. Kroki jak w etapach 4–5: powietrze 1 ms, woda 0.5 ms.
-- **Odtwarzanie w GUI** (`fishsofa/replay.py`, tryb `FISHSOFA_MODE=replay`): scena bez fizyki, same modele wizualne. Kontroler wybiera klatkę według zegara ściennego, więc tempo nie zależy od szybkości rysowania. Skóra jest półprzezroczysta, a komory mają kolor wg ciśnienia (niebieski = najniższe w fazie rytmu, czerwony = najwyższe; skala bez prefillu, bo ruch steruje różnica ±6 kPa na tle wspólnych ~53 kPa). Kamerę obraca się myszą jak zwykle.
-- **Wideo** (`scripts/render_video.py`, PyVista + ffmpeg): powietrze i woda obok siebie, widok z góry, wspólna skala ciśnień, pod spodem θ(t) z kursorem. Najpierw cały przebieg 4.5 s w czasie rzeczywistym, potem ostatni cykl 4× zwolniony.
+- **Recording** (`scripts/record.py`, `headless.run_flapping(record_fps=60)`): positions of all nodes every 1/60 s of simulation time, pressures and angle. ~25 MB per recording, the `recordings/` directory is outside the repo. Steps as in stages 4–5: air 1 ms, water 0.5 ms.
+- **Replay in the GUI** (`fishsofa/replay.py`, mode `FISHSOFA_MODE=replay`): a scene without physics, visual models only. The controller picks the frame by wall-clock time, so the speed does not depend on rendering speed. The skin is semi-transparent, and the chambers are colored by pressure (blue = lowest in the rhythm phase, red = highest; the scale excludes the prefill, because the motion is driven by the ±6 kPa difference against the common ~53 kPa). The camera is rotated with the mouse as usual.
+- **Video** (`scripts/render_video.py`, PyVista + ffmpeg): air and water side by side, top view, common pressure scale, θ(t) with a cursor underneath. First the whole 4.5 s run in real time, then the last cycle 4× slowed down.

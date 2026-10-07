@@ -1,14 +1,14 @@
-"""Wiele niezależnych symulacji naraz – po jednej na proces.
+"""Many independent simulations at once – one per process.
 
-Jedna symulacja SOFA używa praktycznie jednego rdzenia: składanie macierzy FEM jest
-sekwencyjne, a bloki rozkładu CHOLMOD są za małe, żeby BLAS zyskał na wątkach (README,
-„Wydajność”). Kolejne kroki czasu zależą od poprzednich, więc jednej symulacji nie da się
-podzielić. Za to punkty przeglądu (etapy 5–6) są niezależne: każdy liczymy w osobnym
-procesie, kilka naraz.
+A single SOFA simulation uses practically one core: FEM matrix assembly is sequential,
+and CHOLMOD's factorization blocks are too small for BLAS to gain from threads (README,
+"Performance"). Each time step depends on the previous one, so a single simulation cannot
+be split. Sweep points (stages 5–6), however, are independent: each runs in its own
+process, several at a time.
 
-Procesy startują metodą "spawn" (czysty interpreter), nie "fork": SOFA trzyma stan
-globalny (fabryka komponentów, wczytane wtyczki), którego kopiowanie forkiem nie jest
-bezpieczne. Jeden proces ≈ 0.5 GB RAM na siatce coarse.
+Processes start with the "spawn" method (clean interpreter), not "fork": SOFA keeps global
+state (component factory, loaded plugins) that is not safe to copy via fork.
+One process ≈ 0.5 GB RAM on the coarse mesh.
 """
 import multiprocessing as mp
 import os
@@ -17,25 +17,25 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
 def default_workers(n_jobs: int) -> int:
-    """Liczba procesów: tyle, ile zadań, ale zostawiamy 2 rdzenie dla systemu (GUI, IO).
-    FISHSOFA_WORKERS nadpisuje limit (np. gdy liczy się coś jeszcze)."""
+    """Number of processes: as many as jobs, but 2 cores are left for the system (GUI, IO).
+    FISHSOFA_WORKERS overrides the limit (e.g. when something else is also running)."""
     limit = int(os.environ.get("FISHSOFA_WORKERS", 0)) or (os.cpu_count() or 2) - 2
     return max(1, min(n_jobs, limit))
 
 
 def run_all(fn, jobs: dict, workers: int | None = None, label: str = "") -> dict:
-    """Wywołuje fn(**kwargs) dla każdego jobs[klucz] = kwargs w osobnych procesach.
+    """Calls fn(**kwargs) for each jobs[key] = kwargs in separate processes.
 
-    Zwraca {klucz: wynik}. fn musi być funkcją z poziomu modułu (pickle).
-    Postęp: jedna linia na zakończone zadanie.
+    Returns {key: result}. fn must be a module-level function (pickle).
+    Progress: one line per finished job.
     """
     workers = workers or default_workers(len(jobs))
     out, t0 = {}, time.perf_counter()
-    print(f"{label}{len(jobs)} symulacji, {workers} naraz", flush=True)
+    print(f"{label}{len(jobs)} simulations, {workers} at a time", flush=True)
     with ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn")) as ex:
         futs = {ex.submit(fn, **kw): key for key, kw in jobs.items()}
         for i, fut in enumerate(as_completed(futs), 1):
             key = futs[fut]
             out[key] = fut.result()
-            print(f"  [{i}/{len(jobs)}] {key} gotowe po {(time.perf_counter() - t0) / 60:.1f} min", flush=True)
+            print(f"  [{i}/{len(jobs)}] {key} done after {(time.perf_counter() - t0) / 60:.1f} min", flush=True)
     return out

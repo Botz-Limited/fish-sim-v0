@@ -1,16 +1,16 @@
-"""Pomiary geometryczne ogona – jedna definicja dla testów, wykresów i eksportu.
+"""Geometric measurements of the tail – one definition for tests, plots and export.
 
-Kąt końcówki (spec, sekcja 5): kąt cięciwy od środka przedniej ściany (nasady)
-do centroidu węzłów płetwy, mierzony w płaszczyźnie XY:
+Tip angle (spec, section 5): angle of the chord from the center of the front wall (root)
+to the centroid of the fin nodes, measured in the XY plane:
     θ_tip = atan2(Δy, −Δx)
-Ogon wychodzi w −X, więc dla prostego ogona Δx < 0, Δy = 0 i θ_tip = 0.
-θ_tip > 0 = ogon wygięty w +Y (w lewo, patrząc od kadłuba w stronę ogona: na lewą burtę).
+The tail extends along −X, so for a straight tail Δx < 0, Δy = 0 and θ_tip = 0.
+θ_tip > 0 = tail bent towards +Y (left, looking from the body towards the tail: to port).
 """
 import numpy as np
 
 
 def base_center(points0: np.ndarray, base_nodes: np.ndarray) -> np.ndarray:
-    """Środek przedniej ściany w konfiguracji początkowej (te węzły są unieruchomione)."""
+    """Center of the front wall in the initial configuration (these nodes are fixed)."""
     return points0[base_nodes].mean(axis=0)
 
 
@@ -19,11 +19,11 @@ def fin_centroid(x: np.ndarray, fin_nodes: np.ndarray) -> np.ndarray:
 
 
 def tip_angle(x: np.ndarray, base: np.ndarray, fin_nodes: np.ndarray) -> float:
-    """θ_tip [rad] dla aktualnych pozycji węzłów x."""
+    """θ_tip [rad] for the current node positions x."""
     d = fin_centroid(x, fin_nodes) - base
     return float(np.arctan2(d[1], -d[0]))
 
 
 def tip_displacement(x: np.ndarray, x0: np.ndarray, fin_nodes: np.ndarray) -> np.ndarray:
-    """Przemieszczenie centroidu płetwy [m] względem konfiguracji początkowej."""
+    """Displacement of the fin centroid [m] relative to the initial configuration."""
     return fin_centroid(x, fin_nodes) - fin_centroid(x0, fin_nodes)

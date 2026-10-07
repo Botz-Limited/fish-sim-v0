@@ -1,16 +1,16 @@
-"""Etap 3: symetria – komora R ma dać lustrzane odbicie wyniku komory L.
+"""Stage 3: symmetry – chamber R must give the mirror image of the chamber L result.
 
-Uruchomienie:  source scripts/env.sh && python scripts/run_stage3.py   (~10 min)
-               python scripts/run_stage3.py --plot-only                (tylko wykres z CSV)
+Usage:  source scripts/env.sh && python scripts/run_stage3.py   (~10 min)
+        python scripts/run_stage3.py --plot-only                (only the plot from CSV)
 
-Te same warunki co etap 2 (V4, bez ciężaru, druga komora odpowietrzona), osobno dla L
-i dla R, na trzech poziomach siatki. Siatka i włókna są lustrzane względem płaszczyzny
-XZ, więc oczekujemy: p_R = p_L, wydymanie R = L, θ_R = −θ_L.
+Same conditions as stage 2 (V4, no weight, the other chamber vented), separately for L
+and for R, at three mesh levels. The mesh and fibers are mirror-symmetric about the XZ
+plane, so we expect: p_R = p_L, bulging R = L, θ_R = −θ_L.
 
-Przy okazji kontrola CHOLMOD: krzywa L z tego skryptu (solver "cholmod") kontra
-results/s2_curves.csv (etap 2 liczony jeszcze z "ldl").
+Also a CHOLMOD check: the L curve from this script (solver "cholmod") versus
+results/s2_curves.csv (stage 2, still computed with "ldl").
 
-Wyniki w results/: s3_symmetry.png, s3_symmetry.csv, s3_symmetry.txt.
+Results in results/: s3_symmetry.png, s3_symmetry.csv, s3_symmetry.txt.
 """
 import csv
 import os
@@ -28,14 +28,14 @@ from fishsofa.config import TailConfig  # noqa: E402
 
 LEVELS = ["coarse", "medium", "fine"]
 RESULTS = os.path.join(PROJECT_DIR, "results")
-COLORS = {"coarse": "#2a78d6", "medium": "#eb6834", "fine": "#1baf7a"}   # jak w etapie 2
+COLORS = {"coarse": "#2a78d6", "medium": "#eb6834", "fine": "#1baf7a"}   # as in stage 2
 SIDE_COLORS = {"L": "#2a78d6", "R": "#eb6834"}
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
-FLOOR = 1e-7   # [%] – dolna granica skali log (dokładna zgodność = 0)
+FLOOR = 1e-7   # [%] – lower bound of the log scale (exact agreement = 0)
 
 
 def asymmetry(L, R):
-    """Błędy symetrii w każdym punkcie [%]: kąt, ciśnienie, wydymanie."""
+    """Symmetry errors at each point [%]: angle, pressure, bulging."""
     thL, thR = np.array(L["theta"]), np.array(R["theta"])
     pL, pR = np.array(L["p"]), np.array(R["p"])
     bL, bR = np.array(L["bulge"]), np.array(R["bulge"])
@@ -63,12 +63,12 @@ def main():
             for a, b, t, u in zip(d["dV"], d["p"], d["theta"], d["bulge"]):
                 w.writerow([lv, side, f"{a * 1e6:.6f}", f"{b / 1e3:.8f}", f"{np.degrees(t):.8f}", f"{u * 1e3:.8f}"])
 
-    lines = ["Etap 3 – symetria L/R (V4, bez ciężaru, druga komora odpowietrzona)",
-             "maksymalny błąd symetrii na 5…50 ml: |θL+θR|/|θL|, |pR−pL|/pL, |bR−bL|/|bL|", ""]
+    lines = ["Stage 3 – L/R symmetry (V4, no weight, the other chamber vented)",
+             "maximum symmetry error over 5…50 ml: |θL+θR|/|θL|, |pR−pL|/pL, |bR−bL|/|bL|", ""]
     for lv in LEVELS:
         e_th, e_p, e_b = asymmetry(data[lv, "L"], data[lv, "R"])
-        lines.append(f"  {lv:6s}: θ {e_th.max():.2e}%, p {e_p.max():.2e}%, wydymanie {e_b.max():.2e}%")
-    lines += ["", "Kontrola CHOLMOD (etap 3) vs LDL (etap 2, results/s2_curves.csv), komora L:"]
+        lines.append(f"  {lv:6s}: θ {e_th.max():.2e}%, p {e_p.max():.2e}%, bulging {e_b.max():.2e}%")
+    lines += ["", "CHOLMOD check (stage 3) vs LDL (stage 2, results/s2_curves.csv), chamber L:"]
     s2 = _read_s2()
     for lv in LEVELS:
         if lv not in s2:
@@ -77,7 +77,7 @@ def main():
         n = min(len(d["p"]), len(s2[lv]["p"]))
         dp = np.abs(np.array(d["p"][:n]) / np.array(s2[lv]["p"][:n]) - 1).max() * 100
         dth = np.abs(np.array(d["theta"][:n]) / np.array(s2[lv]["theta"][:n]) - 1).max() * 100
-        lines.append(f"  {lv:6s}: max różnica p {dp:.2e}%, θ {dth:.2e}%")
+        lines.append(f"  {lv:6s}: max difference p {dp:.2e}%, θ {dth:.2e}%")
     txt = "\n".join(lines)
     print("\n" + txt)
     with open(os.path.join(RESULTS, "s3_symmetry.txt"), "w") as f:
@@ -112,35 +112,35 @@ def plot(data, cfg):
     for ax in (a, b, c):
         _style(ax)
 
-    # Panel 1: krzywe kąta dla fine – L linią, odbite R znacznikami (nakładają się).
+    # Panel 1: angle curves for fine – L as a line, mirrored R as markers (they overlap).
     L, R = data["fine", "L"], data["fine", "R"]
     x = np.r_[0, np.array(L["dV"]) * 1e6]
     a.plot(x, np.r_[0, np.degrees(L["theta"])], color=SIDE_COLORS["L"], linewidth=2,
-           label="komora L: θ")
+           label="chamber L: θ")
     a.plot(np.r_[0, np.array(R["dV"]) * 1e6], np.r_[0, -np.degrees(R["theta"])], linestyle="none",
            marker="o", markersize=8, markerfacecolor="none", markeredgewidth=2,
-           color=SIDE_COLORS["R"], label="komora R: −θ")
+           color=SIDE_COLORS["R"], label="chamber R: −θ")
     e_th = asymmetry(L, R)[0].max()
-    a.set_xlabel("przyrost objętości komory, ΔV [ml]")
-    a.set_ylabel("kąt końcówki [°]")
-    a.set_title(f"fine: θ(L) i −θ(R) – max różnica {e_th:.1e}%", loc="left", fontsize=10)
+    a.set_xlabel("chamber volume growth, ΔV [ml]")
+    a.set_ylabel("tip angle [°]")
+    a.set_title(f"fine: θ(L) and −θ(R) – max difference {e_th:.1e}%", loc="left", fontsize=10)
     a.legend(frameon=False, labelcolor=INK)
 
-    # Panele 2–3: błąd symetrii na trzech poziomach siatki (skala log).
-    for ax, k, name in ((b, 0, "kąta |θL+θR| / |θL|"), (c, 1, "ciśnienia |pR−pL| / pL")):
+    # Panels 2–3: symmetry error at three mesh levels (log scale).
+    for ax, k, name in ((b, 0, "angle |θL+θR| / |θL|"), (c, 1, "pressure |pR−pL| / pL")):
         for lv in LEVELS:
             err = np.maximum(asymmetry(data[lv, "L"], data[lv, "R"])[k], FLOOR)
             ax.plot(np.array(data[lv, "L"]["dV"]) * 1e6, err, color=COLORS[lv], linewidth=2,
                     marker="o", markersize=5, label=lv)
         ax.set_yscale("log")
-        ax.set_xlabel("przyrost objętości komory, ΔV [ml]")
-        ax.set_ylabel("błąd symetrii [%]")
-        ax.set_title(f"Błąd symetrii {name}", loc="left", fontsize=10)
+        ax.set_xlabel("chamber volume growth, ΔV [ml]")
+        ax.set_ylabel("symmetry error [%]")
+        ax.set_title(f"Symmetry error, {name}", loc="left", fontsize=10)
         ax.legend(frameon=False, labelcolor=INK)
 
-    fig.suptitle("Etap 3 – symetria: komora R daje lustrzane odbicie komory L\n"
-                 f"V4; E = {cfg.young_modulus:.0e} Pa (PLACEHOLDER); druga komora odpowietrzona; bez ciężaru; "
-                 f"błąd 0 rysowany jako {FLOOR:g}%", x=0.01, ha="left", color=INK, fontsize=11)
+    fig.suptitle("Stage 3 – symmetry: chamber R gives the mirror image of chamber L\n"
+                 f"V4; E = {cfg.young_modulus:.0e} Pa (PLACEHOLDER); the other chamber vented; no weight; "
+                 f"error 0 drawn as {FLOOR:g}%", x=0.01, ha="left", color=INK, fontsize=11)
     fig.savefig(os.path.join(RESULTS, "s3_symmetry.png"), dpi=150, facecolor="white")
     plt.close(fig)
 

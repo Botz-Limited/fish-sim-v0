@@ -1,9 +1,9 @@
-Etap 2 – zbieżność siatki (V4, komora L, R odpowietrzona, bez ciężaru)
-różnica względem fine; ujemna = mniej niż fine
+Stage 2 – mesh convergence (V4, chamber L, R vented, no weight)
+difference vs fine; negative = less than fine
 
 ΔV = 25.0 ml: fine p = 6.203 kPa, θ = -5.677°
-  coarse (28112 tetr): p +26.6%, θ +4.8%
-  medium (51818 tetr): p +19.9%, θ +2.7%
+  coarse (28112 tets): p +26.6%, θ +4.8%
+  medium (51818 tets): p +19.9%, θ +2.7%
 ΔV = 50.0 ml: fine p = 16.050 kPa, θ = -15.352°
-  coarse (28112 tetr): p +20.3%, θ +5.9%
-  medium (51818 tetr): p +14.5%, θ +2.5%
+  coarse (28112 tets): p +20.3%, θ +5.9%
+  medium (51818 tets): p +14.5%, θ +2.5%

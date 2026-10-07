@@ -1,17 +1,17 @@
-"""Masa (bezwładność) i ciężar ogona, liczone w Pythonie, a nie przez grawitację SOFA.
+"""Mass (inertia) and weight of the tail, computed in Python rather than via SOFA gravity.
 
-Dlaczego nie zwykłe `root.gravity`: SOFA mnoży jeden wektor grawitacji przez całą
-masę węzła. U nas węzeł ma dwa rodzaje masy:
-  - silikon: ma bezwładność i ciężar (w wodzie: ciężar pozorny g·(1 − ρ_w/ρ_s)),
-  - wodę w komorach: zawsze ma bezwładność (trzeba ją rozpędzić razem z ogonem),
-    ale w wodzie jej ciężar znosi wypór, więc ciężaru „nie ma”.
-Jednym wektorem grawitacji nie da się tego rozdzielić. Dlatego grawitacja SOFA = 0,
-masa idzie do komponentu masy (gęstość na element), a ciężar jako siły węzłowe
-w ConstantForceField.
+Why not plain `root.gravity`: SOFA multiplies a single gravity vector by the whole
+mass of a node. Here a node carries two kinds of mass:
+  - silicone: has inertia and weight (in water: apparent weight g·(1 − ρ_w/ρ_s)),
+  - water in the chambers: always has inertia (it must be accelerated along with the tail),
+    but in water its weight is cancelled by buoyancy, so it "has no" weight.
+A single gravity vector cannot separate the two. Therefore SOFA gravity = 0, the
+mass goes into the mass component (density per element), and the weight is applied as
+nodal forces in a ConstantForceField.
 
-Masa węzłowa (lumped): każdy czworościan oddaje 1/4 swojej masy każdemu wierzchołkowi.
-Dla liniowych czworościanów to są dokładnie sumy wierszy spójnej macierzy masy, której
-używa MeshMatrixMass, więc ciężar i bezwładność pochodzą z tej samej masy.
+Nodal (lumped) mass: each tetrahedron gives 1/4 of its mass to each vertex.
+For linear tetrahedra these are exactly the row sums of the consistent mass matrix
+used by MeshMatrixMass, so weight and inertia come from the same mass.
 """
 from dataclasses import dataclass
 
@@ -23,11 +23,11 @@ from fishsofa.mesh_gen import TailMesh, surface_volume, tet_volumes
 
 @dataclass
 class MassModel:
-    element_density: np.ndarray  # (M,) [kg/m³] silikon + rozłożona woda z komór
-    node_mass: np.ndarray        # (N,) [kg] masa węzłowa (bezwładność)
-    node_weight: np.ndarray      # (N, 3) [N] siła ciężaru (+ wyporu) na węzeł
+    element_density: np.ndarray  # (M,) [kg/m³] silicone + distributed chamber water
+    node_mass: np.ndarray        # (N,) [kg] nodal mass (inertia)
+    node_weight: np.ndarray      # (N, 3) [N] weight (+ buoyancy) force per node
     mass_silicone: float         # [kg]
-    mass_water: float            # [kg] woda w komorach
+    mass_water: float            # [kg] water in the chambers
 
 
 def build(mesh: TailMesh, cfg: TailConfig) -> MassModel:
@@ -35,9 +35,9 @@ def build(mesh: TailMesh, cfg: TailConfig) -> MassModel:
     rho_s = np.full(len(vol), cfg.rho_silicone)
     rho_w = np.zeros(len(vol))
 
-    # Woda w komorach: masa ρ_w·V_wnęki rozłożona równomiernie (wg objętości) na
-    # czworościany dotykające ścianek wnęki. To przybliżenie: prawdziwa woda porusza się
-    # razem ze ściankami, więc „przyklejenie” jej do ścianek oddaje bezwładność.
+    # Water in the chambers: mass ρ_w·V_cavity distributed uniformly (by volume) over the
+    # tetrahedra touching the cavity walls. An approximation: real water moves together
+    # with the walls, so "gluing" it to the walls captures its inertia.
     m_water = 0.0
     if cfg.chambers_filled:
         for tri in (mesh.tri_chamber_L, mesh.tri_chamber_R):
@@ -58,6 +58,6 @@ def build(mesh: TailMesh, cfg: TailConfig) -> MassModel:
     if cfg.environment == "air":
         weight[:, 2] = -cfg.gravity * (m_sil + m_wat)
     else:
-        # Wypór wody na silikon: ciężar pozorny. Woda w komorach: ciężar = wypór -> 0.
+        # Buoyancy on the silicone: apparent weight. Water in the chambers: weight = buoyancy -> 0.
         weight[:, 2] = -cfg.gravity * (1.0 - cfg.rho_water / cfg.rho_silicone) * m_sil
     return MassModel(density, m_sil + m_wat, weight, float(m_sil.sum()), m_water)

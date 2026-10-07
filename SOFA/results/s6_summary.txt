@@ -1,8 +1,8 @@
-Etap 6 – przeglądy (coarse, V4, woda dla dynamiki)
-czas obliczeń całego przeglądu: 68 min (zegar), symulacje dynamiczne razem 444 min CPU – równolegle 6.5× szybciej niż po kolei
+Stage 6 – sweeps (coarse, V4, water for dynamics)
+compute time of the whole sweep: 68 min (wall clock), dynamic simulations total 444 min CPU – in parallel 6.5× faster than sequentially
 
-a) częstotliwość (A_V = 17 ml, 2 cykle rozbiegu + 3 uśredniania):
-   f [Hz]  dt [ms]  amplituda [°]  faza [°]  ciąg [mN]  |Δp| max [kPa]  zawór [%]  pompa nasycona [%]  max(c·dt/m)
+a) frequency (A_V = 17 ml, 2 run-in cycles + 3 averaging cycles):
+   f [Hz]  dt [ms]  amplitude [°]  phase [°]  thrust [mN]  |Δp| max [kPa]  valve [%]  pump saturated [%]  max(c·dt/m)
     0.50   1.000         11.80      16.6       1.53             1.7        0.0                 0.0        0.219
     0.75   1.000         11.55      28.3       7.77             2.7        0.0                 0.0        0.312
     1.00   1.000         10.84      40.4      19.56             3.5        0.0                 0.0        0.389
@@ -15,15 +15,15 @@ a) częstotliwość (A_V = 17 ml, 2 cykle rozbiegu + 3 uśredniania):
     2.75   0.727          4.95      98.7      54.84             5.6        0.0                45.9        0.380
     3.00   0.667          4.33     105.7      46.97             5.4        0.0                52.5        0.334
 
-b) moduł Younga silikonu (×0.5 / ×1 / ×2):
-   quasi-statycznie, sterowanie objętością (komora L, g = 0):
+b) silicone Young's modulus (×0.5 / ×1 / ×2):
+   quasi-static, volume control (chamber L, g = 0):
      ΔV = 10 ml: E×0.5: p 1.46 kPa, θ -1.68°, ΔV 10.0 ml; E×1: p 2.89 kPa, θ -1.93°, ΔV 10.0 ml; E×2: p 5.70 kPa, θ -1.94°, ΔV 10.0 ml
      ΔV = 20 ml: E×0.5: p 3.07 kPa, θ -4.49°, ΔV 20.0 ml; E×1: p 6.10 kPa, θ -4.44°, ΔV 20.0 ml; E×2: p 12.06 kPa, θ -4.37°, ΔV 20.0 ml
      ΔV = 30 ml: E×0.5: p 4.93 kPa, θ -7.51°, ΔV 30.0 ml; E×1: p 9.78 kPa, θ -7.54°, ΔV 30.0 ml; E×2: p 19.31 kPa, θ -7.42°, ΔV 30.0 ml
      ΔV = 40 ml: E×0.5: p 7.14 kPa, θ -11.35°, ΔV 40.0 ml; E×1: p 14.15 kPa, θ -11.35°, ΔV 40.0 ml; E×2: p 27.90 kPa, θ -11.16°, ΔV 40.0 ml
-   quasi-statycznie, sterowanie ciśnieniem:
+   quasi-static, pressure control:
      p = 2 kPa: E×0.5: p 2.00 kPa, θ -2.05°, ΔV 12.2 ml; E×1: p 2.00 kPa, θ -1.26°, ΔV 6.6 ml; E×2: p 2.00 kPa, θ -0.64°, ΔV 3.4 ml
      p = 4 kPa: E×0.5: p 4.00 kPa, θ -5.81°, ΔV 24.4 ml; E×1: p 4.00 kPa, θ -2.73°, ΔV 13.2 ml; E×2: p 4.00 kPa, θ -1.28°, ΔV 6.9 ml
      p = 6 kPa: E×0.5: p 6.00 kPa, θ -9.25°, ΔV 34.5 ml; E×1: p 6.00 kPa, θ -4.31°, ΔV 19.3 ml; E×2: p 6.00 kPa, θ -1.98°, ΔV 10.3 ml
      p = 8 kPa: E×0.5: p 8.00 kPa, θ -12.91°, ΔV 43.1 ml; E×1: p 8.00 kPa, θ -6.03°, ΔV 25.1 ml; E×2: p 8.00 kPa, θ -2.73°, ΔV 13.6 ml
-   dynamicznie w wodzie, 2 Hz: E×0.5: ±5.82°, faza 96°, |Δp| max 3.0 kPa; E×1: ±7.22°, faza 77°, |Δp| max 5.7 kPa; E×2: ±8.23°, faza 59°, |Δp| max 10.4 kPa
+   dynamic in water, 2 Hz: E×0.5: ±5.82°, phase 96°, |Δp| max 3.0 kPa; E×1: ±7.22°, phase 77°, |Δp| max 5.7 kPa; E×2: ±8.23°, phase 59°, |Δp| max 10.4 kPa

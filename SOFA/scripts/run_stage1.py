@@ -1,17 +1,18 @@
-"""Etap 1: siatki 3 poziomów, raport jakości, ugięcie ogona pod własnym ciężarem.
+"""Stage 1: meshes at 3 levels, quality report, tail sag under its own weight.
 
-Uruchomienie:  source scripts/env.sh && python scripts/run_stage1.py   (~10–20 min, głównie siatka fine)
+Usage:  source scripts/env.sh && python scripts/run_stage1.py   (~10–20 min, mostly the fine mesh)
+        python scripts/run_stage1.py --plot-only                (only the plot from CSV)
 
-Wyniki w results/:
-  s1_mesh_report.txt – jakość siatek, czas kroku, ugięcie statyczne na każdym poziomie,
-  s1_sag.csv         – ugięcie statyczne vs liczba elementów (pierwszy obraz zbieżności),
-  s1_dynamic.csv     – ruch końcówki w czasie po „puszczeniu” ogona (siatka coarse),
-  s1_sag.png         – oba wykresy.
+Results in results/:
+  s1_mesh_report.txt – mesh quality, step time, static sag at each level,
+  s1_sag.csv         – static sag vs element count (a first look at convergence),
+  s1_dynamic.csv     – tip motion over time after "releasing" the tail (coarse mesh),
+  s1_sag.png         – both plots.
 
-Fizyka: ogon w powietrzu (environment="air"), komory pełne wody, brak aktuacji.
-Ogon to wspornik utwierdzony w x = 0, więc ugina się w −Z. Grubsza siatka jest
-sztywniejsza (za mało elementów na grubość ścianek -> locking), więc ugięcie powinno
-rosnąć przy zagęszczaniu i zbliżać się do granicy.
+Physics: tail in air (environment="air"), chambers full of water, no actuation.
+The tail is a cantilever clamped at x = 0, so it sags in −Z. A coarser mesh is
+stiffer (too few elements across the wall thickness -> locking), so the sag should
+grow with refinement and approach a limit.
 """
 import csv
 import os
@@ -31,7 +32,7 @@ from fishsofa.config import TailConfig  # noqa: E402
 LEVELS = ["coarse", "medium", "fine"]
 RESULTS = os.path.join(PROJECT_DIR, "results")
 
-# Kolory i tusz (paleta referencyjna skilla dataviz, tryb jasny).
+# Colors and ink (reference palette of the dataviz skill, light mode).
 INK, INK2, GRID, SERIES1 = "#0b0b0b", "#52514e", "#e4e3df", "#2a78d6"
 
 
@@ -40,17 +41,17 @@ def main():
     cfg = TailConfig()
     rows, lines = [], []
     for lv in LEVELS:
-        print(f"[{lv}] siatka...", flush=True)
+        print(f"[{lv}] mesh...", flush=True)
         mesh_gen.ensure(cfg, lv)
         mesh = mesh_gen.load(cfg, lv)
         rep = mesh_gen.quality_report(mesh, cfg)
 
-        print(f"[{lv}] statyka...", flush=True)
+        print(f"[{lv}] statics...", flush=True)
         t0 = time.perf_counter()
         st = headless.static_sag(cfg, lv)
         t_static = time.perf_counter() - t0
 
-        print(f"[{lv}] czas kroku dynamiki...", flush=True)
+        print(f"[{lv}] dynamics step time...", flush=True)
         dy = headless.run(cfg, lv, n_steps=10)
 
         tip = st.tip[-1]
@@ -60,18 +61,18 @@ def main():
                      "static_s": t_static, "dynamic_ms_per_step": dy.ms_per_step,
                      "realtime_factor": dy.ms_per_step / (cfg.dt * 1e3)})
         lines += [mesh_gen.format_report(rep),
-                  f"  ugięcie statyczne końcówki (centroid płetwy): Δz = {tip[2] * 1e3:.2f} mm, "
+                  f"  static tip sag (fin centroid): Δz = {tip[2] * 1e3:.2f} mm, "
                   f"Δx = {tip[0] * 1e3:.2f} mm (StaticSolver, {t_static:.1f} s)",
-                  f"  dynamika: {dy.ms_per_step:.0f} ms/krok przy dt = {cfg.dt * 1e3:.0f} ms "
-                  f"-> {rows[-1]['realtime_factor']:.0f}× wolniej niż czas rzeczywisty", ""]
+                  f"  dynamics: {dy.ms_per_step:.0f} ms/step at dt = {cfg.dt * 1e3:.0f} ms "
+                  f"-> {rows[-1]['realtime_factor']:.0f}× slower than real time", ""]
         print(lines[-4], lines[-3], lines[-2], sep="\n", flush=True)
 
-    # Dynamika na coarse: ogon „puszczony” w t = 0 (ciężar włączony skokowo).
-    print("[coarse] dynamika 0.4 s...", flush=True)
+    # Dynamics on coarse: tail "released" at t = 0 (weight applied as a step).
+    print("[coarse] dynamics 0.4 s...", flush=True)
     dyn = headless.run(cfg, "coarse", n_steps=200)
     tz = np.array([p[2] for p in dyn.tip]) * 1e3
-    lines.append(f"[coarse] dynamika 200 kroków: NaN = {dyn.has_nan}, max przemieszczenie węzła = "
-                 f"{max(dyn.max_disp) * 1e3:.1f} mm (długość ogona {cfg.tail_length * 1e3:.0f} mm)")
+    lines.append(f"[coarse] dynamics 200 steps: NaN = {dyn.has_nan}, max node displacement = "
+                 f"{max(dyn.max_disp) * 1e3:.1f} mm (tail length {cfg.tail_length * 1e3:.0f} mm)")
 
     with open(os.path.join(RESULTS, "s1_sag.csv"), "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
@@ -82,10 +83,10 @@ def main():
         w.writerow(["t_s", "tip_dz_mm", "max_disp_mm"])
         for t, z, m in zip(dyn.t, tz, dyn.max_disp):
             w.writerow([f"{t:.4f}", f"{z:.4f}", f"{m * 1e3:.4f}"])
-    header = ("Etap 1 – siatki ogona i ugięcie pod własnym ciężarem (powietrze, komory pełne wody)\n"
+    header = ("Stage 1 – tail meshes and sag under its own weight (air, chambers full of water)\n"
               f"E = {cfg.young_modulus:.0e} Pa, ν = {cfg.poisson_ratio}, ρ = {cfg.rho_silicone} kg/m³ "
-              "(wszystko PLACEHOLDER)\n"
-              "'elem. na ściankę' = grubość / średnia krawędź tetr przy wnęce (przybliżenie)\n\n")
+              "(all PLACEHOLDER)\n"
+              "'elem. across wall' = thickness / mean tetra edge near the cavity (approximation)\n\n")
     with open(os.path.join(RESULTS, "s1_mesh_report.txt"), "w") as f:
         f.write(header + "\n".join(lines) + "\n")
 
@@ -112,24 +113,38 @@ def plot(rows, t, tz, cfg):
         a.annotate(f"{r['level']}\n{r['tip_dz_mm']:.1f} mm", (r["n_tets"], r["tip_dz_mm"]),
                    textcoords="offset points", xytext=(0, 10), ha="center", color=INK2, fontsize=9)
     a.set_xscale("log")
-    a.set_xlabel("liczba czworościanów")
-    a.set_ylabel("ugięcie końcówki Δz [mm]")
-    a.set_title("Statyczne ugięcie pod ciężarem vs gęstość siatki", loc="left")
+    a.set_xlabel("number of tetrahedra")
+    a.set_ylabel("tip deflection Δz [mm]")
+    a.set_title("Static sag under weight vs mesh density", loc="left")
     lo = min(dz)
     a.set_ylim(lo * 1.25, 0)
 
     b.plot(t, tz, color=SERIES1, linewidth=2)
     static_coarse = rows[0]["tip_dz_mm"]
     b.axhline(static_coarse, color=INK2, linewidth=1, linestyle="--")
-    b.annotate(f"równowaga statyczna ({static_coarse:.1f} mm)", (t[-1], static_coarse),
+    b.annotate(f"static equilibrium ({static_coarse:.1f} mm)", (t[-1], static_coarse),
                textcoords="offset points", xytext=(-4, 6), ha="right", color=INK2, fontsize=9)
-    b.set_xlabel("czas [s]")
-    b.set_ylabel("ugięcie końcówki Δz [mm]")
-    b.set_title("Coarse: ruch po puszczeniu ogona (t = 0)", loc="left")
-    fig.suptitle(f"Etap 1 – ogon w powietrzu, E = {cfg.young_modulus:.0e} Pa (placeholder)",
+    b.set_xlabel("time [s]")
+    b.set_ylabel("tip deflection Δz [mm]")
+    b.set_title("Coarse: motion after releasing the tail (t = 0)", loc="left")
+    fig.suptitle(f"Stage 1 – tail in air, E = {cfg.young_modulus:.0e} Pa (placeholder)",
                  x=0.01, ha="left", color=INK, fontsize=11)
     fig.savefig(os.path.join(RESULTS, "s1_sag.png"), dpi=150, facecolor="white")
 
 
+def plot_from_csv():
+    with open(os.path.join(RESULTS, "s1_sag.csv")) as f:
+        rows = [{"level": r["level"], "n_tets": int(r["n_tets"]), "tip_dz_mm": float(r["tip_dz_mm"])}
+                for r in csv.DictReader(f)]
+    with open(os.path.join(RESULTS, "s1_dynamic.csv")) as f:
+        dyn = list(csv.DictReader(f))
+    t = [float(r["t_s"]) for r in dyn]
+    tz = np.array([float(r["tip_dz_mm"]) for r in dyn])
+    plot(rows, t, tz, TailConfig())
+
+
 if __name__ == "__main__":
-    main()
+    if "--plot-only" in sys.argv:
+        plot_from_csv()
+    else:
+        main()

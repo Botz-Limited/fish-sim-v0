@@ -1,15 +1,15 @@
-"""Wideo machania ogona: powietrze i woda obok siebie, w czasie rzeczywistym.
+"""Tail flapping video: air and water side by side, in real time.
 
-Uruchomienie:  source scripts/env.sh && python scripts/render_video.py      (~3 min)
-Wymaga nagrań z scripts/record.py (recordings/air.npz, recordings/water.npz) oraz
-pakietu pyvista (pip install pyvista==0.49.0) i ffmpeg w systemie.
+Usage:  source scripts/env.sh && python scripts/render_video.py      (~3 min)
+Requires the recordings from scripts/record.py (recordings/air.npz, recordings/water.npz),
+the pyvista package (pip install pyvista==0.49.0) and ffmpeg on the system.
 
-Wynik: results/flapping.mp4 (1920×1080, 60 kl./s):
-  - cały przebieg 4.5 s w czasie rzeczywistym (prefill, rampa, rytm 2 Hz),
-  - potem ostatni cykl 4× zwolniony.
-Widok z góry (oś Z do patrzącego): ogon wychodzi w lewo z kadłuba (szary prostokąt),
-komora L (+Y) jest u góry. Skóra półprzezroczysta, komory kolorowane ciśnieniem
-(wspólna skala dla obu przebiegów). Pod spodem kąt końcówki θ(t) z kursorem.
+Output: results/flapping.mp4 (1920×1080, 60 fps):
+  - the whole 4.5 s run in real time (prefill, ramp, 2 Hz rhythm),
+  - then the last cycle slowed down 4×.
+Top view (Z axis towards the viewer): the tail extends to the left from the body (gray
+rectangle), chamber L (+Y) is at the top. Skin semi-transparent, chambers colored by pressure
+(common scale for both runs). Below, the tip angle θ(t) with a cursor.
 """
 import os
 import subprocess
@@ -35,7 +35,7 @@ INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 BLUE, ORANGE = "#2a78d6", "#eb6834"
 SKIN = "#f2b24d"
 CMAP = matplotlib.colormaps["coolwarm"]
-RUNS = (("air", "powietrze", ORANGE), ("water", "woda", BLUE))
+RUNS = (("air", "air", ORANGE), ("water", "water", BLUE))
 
 
 def faces(tris):
@@ -43,7 +43,7 @@ def faces(tris):
 
 
 class Scene3D:
-    """Plotter PyVista dla jednego nagrania; frame(x, pL, pR) zwraca obraz RGB."""
+    """PyVista plotter for one recording; frame(x, pL, pR) returns an RGB image."""
 
     def __init__(self, rec, size, bounds, norm):
         self.norm = norm
@@ -53,11 +53,11 @@ class Scene3D:
         self.skin = pv.PolyData(x0, faces(rec["tri_outer"]))
         self.cL = pv.PolyData(x0, faces(rec["tri_chamber_L"]))
         self.cR = pv.PolyData(x0, faces(rec["tri_chamber_R"]))
-        # Komory bez cieniowania (lighting=False): kolor ma odpowiadać skali ciśnienia 1:1.
+        # Chambers without shading (lighting=False): the color must match the pressure scale 1:1.
         self.aL = self.p.add_mesh(self.cL, color="white", lighting=False)
         self.aR = self.p.add_mesh(self.cR, color="white", lighting=False)
         self.p.add_mesh(self.skin, color=SKIN, opacity=0.25, smooth_shading=True)
-        # Kadłub (nieruchomy) – ogon jest do niego przymocowany w x = 0.
+        # Body (fixed) – the tail is attached to it at x = 0.
         self.p.add_mesh(pv.Box((0.0, 0.03, -0.035, 0.035, -0.045, 0.045)), color="#9b9a96")
         self.p.view_xy()
         self.p.camera.focal_point = bounds["center"]
@@ -70,13 +70,13 @@ class Scene3D:
             mesh.points = x
         self.aL.prop.color = CMAP(self.norm(p_L))[:3]
         self.aR.prop.color = CMAP(self.norm(p_R))[:3]
-        # Bez jawnego render() screenshot zwraca ostatni narysowany obraz (pierwszą klatkę).
+        # Without an explicit render() the screenshot returns the last drawn image (the first frame).
         self.p.render()
         return self.p.screenshot(return_img=True)
 
 
 def interp_frame(rec, t):
-    """Pozycje węzłów w chwili t (liniowo między klatkami nagrania)."""
+    """Node positions at time t (linear between recording frames)."""
     tt = rec["t"]
     k = int(np.clip(np.searchsorted(tt, t) - 1, 0, len(tt) - 2))
     a = (t - tt[k]) / (tt[k + 1] - tt[k])
@@ -88,22 +88,23 @@ def main():
     for env, _, _ in RUNS:
         path = os.path.join(REC_DIR, f"{env}.npz")
         if not os.path.exists(path):
-            sys.exit(f"brak {path} – najpierw: python scripts/record.py")
+            sys.exit(f"missing {path} – run first: python scripts/record.py")
         recs[env] = dict(np.load(path))
     t_end = min(r["t"][-1] for r in recs.values())
     T = 1.0 / float(recs["water"]["tail_freq"])
-    # Czas nagrania dla każdej klatki wideo: całość w czasie rzeczywistym + ostatni cykl zwolniony.
+    # Recording time for each video frame: everything in real time + the last cycle slowed down.
     t_video = np.concatenate([np.arange(0, t_end, 1 / FPS), np.arange(t_end - T, t_end, SLOWMO / FPS)])
     slow_from = int(np.ceil(t_end * FPS))
 
-    # Wspólna skala ciśnień z fazy rytmu (po prefillu): ciśnienie wspólne ~53 kPa, a ruch
-    # steruje różnica ±6 kPa – skala od 0 by ją ukryła. W prefillu kolor jest poza skalą (niebieski).
+    # Common pressure scale from the rhythm phase (after prefill): common pressure ~53 kPa, while
+    # motion is driven by a ±6 kPa difference – a scale from 0 would hide it. In prefill the color
+    # is off-scale (blue).
     p_all = np.concatenate([np.r_[r["log_p_L"][m], r["log_p_R"][m]] for r in recs.values()
                             for m in [r["log_t"] > float(r["prefill_time"]) + 0.2]])
     norm = Normalize(p_all.min(), p_all.max(), clip=True)
     xy = np.concatenate([r["x"][:, :, :2].reshape(-1, 2) for r in recs.values()])
     lo, hi = xy.min(axis=0), xy.max(axis=0)
-    lo[0], hi[0] = lo[0] - 0.01, 0.03 + 0.01   # z kadłubem
+    lo[0], hi[0] = lo[0] - 0.01, 0.03 + 0.01   # including the body
     half_w, half_h = 0.5 * (hi - lo) * 1.05
     panel = (900, 560)
     half_h = max(half_h, half_w * panel[1] / panel[0])
@@ -124,29 +125,29 @@ def main():
         ax.set_title(label, color=color, fontsize=18, fontweight="bold", loc="left")
     cax = fig.add_subplot(gs[0, 2])
     cb = fig.colorbar(cm.ScalarMappable(norm=Normalize(norm.vmin / 1e3, norm.vmax / 1e3), cmap=CMAP), cax=cax)
-    cb.set_label("ciśnienie w komorze [kPa] (zakres z fazy rytmu)", color=INK2)
+    cb.set_label("chamber pressure [kPa] (range from the rhythm phase)", color=INK2)
     cb.outline.set_visible(False)
     axt = fig.add_subplot(gs[1, :2])
     for env, label, color in RUNS:
         r = recs[env]
         axt.plot(r["log_t"], np.degrees(r["log_theta"]), color=color, linewidth=2, label=label)
     axt.axvspan(0, float(recs["water"]["prefill_time"]), color=GRID, alpha=0.6, linewidth=0)
-    axt.text(0.5 * float(recs["water"]["prefill_time"]), 0.05, "prefill komór", transform=axt.get_xaxis_transform(),
+    axt.text(0.5 * float(recs["water"]["prefill_time"]), 0.05, "chamber prefill", transform=axt.get_xaxis_transform(),
              ha="center", color=INK2, fontsize=11)
     axt.set_xlim(0, t_end)
-    axt.set_ylabel("kąt końcówki θ [°]")
-    axt.set_xlabel("czas symulacji [s]")
+    axt.set_ylabel("tip angle θ [°]")
+    axt.set_xlabel("simulation time [s]")
     axt.grid(True, color=GRID)
     for s in ("top", "right"):
         axt.spines[s].set_visible(False)
     axt.legend(frameon=False, loc="upper left", ncol=2)
     cursor = axt.axvline(0, color=INK, linewidth=1.5)
-    fig.text(0.03, 0.95, "Miękki ogon robota-ryby (SOFA, FEM): komora L ↔ R, rytm 2 Hz, A_V = 17 ml",
+    fig.text(0.03, 0.95, "Soft robotic fish tail (SOFA, FEM): chamber L ↔ R, 2 Hz rhythm, A_V = 17 ml",
              fontsize=20, color=INK, fontweight="bold")
     status = fig.text(0.03, 0.915, "", fontsize=14, color=INK2)
     ms = {env: float(recs[env]["dt"]) for env, _, _ in RUNS}
-    note = (f"Widok z góry, kadłub po prawej. Liczone offline (krok {ms['air'] * 1e3:g} / {ms['water'] * 1e3:g} ms, "
-            "~400–800× wolniej niż czas rzeczywisty), odtwarzane w czasie rzeczywistym. Parametry PLACEHOLDER.")
+    note = (f"Top view, body on the right. Computed offline (step {ms['air'] * 1e3:g} / {ms['water'] * 1e3:g} ms, "
+            "~400–800× slower than real time), played back in real time. Parameters are PLACEHOLDERS.")
     fig.text(0.03, 0.015, note, fontsize=11, color=INK2)
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
@@ -159,12 +160,12 @@ def main():
             p_L, p_R = (np.interp(t, r["log_t"], r[k]) for k in ("log_p_L", "log_p_R"))
             ims[env].set_data(scenes[env].frame(interp_frame(r, t), p_L, p_R))
         cursor.set_xdata([t, t])
-        speed = "czas rzeczywisty" if i < slow_from else f"ostatni cykl, zwolnione {1 / SLOWMO:g}×"
+        speed = "real time" if i < slow_from else f"last cycle, slowed down {1 / SLOWMO:g}×"
         status.set_text(f"t = {t:5.2f} s   ·   {speed}")
         fig.canvas.draw()
         ff.stdin.write(np.asarray(fig.canvas.buffer_rgba())[:, :, :3].tobytes())
         if (i + 1) % 60 == 0:
-            print(f"  {i + 1}/{len(t_video)} klatek", flush=True)
+            print(f"  {i + 1}/{len(t_video)} frames", flush=True)
     ff.stdin.close()
     ff.wait()
     print(f"{OUT}: {len(t_video) / FPS:.1f} s, {os.path.getsize(OUT) / 1e6:.1f} MB")

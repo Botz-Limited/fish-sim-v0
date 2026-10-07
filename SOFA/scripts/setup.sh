@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# Instalacja demo SOFA od zera na nowym komputerze (Linux x86_64; sprawdzone: Fedora 44).
+# Installs the SOFA demo from scratch on a new computer (Linux x86_64; tested: Fedora 44).
 #
-# Użycie (z dowolnego katalogu):
-#   SOFA/scripts/setup.sh                  # sprawdza zależności systemowe i instaluje resztę
-#   SOFA/scripts/setup.sh --install-deps   # to samo, ale brakujące pakiety systemowe instaluje (sudo)
-#   SOFA/scripts/setup.sh --no-tests       # bez końcowego pytest (~80 s)
+# Usage (from any directory):
+#   SOFA/scripts/setup.sh                  # checks system dependencies and installs the rest
+#   SOFA/scripts/setup.sh --install-deps   # the same, but also installs missing system packages (sudo)
+#   SOFA/scripts/setup.sh --no-tests       # without the final pytest (~80 s)
 #
-# Co robi (każdy krok pomija, jeśli jest już zrobiony):
-#   1. zależności systemowe: kompilator, cmake, ninja, SuiteSparse/CHOLMOD, Eigen, biblioteki
-#      OpenGL/X11 dla gmsh i GUI SOFA – wypisuje komendę dnf/apt, jeśli czegoś brakuje,
-#   2. binarka SOFA v26.06.00 (z SoftRobots, STLIB, SofaPython3) -> $FISHSOFA_HOME (~/sofa),
-#      z kontrolą sumy SHA-256,
-#   3. środowisko conda `fishsofa` z SOFA/environment.yml (Python 3.12 + przypięte pakiety),
-#   4. wtyczka SofaCHOLMOD z third_party/ (scripts/build_cholmod_plugin.sh),
-#   5. kontrola: check_sofa.py (nazwy komponentów) i pytest.
-# Potem w każdej nowej powłoce:  source SOFA/scripts/env.sh
+# What it does (each step is skipped if already done):
+#   1. system dependencies: compiler, cmake, ninja, SuiteSparse/CHOLMOD, Eigen, OpenGL/X11
+#      libraries for gmsh and the SOFA GUI – prints the dnf/apt command if anything is missing,
+#   2. SOFA v26.06.00 binary (with SoftRobots, STLIB, SofaPython3) -> $FISHSOFA_HOME (~/sofa),
+#      with SHA-256 checksum verification,
+#   3. conda environment `fishsofa` from SOFA/environment.yml (Python 3.12 + pinned packages),
+#   4. SofaCHOLMOD plugin from third_party/ (scripts/build_cholmod_plugin.sh),
+#   5. check: check_sofa.py (component names) and pytest.
+# Then in every new shell:  source SOFA/scripts/env.sh
 #
-# Wymagane wcześniej: conda (np. Miniforge: https://github.com/conda-forge/miniforge).
+# Required beforehand: conda (e.g. Miniforge: https://github.com/conda-forge/miniforge).
 set -euo pipefail
 
 INSTALL_DEPS=0
@@ -25,7 +25,7 @@ for a in "$@"; do
     case "$a" in
         --install-deps) INSTALL_DEPS=1 ;;
         --no-tests) RUN_TESTS=0 ;;
-        *) echo "nieznana opcja: $a" >&2; exit 2 ;;
+        *) echo "unknown option: $a" >&2; exit 2 ;;
     esac
 done
 
@@ -42,7 +42,7 @@ export SOFA_ROOT="${SOFA_ROOT:-$FISHSOFA_HOME/SOFA_${SOFA_VERSION}_Linux}"
 step() { printf '\n== %s\n' "$*"; }
 
 # --------------------------------------------------------------------------- 1. system
-step "1/5 zależności systemowe"
+step "1/5 system dependencies"
 . /etc/os-release 2>/dev/null || true
 case " ${ID:-} ${ID_LIKE:-} " in
     *" fedora "*|*" rhel "*)
@@ -58,52 +58,52 @@ libglu1-mesa libopengl0 libxcursor1 libxft2 libxinerama1" ;;
         PKGS="curl unzip git cmake ninja gcc suitesparse eigen boost glu libglvnd libxcursor libxft libxinerama" ;;
     *)
         PKG=""
-        PKGS="(nieznana dystrybucja: zainstaluj odpowiedniki pakietów z listy dla Fedory/Ubuntu w tym skrypcie)" ;;
+        PKGS="(unknown distribution: install the equivalents of the packages listed for Fedora/Ubuntu in this script)" ;;
 esac
 
 missing=()
-for c in curl unzip git cmake ninja g++; do command -v "$c" >/dev/null || missing+=("polecenie $c"); done
-[ -f /usr/include/suitesparse/cholmod.h ] || [ -f /usr/include/cholmod.h ] || missing+=("nagłówek cholmod.h (SuiteSparse)")
+for c in curl unzip git cmake ninja g++; do command -v "$c" >/dev/null || missing+=("command $c"); done
+[ -f /usr/include/suitesparse/cholmod.h ] || [ -f /usr/include/cholmod.h ] || missing+=("header cholmod.h (SuiteSparse)")
 [ -f /usr/include/eigen3/Eigen/Core ] || missing+=("Eigen 3 (/usr/include/eigen3)")
-# Boost: nagłówki wymagane przez configi CMake binarki SOFA (Sofa.Type), binarka ich nie ma.
-[ -f /usr/include/boost/version.hpp ] || missing+=("nagłówki Boost (/usr/include/boost)")
-# Lista raz do zmiennej: `ldconfig -p | grep -q` przy pipefail daje SIGPIPE (141), gdy grep
-# skończy przed ldconfig – brak fałszywie zgłaszany przy długiej liście (np. Arch).
+# Boost: headers required by the CMake configs of the SOFA binary (Sofa.Type); the binary does not ship them.
+[ -f /usr/include/boost/version.hpp ] || missing+=("Boost headers (/usr/include/boost)")
+# List into a variable once: `ldconfig -p | grep -q` with pipefail gives SIGPIPE (141) when grep
+# finishes before ldconfig – a false "missing" reported with a long list (e.g. Arch).
 libs="$(ldconfig -p 2>/dev/null || true)"
 for l in libGLU.so.1 libOpenGL.so.0 libXcursor.so.1 libXft.so.2 libXinerama.so.1; do
-    grep -qF "$l" <<<"$libs" || missing+=("biblioteka $l")
+    grep -qF "$l" <<<"$libs" || missing+=("library $l")
 done
 if [ ${#missing[@]} -gt 0 ]; then
-    printf 'Brakuje: %s\n' "${missing[@]}"
+    printf 'Missing: %s\n' "${missing[@]}"
     if [ "$INSTALL_DEPS" = 1 ] && [ -n "$PKG" ]; then
         # shellcheck disable=SC2086
         $PKG $PKGS
     else
-        echo "Zainstaluj (albo uruchom ten skrypt z --install-deps):"
+        echo "Install (or run this script with --install-deps):"
         echo "  $PKG $PKGS"
         exit 1
     fi
 else
     echo "OK"
 fi
-command -v conda >/dev/null || { echo "Brak condy. Zainstaluj np. Miniforge: https://github.com/conda-forge/miniforge" >&2; exit 1; }
+command -v conda >/dev/null || { echo "conda not found. Install e.g. Miniforge: https://github.com/conda-forge/miniforge" >&2; exit 1; }
 
 # --------------------------------------------------------------------------- 2. SOFA
 step "2/5 SOFA ${SOFA_VERSION} -> $SOFA_ROOT"
 if [ -x "$SOFA_ROOT/bin/runSofa" ]; then
-    echo "już jest"
+    echo "already present"
 else
     mkdir -p "$FISHSOFA_HOME"
     zip="$FISHSOFA_HOME/$SOFA_ZIP"
     [ -f "$zip" ] || curl -fL --retry 3 -o "$zip" "$SOFA_URL"     # ~230 MB
     echo "$SOFA_SHA256  $zip" | sha256sum -c -
     unzip -q -o "$zip" -d "$(dirname "$SOFA_ROOT")"                # ~800 MB
-    [ -x "$SOFA_ROOT/bin/runSofa" ] || { echo "po rozpakowaniu brak $SOFA_ROOT/bin/runSofa" >&2; exit 1; }
+    [ -x "$SOFA_ROOT/bin/runSofa" ] || { echo "$SOFA_ROOT/bin/runSofa not found after unpacking" >&2; exit 1; }
     rm -f "$zip"
 fi
 
 # --------------------------------------------------------------------------- 3. conda
-step "3/5 środowisko conda $FISHSOFA_CONDA_ENV"
+step "3/5 conda environment $FISHSOFA_CONDA_ENV"
 eval "$(conda shell.bash hook)"
 if conda env list | awk '{print $1}' | grep -qx "$FISHSOFA_CONDA_ENV"; then
     conda env update -n "$FISHSOFA_CONDA_ENV" -f "$PROJECT/environment.yml"
@@ -112,23 +112,23 @@ else
 fi
 
 # --------------------------------------------------------------------------- 4. CHOLMOD
-step "4/5 wtyczka SofaCHOLMOD"
+step "4/5 SofaCHOLMOD plugin"
 if [ -f "$FISHSOFA_HOME/SofaCHOLMOD_v26.06/lib/libSofaCHOLMOD.so" ]; then
-    echo "już jest"
+    echo "already present"
 else
     "$HERE/build_cholmod_plugin.sh"
 fi
 
-# --------------------------------------------------------------------------- 5. kontrola
-step "5/5 kontrola"
+# --------------------------------------------------------------------------- 5. check
+step "5/5 check"
 # shellcheck disable=SC1091
 source "$HERE/env.sh"
 python "$HERE/check_sofa.py" > "$FISHSOFA_HOME/check_sofa.log" 2>&1 \
-    || { echo "check_sofa.py nie przeszedł – log: $FISHSOFA_HOME/check_sofa.log" >&2; exit 1; }
+    || { echo "check_sofa.py failed – log: $FISHSOFA_HOME/check_sofa.log" >&2; exit 1; }
 echo "check_sofa.py: OK"
 if [ "$RUN_TESTS" = 1 ]; then
     (cd "$PROJECT" && python -m pytest -q tests 2>&1 | grep -E "passed|failed|error")
 fi
 echo
-echo "Gotowe. W nowej powłoce:  source $HERE/env.sh"
-echo "GUI (ogon macha):          $HERE/run_gui.sh"
+echo "Done. In a new shell:      source $HERE/env.sh"
+echo "GUI (tail flapping):       $HERE/run_gui.sh"

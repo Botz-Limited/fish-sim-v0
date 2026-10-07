@@ -1,217 +1,217 @@
-# SPEC: Demo SOFA + SoftRobots – miękki hydrauliczny ogon robota-ryby
+# SPEC: SOFA + SoftRobots demo – soft hydraulic tail of a robot fish
 
-> Instrukcja dla Claude Code. Ten plik leży w folderze `SOFA/` repozytorium `fish-sim-v0` (obok `MuJoCo/`). Napisz:
-> „Przeczytaj SOFA/SPEC_fish_sofa_demo.md i zrealizuj go etapami. Po każdym etapie uruchom testy i pokaż wyniki.”
-> Zacznij w trybie planowania.
+> Instructions for Claude Code. This file lives in the `SOFA/` folder of the `fish-sim-v0` repository (next to `MuJoCo/`). Type:
+> "Read SOFA/SPEC_fish_sofa_demo.md and implement it in stages. After each stage run the tests and show the results."
+> Start in plan mode.
 
-## 0. Cel i kontekst
+## 0. Goal and context
 
-Zbuduj **uproszczoną, edukacyjną** symulację miękkiego ogona robota-ryby w SOFA z pluginem SoftRobots. Ma pokazać to, czego MuJoCo nie umie:
-- ciągłe odkształcenie silikonu (FEM na siatce czworościennej),
-- dwie wewnętrzne komory hydrauliczne napędzane przez `SurfacePressureConstraint`,
-- zależność ciśnienie–objętość–ugięcie (krzywa, którą da się potem zmierzyć na prawdziwym ogonie),
-- wpływ wody na ruch ogona (uproszczony, własny model oporu, bo SOFA nie ma hydrodynamiki).
+Build a **simplified, educational** simulation of a robot fish's soft tail in SOFA with the SoftRobots plugin. It should show what MuJoCo cannot do:
+- continuous deformation of silicone (FEM on a tetrahedral mesh),
+- two internal hydraulic chambers driven by `SurfacePressureConstraint`,
+- the pressure–volume–deflection relationship (a curve that can later be measured on the real tail),
+- the effect of water on tail motion (a simplified, custom drag model, because SOFA has no hydrodynamics).
 
-Opcjonalnie (etap 7): most do modelu MuJoCo, czyli eksport zastępczych sztywności przegubów (pseudo-rigid-body model, PRBM) do parametrów z `MuJoCo/fishsim/config.py`. Dlatego geometria ogona odpowiada ogonowi z demo MuJoCo (sekcja 4).
+Optional (stage 7): a bridge to the MuJoCo model, i.e. export of equivalent joint stiffnesses (pseudo-rigid-body model, PRBM) to the parameters in `MuJoCo/fishsim/config.py`. That is why the tail geometry matches the tail from the MuJoCo demo (section 4).
 
-To jest **demo możliwości, nie skalibrowany model**. Wszystkie parametry fizyczne to placeholdery i mają być tak oznaczone.
+This is a **capability demo, not a calibrated model**. All physical parameters are placeholders and must be marked as such.
 
-Użytkownik to młody inżynier mechatronik, który się uczy. **Komentarze w kodzie po polsku**, wyjaśniające fizykę i rolę każdego komponentu SOFA (solver, mapping, constraint), a nie tylko składnię.
+The user is a young mechatronics engineer who is learning. **Code comments in English**, explaining the physics and the role of each SOFA component (solver, mapping, constraint), not just the syntax.
 
-Zakres: tylko **ogon**, przymocowany do nieruchomego kadłuba. Balastu i pływania całego pojazdu tu nie ma, pokazuje je demo w `MuJoCo/`.
+Scope: only the **tail**, attached to a fixed body. Ballast and swimming of the whole vehicle are not here; the demo in `MuJoCo/` shows them.
 
-## 1. Zasady pracy (ważne)
+## 1. Working rules (important)
 
-1. Pracuj etapami (sekcja 8). Po każdym etapie uruchom scenę i testy, pokaż wynik, dopiero potem idź dalej.
-2. **API SOFA zmienia się między wersjami** (nazwy komponentów, np. solvery ograniczeń, wymagane `RequiredPlugin`, funkcje inicjalizacji w SofaPython3). W etapie 0 ustal zainstalowaną wersję SOFA i zawsze sprawdzaj nazwy w dokumentacji / przykładach dołączonych do tej wersji (`plugins/SoftRobots/examples`, `examples/` w SOFA). Nie kopiuj kodu ze starych tutoriali w SofaPython2 (`createObject`, `createChild`). W SofaPython3 jest `addObject`, `addChild`.
-3. Używaj **SofaPython3** (sceny `.py` z funkcją `createScene(rootNode)`), nie XML `.scn`.
-4. Konsekwentne jednostki: **SI (m, kg, s, Pa)**. Zapisz to na górze `config.py`. Uwaga: wiele przykładów SoftRobots używa mm (i tolerancji solvera dobranych do mm). Nie mieszaj, a tolerancje przeskaluj (sekcja 5).
-5. Nie wymyślaj „realistycznych” wartości i nie przedstawiaj ich jako zmierzonych. Każdy parametr: komentarz `# PLACEHOLDER – do identyfikacji z pomiarów`.
-6. Jeśli symulacja „wybucha” lub zachowuje się niefizycznie, **nie maskuj tego** losowym strojeniem. Zdiagnozuj (krok czasowy, skok wartości aktuacji, stabilność jawnej siły oporu, jakość siatki, współczynnik Poissona, zbieżność solvera ograniczeń) i opisz w README.
+1. Work in stages (section 8). After each stage run the scene and the tests, show the result, and only then move on.
+2. **The SOFA API changes between versions** (component names, e.g. constraint solvers, required `RequiredPlugin`, initialization functions in SofaPython3). In stage 0 determine the installed SOFA version and always check names in the documentation / examples shipped with that version (`plugins/SoftRobots/examples`, `examples/` in SOFA). Do not copy code from old SofaPython2 tutorials (`createObject`, `createChild`). SofaPython3 has `addObject`, `addChild`.
+3. Use **SofaPython3** (`.py` scenes with a `createScene(rootNode)` function), not XML `.scn`.
+4. Consistent units: **SI (m, kg, s, Pa)**. State this at the top of `config.py`. Note: many SoftRobots examples use mm (and solver tolerances tuned for mm). Do not mix them, and rescale the tolerances (section 5).
+5. Do not invent "realistic" values and do not present them as measured. Every parameter: comment `# PLACEHOLDER – to be identified from measurements`.
+6. If the simulation "explodes" or behaves unphysically, **do not mask it** with random tuning. Diagnose it (time step, jump in actuation value, stability of the explicit drag force, mesh quality, Poisson's ratio, constraint solver convergence) and describe it in the README.
 
-## 2. Instalacja (zweryfikuj, nie zakładaj) – to jest etap 0
+## 2. Installation (verify, do not assume) – this is stage 0
 
-Środowisko docelowe: Fedora (Linux), systemowy Python jest nowszy niż wymaga SOFA, dostępna jest anaconda.
+Target environment: Fedora (Linux), the system Python is newer than SOFA requires, anaconda is available.
 
-- Najnowsze oficjalne binarki SOFA wymagają konkretnej wersji Pythona (w ostatnich wydaniach 3.12) + numpy + scipy (+ pybind11) dla SofaPython3. Sprawdź stronę wydania (github.com/sofa-framework/sofa/releases). Utwórz środowisko z **dokładnie tą** wersją: `conda create -n fishsofa python=3.12`. Nie używaj systemowego Pythona.
-- Binarki są budowane na Ubuntu. Sprawdź, czy `runSofa` startuje na Fedorze (brakujące biblioteki: `ldd`). Zanotuj w README, co trzeba było doinstalować.
-- **Sprawdź, czy SoftRobots jest w oficjalnych binarkach tej wersji.** Jeśli nie, opcje to: kompilacja pluginu z SOFA albo DefrostSofaBundle (uwaga: ten bundle ma licencję tylko do zastosowań akademickich i może być starszy). Zanotuj w README, którą drogę wybrałeś i jaka jest licencja.
-- **Uruchamianie bez GUI (pytest, skrypty):** `import Sofa` w zwykłym Pythonie wymaga zmiennych środowiskowych (`SOFA_ROOT`, `PYTHONPATH` wskazujący na `site-packages` SofaPython3 w katalogu SOFA, ewentualnie `LD_LIBRARY_PATH`). Zapisz je w `scripts/env.sh`; każdy skrypt i `pytest` uruchamiaj po `source scripts/env.sh`.
-- Do generowania siatki: `pip install gmsh meshio` (w tym samym środowisku conda).
-- Napisz `scripts/check_sofa.py`, który wypisuje: wersję SOFA, czy SoftRobots i SofaPython3 się ładują, oraz **faktyczne nazwy** komponentów użytych w sekcji 5 (solver ograniczeń, korekcja ograniczeń, `FixedProjectiveConstraint` lub odpowiednik, `SurfacePressureConstraint` i nazwy jego pól: `value`, `valueType`, `pressure`, `cavityVolume`, opcje rysowania ciśnienia).
-- Uruchom przykład SoftRobots z komorą ciśnieniową (np. „Springy”/„PressureVsVolumeGrowthControl” z folderu przykładów `SurfacePressureConstraint`) **zanim** napiszesz własną scenę. Na tym przykładzie ustal i zapisz w README:
-  - czy `value` przy `valueType="volumeGrowth"` to przyrost **całkowity** względem objętości początkowej, czy przyrost **na krok** (od tego zależy cały `hydraulics.py`),
-  - znak: czy dodatnie `value` daje dodatnie `pressure` i rosnące `cavityVolume`, i jaka orientacja trójkątów komory jest wymagana.
+- The latest official SOFA binaries require a specific Python version (3.12 in recent releases) + numpy + scipy (+ pybind11) for SofaPython3. Check the release page (github.com/sofa-framework/sofa/releases). Create an environment with **exactly** that version: `conda create -n fishsofa python=3.12`. Do not use the system Python.
+- The binaries are built on Ubuntu. Check whether `runSofa` starts on Fedora (missing libraries: `ldd`). Note in the README what had to be installed additionally.
+- **Check whether SoftRobots is in the official binaries of this version.** If not, the options are: building the plugin with SOFA, or DefrostSofaBundle (note: this bundle is licensed for academic use only and may be older). Note in the README which route you chose and what the license is.
+- **Running without GUI (pytest, scripts):** `import Sofa` in plain Python requires environment variables (`SOFA_ROOT`, `PYTHONPATH` pointing to the SofaPython3 `site-packages` in the SOFA directory, possibly `LD_LIBRARY_PATH`). Put them in `scripts/env.sh`; run every script and `pytest` after `source scripts/env.sh`.
+- For mesh generation: `pip install gmsh meshio` (in the same conda environment).
+- Write `scripts/check_sofa.py`, which prints: the SOFA version, whether SoftRobots and SofaPython3 load, and the **actual names** of the components used in section 5 (constraint solver, constraint correction, `FixedProjectiveConstraint` or equivalent, `SurfacePressureConstraint` and the names of its fields: `value`, `valueType`, `pressure`, `cavityVolume`, pressure drawing options).
+- Run a SoftRobots example with a pressure chamber (e.g. "Springy"/"PressureVsVolumeGrowthControl" from the `SurfacePressureConstraint` examples folder) **before** writing your own scene. Using this example, determine and record in the README:
+  - whether `value` with `valueType="volumeGrowth"` is the **total** growth relative to the initial volume, or the growth **per step** (all of `hydraulics.py` depends on this),
+  - the sign: whether a positive `value` gives a positive `pressure` and an increasing `cavityVolume`, and what orientation of the chamber triangles is required.
 
-**Gotowe, gdy:** `check_sofa.py` przechodzi, przykład z komorą działa headless, wyniki obu ustaleń są w README.
+**Done when:** `check_sofa.py` passes, the chamber example runs headless, the results of both findings are in the README.
 
-## 3. Struktura projektu
+## 3. Project structure
 
 ```
 SOFA/
   SPEC_fish_sofa_demo.md
   README.md
-  requirements.txt            # gmsh, meshio, numpy, scipy, matplotlib, pytest (SOFA osobno)
+  requirements.txt            # gmsh, meshio, numpy, scipy, matplotlib, pytest (SOFA separately)
   fishsofa/
-    config.py                 # WSZYSTKIE parametry (geometria, siatka, materiał, numeryka, woda, hydraulika)
-    mesh_gen.py               # gmsh: połowa ogona z komorą -> odbicie lustrzane -> tetra + powierzchnie
-    scene.py                  # createScene(root): ogon FEM + komory + mocowanie + kontrolery
-    hydraulics.py             # pompa jako źródło objętości, układ zamknięty L<->R, zawór przelewowy
-    water.py                  # siły oporu wody na trójkątach powierzchni zewnętrznej (czysty numpy, testowalny bez SOFA)
-    geometry.py               # kąt końcówki, cięciwa, pomocnicze pomiary (wspólne dla testów i wykresów)
-    controllers.py            # Sofa.Core.Controller: rytm, logowanie, aplikacja sił
-    headless.py               # uruchamianie sceny z Pythona bez GUI (N kroków, zwrot logów)
+    config.py                 # ALL parameters (geometry, mesh, material, numerics, water, hydraulics)
+    mesh_gen.py               # gmsh: half of the tail with a chamber -> mirror -> tetra + surfaces
+    scene.py                  # createScene(root): FEM tail + chambers + fixture + controllers
+    hydraulics.py             # pump as a volume source, closed L<->R circuit, relief valve
+    water.py                  # water drag forces on the outer surface triangles (pure numpy, testable without SOFA)
+    geometry.py               # tip angle, chord, helper measurements (shared by tests and plots)
+    controllers.py            # Sofa.Core.Controller: rhythm, logging, force application
+    headless.py               # running the scene from Python without GUI (N steps, returns logs)
   scripts/
-    env.sh                    # SOFA_ROOT, PYTHONPATH itd. (sekcja 2)
-    check_sofa.py             # etap 0
-    run_gui.sh                # runSofa z odpowiednimi pluginami
+    env.sh                    # SOFA_ROOT, PYTHONPATH etc. (section 2)
+    check_sofa.py             # stage 0
+    run_gui.sh                # runSofa with the right plugins
     run_scenarios.py
-    export_prbm.py            # etap 7 (opcjonalny) -> results/prbm.json
-  meshes/                     # wygenerowane siatki (nie commitować, odtwarzalne z mesh_gen.py)
+    export_prbm.py            # stage 7 (optional) -> results/prbm.json
+  meshes/                     # generated meshes (do not commit, reproducible from mesh_gen.py)
   tests/test_sanity.py
   results/
 ```
 
-## 4. Geometria i siatka (mesh_gen.py)
+## 4. Geometry and mesh (mesh_gen.py)
 
-**Układ osi** (taki sam jak w MuJoCo): X wzdłuż ryby, ogon wychodzi z kadłuba w kierunku **−X**; Y w bok (w tej osi ogon się zgina); Z w pionie (grawitacja w −Z). Początek układu: środek przedniej (przymocowanej) ściany ogona.
+**Axes** (same as in MuJoCo): X along the fish, the tail extends from the body in the **−X** direction; Y sideways (the tail bends about this axis); Z vertical (gravity in −Z). Origin: center of the front (attached) wall of the tail.
 
-**Wymiary** = ogon z `MuJoCo/fishsim/config.py`. Liczby przepisz do `config.py` z komentarzem, skąd pochodzą (wszystkie PLACEHOLDER):
-- długość korpusu ogona `n_segments · segment_length` = 5 × 0.04 = 0.20 m,
-- przekrój na nasadzie: grubość (Y) 2·`segment_ry0` = 0.06 m, wysokość (Z) 2·`segment_rz0` = 0.08 m, liniowe zwężenie do `taper_last` = 0.4 na końcu,
-- płetwa ogonowa na końcu: wymiary z `fin_semi_axes` (długość 0.07 m, grubość 0.006 m, wysokość 0.12 m), cienka w Y, wysoka w Z.
+**Dimensions** = the tail from `MuJoCo/fishsim/config.py`. Copy the numbers into `config.py` with a comment on where they come from (all PLACEHOLDER):
+- tail body length `n_segments · segment_length` = 5 × 0.04 = 0.20 m,
+- cross-section at the root: thickness (Y) 2·`segment_ry0` = 0.06 m, height (Z) 2·`segment_rz0` = 0.08 m, linear taper to `taper_last` = 0.4 at the end,
+- caudal fin at the end: dimensions from `fin_semi_axes` (length 0.07 m, thickness 0.006 m, height 0.12 m), thin in Y, tall in Z.
 
-**Komory** (lewa +Y i prawa −Y, symetryczne względem płaszczyzny XZ), oddzielone przegrodą środkową. Nowe parametry w `config.py` (PLACEHOLDER):
-- długość komory = długość `n_actuated` napędzanych segmentów z MuJoCo (3 × 0.04 = 0.12 m), od `chamber_x_start` (mała odległość od przymocowanej ściany),
-- `wall_thickness` (ścianka zewnętrzna), `septum_thickness` (przegroda), `chamber_end_wall` (ścianki czołowe).
-- Komory są zamknięte (bez kanałów doprowadzających); dopływ cieczy modeluje tylko `volumeGrowth`.
-- Opcjonalnie: sztywniejsza „kręgosłupowa” warstwa w przegrodzie jako osobny materiał (jeśli łatwe; jeśli nie, pomiń i odnotuj).
+**Chambers** (left +Y and right −Y, symmetric about the XZ plane), separated by a central septum. New parameters in `config.py` (PLACEHOLDER):
+- chamber length = length of the `n_actuated` actuated segments from MuJoCo (3 × 0.04 = 0.12 m), starting at `chamber_x_start` (a small distance from the attached wall),
+- `wall_thickness` (outer wall), `septum_thickness` (septum), `chamber_end_wall` (end walls).
+- The chambers are closed (no supply channels); fluid inflow is modeled only by `volumeGrowth`.
+- Optional: a stiffer "spine" layer in the septum as a separate material (if easy; if not, skip it and note it).
 
-**Siatka:**
-- Generuj **połowę** ogona (y ≥ 0) z jedną komorą i odbij ją lustrzanie względem XZ. Wtedy siatka jest dokładnie symetryczna i test symetrii sprawdza kod, a nie przypadek w siatkowaniu.
-- Liniowe czworościany przy zginaniu cienkiej warstwy są za sztywne (shear locking), jeśli na grubości są 1–2 elementy. Wymagaj **≥ 3 elementów na grubość** ścianek komór, przegrody i płetwy: lokalne zagęszczenie w gmsh (pola rozmiaru), grubsze elementy w środku bryły.
-- Rozmiar: realny cel to ≤ ~20k czworościanów. Zapisz w raporcie liczbę elementów i elementy na grubość każdej ścianki. Dodaj grubszą siatkę testową (`mesh_size_test` w configu), żeby `pytest` był szybki.
-- **Decyzja z etapu 1:** ≥ 3 elementy na ściankę 4 mm i ≤ 20k elementów nie dadzą się spełnić razem (ogon 0.2 m: 4 mm → ~28k, 2 mm → ~140k, 1.3 mm → ~450k tetr). Zamiast tego **studium zbieżności**: poziomy `coarse` / `medium` / `fine` (4/3/2 mm przy powierzchniach) i `test` (6 mm, tylko pytest). Etap 2 (statyka p–V) liczony na wszystkich trzech, żeby zmierzyć, o ile gruba siatka zawyża sztywność. Etapy dynamiczne na najgrubszej, z podanym błędem.
-- **Ustalone w etapie 1:** `MeshVTKLoader` (SOFA v26.06) nie czyta VTK 5.1 z meshio (segfault), więc siatka jest zapisywana jako klasyczny VTK 4.2. `StaticSolver` wymaga osobnego `NewtonRaphsonSolver` (od v25.12) i nie działa z `FreeMotionAnimationLoop`.
-- Wnęki komór **nie są** siatkowane (puste w środku bryły).
-- Eksport:
-  - siatka objętościowa tetra (format, który wczyta loader SOFA w tej wersji: `MeshGmshLoader` lub `MeshVTKLoader`; jeśli wersja formatu `.msh` sprawia problem, eksportuj VTK przez meshio),
-  - powierzchnie trójkątne komór L i R (STL/OBJ) do `SurfacePressureConstraint`, zbudowane z **tych samych węzłów** co siatka tetra, z orientacją ustaloną w etapie 0,
-  - powierzchnia zewnętrzna = trójkąty brzegowe siatki tetra (te same węzły), normalne **na zewnątrz** (do sił wody i wizualizacji).
-- Raport jakości (`results/s1_mesh_report.txt`): brak czworościanów o objętości ≤ 0, rozkład jakości (np. stosunek promieni), liczba elementów, elementy na grubość ścianek, zgodność orientacji normalnych.
+**Mesh:**
+- Generate **half** of the tail (y ≥ 0) with one chamber and mirror it about XZ. Then the mesh is exactly symmetric and the symmetry test checks the code, not a coincidence of meshing.
+- Linear tetrahedra are too stiff in bending of a thin layer (shear locking) if there are 1–2 elements across the thickness. Require **≥ 3 elements across the thickness** of the chamber walls, the septum and the fin: local refinement in gmsh (size fields), coarser elements inside the solid.
+- Size: a realistic target is ≤ ~20k tetrahedra. Record in the report the element count and the elements across the thickness of each wall. Add a coarser test mesh (`mesh_size_test` in the config) so that `pytest` is fast.
+- **Decision from stage 1:** ≥ 3 elements per 4 mm wall and ≤ 20k elements cannot both be met (0.2 m tail: 4 mm → ~28k, 2 mm → ~140k, 1.3 mm → ~450k tets). Instead, a **convergence study**: levels `coarse` / `medium` / `fine` (4/3/2 mm at the surfaces) and `test` (6 mm, pytest only). Stage 2 (p–V statics) is computed on all three to measure how much the coarse mesh overestimates stiffness. Dynamic stages on the coarsest, with the error stated.
+- **Determined in stage 1:** `MeshVTKLoader` (SOFA v26.06) cannot read VTK 5.1 from meshio (segfault), so the mesh is written as legacy VTK 4.2. `StaticSolver` requires a separate `NewtonRaphsonSolver` (since v25.12) and does not work with `FreeMotionAnimationLoop`.
+- The chamber cavities are **not** meshed (hollow inside the solid).
+- Export:
+  - tetra volume mesh (a format the SOFA loader of this version can read: `MeshGmshLoader` or `MeshVTKLoader`; if the `.msh` format version causes problems, export VTK via meshio),
+  - triangle surfaces of chambers L and R (STL/OBJ) for `SurfacePressureConstraint`, built from **the same nodes** as the tetra mesh, with the orientation determined in stage 0,
+  - outer surface = boundary triangles of the tetra mesh (same nodes), normals pointing **outward** (for water forces and visualization).
+- Quality report (`results/s1_mesh_report.txt`): no tetrahedra with volume ≤ 0, quality distribution (e.g. radius ratio), element count, elements across wall thickness, consistency of normal orientation.
 
-## 5. Scena SOFA (scene.py)
+## 5. SOFA scene (scene.py)
 
-- Pętla animacji z ograniczeniami (`FreeMotionAnimationLoop` + odpowiedni solver ograniczeń dla tej wersji SOFA), bo `SurfacePressureConstraint` jest ograniczeniem Lagrange'a. **Tolerancja solvera ograniczeń w SI:** objętości są rzędu 1e-6 m³, więc tolerancje z przykładów w mm są o rzędy wielkości złe. Dobierz tolerancję względem skali (np. 1e-3 × typowe ΔV) i loguj liczbę iteracji i osiągnięty błąd w każdym kroku.
-- Integrator `EulerImplicitSolver` + bezpośredni solver liniowy (np. `SparseLDLSolver`) + odpowiednia korekcja ograniczeń.
-- **Krok czasowy** `dt` w configu. Punkt startowy: `dt ≤ 1/(50·f_max)` ≈ 6 ms dla f_max = 3 Hz, skorygowany wg warunku stabilności oporu wody (sekcja 7). Raportuj stosunek czasu symulacji do czasu rzeczywistego (bez obietnicy „czasu rzeczywistego”).
-- **Tłumienie materiałowe:** `rayleighStiffness` i `rayleighMass` w `EulerImplicitSolver` jako PLACEHOLDER w configu. W komentarzu wyjaśnij, że niejawny Euler dodaje też tłumienie numeryczne (rosnące z `dt`), więc amplituda w powietrzu (etap 4) zależy od `dt`. Sprawdź to raz: amplituda przy `dt` i `dt/2` i wynik w README.
-- Materiał: `TetrahedronFEMForceField` z `method="large"` (korotacyjny, duże obroty), moduł Younga silikonu jako placeholder (rząd 1e5–1e6 Pa), Poisson **0.45, nie 0.5** (przy 0.5 liniowe tetra blokują się, tzw. volumetric locking; wyjaśnij to w komentarzu). Opcjonalnie wariant hiperelastyczny jako rozszerzenie, nie wymagany.
-- Masa: `MeshMatrixMass` / `UniformMass` z gęstością silikonu `rho_tail` z MuJoCo (1100 kg/m³, placeholder). **Plus masa wody w komorach** (ρ_wody · objętość komory, rozłożona na węzły ścianek komór): ogon z napełnionymi komorami jest cięższy niż sam silikon.
-- **Otoczenie**: jeden przełącznik `environment = "air" | "water"` w configu, ustawia razem grawitację i opór:
-  - `"air"`: pełna grawitacja na silikon + wodę w komorach, brak oporu wody,
-  - `"water"`: efektywna grawitacja silikonu `g·(1 − ρ_wody/ρ_silikonu)`, woda w komorach neutralna (wypór = ciężar), opór wody włączony (sekcja 7).
-- Mocowanie: węzły przedniej ściany ogona (x = 0) unieruchomione (`FixedProjectiveConstraint` lub odpowiednik w danej wersji). To odpowiada ogonowi przykręconemu do kadłuba i jednocześnie **stanowisku pomiaru ciągu na uwięzi**.
-- Komory: dwa węzły-dzieci, każdy z `MeshTopology` + `MechanicalObject` + `SurfacePressureConstraint` + `BarycentricMapping` do siatki FEM (przy wspólnych węzłach mapowanie jest dokładne).
+- Animation loop with constraints (`FreeMotionAnimationLoop` + the appropriate constraint solver for this SOFA version), because `SurfacePressureConstraint` is a Lagrange constraint. **Constraint solver tolerance in SI:** volumes are of order 1e-6 m³, so the tolerances from mm examples are wrong by orders of magnitude. Choose the tolerance relative to scale (e.g. 1e-3 × typical ΔV) and log the iteration count and the achieved error at every step.
+- Integrator `EulerImplicitSolver` + a direct linear solver (e.g. `SparseLDLSolver`) + the appropriate constraint correction.
+- **Time step** `dt` in the config. Starting point: `dt ≤ 1/(50·f_max)` ≈ 6 ms for f_max = 3 Hz, adjusted by the water drag stability condition (section 7). Report the ratio of simulation time to real time (without promising "real time").
+- **Material damping:** `rayleighStiffness` and `rayleighMass` in `EulerImplicitSolver` as PLACEHOLDER in the config. Explain in a comment that implicit Euler also adds numerical damping (growing with `dt`), so the amplitude in air (stage 4) depends on `dt`. Check this once: amplitude at `dt` and `dt/2`, result in the README.
+- Material: `TetrahedronFEMForceField` with `method="large"` (corotational, large rotations), silicone Young's modulus as a placeholder (order 1e5–1e6 Pa), Poisson **0.45, not 0.5** (at 0.5 linear tets lock, so-called volumetric locking; explain this in a comment). Optionally a hyperelastic variant as an extension, not required.
+- Mass: `MeshMatrixMass` / `UniformMass` with the silicone density `rho_tail` from MuJoCo (1100 kg/m³, placeholder). **Plus the mass of the water in the chambers** (ρ_water · chamber volume, distributed over the chamber wall nodes): a tail with filled chambers is heavier than the silicone alone.
+- **Environment**: a single switch `environment = "air" | "water"` in the config, sets gravity and drag together:
+  - `"air"`: full gravity on silicone + water in the chambers, no water drag,
+  - `"water"`: effective silicone gravity `g·(1 − ρ_water/ρ_silicone)`, water in the chambers neutral (buoyancy = weight), water drag enabled (section 7).
+- Fixture: nodes of the front wall of the tail (x = 0) fixed (`FixedProjectiveConstraint` or the equivalent in the given version). This corresponds to a tail bolted to the body and at the same time to a **tethered thrust measurement rig**.
+- Chambers: two child nodes, each with `MeshTopology` + `MechanicalObject` + `SurfacePressureConstraint` + `BarycentricMapping` to the FEM mesh (with shared nodes the mapping is exact).
 
-**Definicje pomiarów** (`geometry.py`, używane wszędzie tak samo):
-- **kąt końcówki** θ_tip = atan2(Δy, −Δx) cięciwy od środka przedniej ściany do środka płetwy (centroid węzłów płetwy); θ_tip > 0 = ogon wygięty w +Y (w lewo),
-- znak zgodny z MuJoCo: dodatnie `V_bias` ma zginać ogon w tę samą stronę co w `MuJoCo/fishsim` (tam +V_bias = skręt w prawo). Zapisz w README, która komora odpowiada +V_bias,
-- **ciąg**: średnia po cyklu składowej +X wypadkowej siły wody na ogon (siła działa na wodę w −X, reakcja pcha rybę w +X).
+**Measurement definitions** (`geometry.py`, used the same way everywhere):
+- **tip angle** θ_tip = atan2(Δy, −Δx) of the chord from the center of the front wall to the center of the fin (centroid of the fin nodes); θ_tip > 0 = tail bent toward +Y (to the left),
+- sign consistent with MuJoCo: a positive `V_bias` must bend the tail to the same side as in `MuJoCo/fishsim` (there +V_bias = turn to the right). Record in the README which chamber corresponds to +V_bias,
+- **thrust**: cycle average of the +X component of the resultant water force on the tail (the force acts on the water in −X, the reaction pushes the fish in +X).
 
-## 6. Hydraulika (hydraulics.py)
+## 6. Hydraulics (hydraulics.py)
 
-Woda jest praktycznie nieściśliwa, więc **pompa wymusza objętość, a nie ciśnienie**. Dlatego używamy `SurfacePressureConstraint` z `valueType="volumeGrowth"`. SOFA sama policzy ciśnienie potrzebne do uzyskania danej objętości (pole `pressure`, tylko do odczytu). To jest fizycznie poprawniejsze dla hydrauliki niż sterowanie ciśnieniem, opisz to w komentarzu.
+Water is practically incompressible, so **the pump imposes volume, not pressure**. That is why we use `SurfacePressureConstraint` with `valueType="volumeGrowth"`. SOFA itself computes the pressure needed to reach the given volume (the `pressure` field, read-only). This is physically more correct for hydraulics than pressure control; describe it in a comment.
 
-**Ustalone w etapie 0 (SOFA v26.06, README):** `value` to przyrost **całkowity** względem `initialCavityVolume`. Pole `pressure` to **p·dt** (impuls z solvera ograniczeń), więc ciśnienie = `pressure / dt`. W trybie `valueType="pressure"` wejście `value` też podajemy jako p·dt. Każde ciśnienie w kodzie, logach i na wykresach jest w Pa, a przeliczenie robimy w jednym miejscu (funkcja w `hydraulics.py`).
+**Determined in stage 0 (SOFA v26.06, README):** `value` is the **total** growth relative to `initialCavityVolume`. The `pressure` field is **p·dt** (an impulse from the constraint solver), so pressure = `pressure / dt`. In `valueType="pressure"` mode the `value` input is also given as p·dt. Every pressure in the code, logs and plots is in Pa, and the conversion is done in one place (a function in `hydraulics.py`).
 
-- **Rytm jak w MuJoCo:** zadajemy przepompowaną objętość `V_ref(t) = V_bias + A_V·r(t)·sin(2πft)` (rampa `r(t)` przez `ramp_time`), a nie sinus komendy pompy. Komenda: `u = sat((dV_ref/dt + K_v·(V_ref − V_p)) / Q_max, −1, 1)`, gdzie `V_p = ∫Q dt`. Nazwy i wartości parametrów jak w `MuJoCo/fishsim/config.py` (`tail_freq`, `tail_volume_amp`, `tail_volume_bias`, `K_v`, `ramp_time`, `Q_max`, `tau_pump`). Uzasadnienie w komentarzu: sinus w `u` dawałby amplitudę objętości ∝ 1/f, więc przegląd częstotliwości mieszałby dwa efekty.
-- Pompa jako człon I rzędu: `dQ/dt = (u·Q_max − Q)/τ_pump`.
-- Układ zamknięty: `ΔV_L = V_prefill + V_p`, `ΔV_R = V_prefill − V_p`.
-- **Wstępne napełnienie:** obie komory startują z `V_prefill > 0` (rampa w pierwszej sekundzie), żeby żadna nie była „zasysana” poniżej objętości spoczynkowej. Kontakt ścianek komory nie jest modelowany, więc `config.py` sprawdza asercją: `V_prefill > |V_bias| + A_V + margines`.
-- **Zawór przelewowy na różnicy ciśnień:** pompa w układzie zamkniętym pracuje przeciw `Δp = p_L − p_R`, nie przeciw ciśnieniu jednej komory. Gdy `|Δp| > p_max` (nazwa jak w MuJoCo), zawór przepuszcza ciecz z komory o wyższym ciśnieniu do drugiej (suma objętości bez zmian), tak jak w `MuJoCo/fishsim/hydraulics.py`. Ciśnienie odczytujesz po rozwiązaniu kroku, więc zawór działa z opóźnieniem 1 kroku. Opisz to w komentarzu. Loguj, kiedy zawór był aktywny.
-- **Nigdy nie skacz z wartością aktuacji.** Zawsze rampy lub ciągłe sygnały, bo skoki są znaną przyczyną eksplozji symulacji ciśnieniowych.
+- **Rhythm as in MuJoCo:** we prescribe the pumped volume `V_ref(t) = V_bias + A_V·r(t)·sin(2πft)` (ramp `r(t)` over `ramp_time`), not a sine of the pump command. Command: `u = sat((dV_ref/dt + K_v·(V_ref − V_p)) / Q_max, −1, 1)`, where `V_p = ∫Q dt`. Parameter names and values as in `MuJoCo/fishsim/config.py` (`tail_freq`, `tail_volume_amp`, `tail_volume_bias`, `K_v`, `ramp_time`, `Q_max`, `tau_pump`). Rationale in a comment: a sine in `u` would give a volume amplitude ∝ 1/f, so the frequency sweep would mix two effects.
+- Pump as a first-order element: `dQ/dt = (u·Q_max − Q)/τ_pump`.
+- Closed circuit: `ΔV_L = V_prefill + V_p`, `ΔV_R = V_prefill − V_p`.
+- **Prefill:** both chambers start with `V_prefill > 0` (ramp in the first second), so that neither is "sucked" below its rest volume. Contact between chamber walls is not modeled, so `config.py` checks with an assertion: `V_prefill > |V_bias| + A_V + margin`.
+- **Relief valve on the pressure difference:** a pump in a closed circuit works against `Δp = p_L − p_R`, not against the pressure of one chamber. When `|Δp| > p_max` (name as in MuJoCo), the valve passes fluid from the higher-pressure chamber to the other (total volume unchanged), just like in `MuJoCo/fishsim/hydraulics.py`. You read the pressure after the step is solved, so the valve acts with a 1-step delay. Describe this in a comment. Log when the valve was active.
+- **Never jump the actuation value.** Always use ramps or continuous signals, because jumps are a known cause of explosions in pressure simulations.
 
-## 7. Woda (water.py) – uproszczenie, uczciwie opisane
+## 7. Water (water.py) – a simplification, honestly described
 
-SOFA nie ma modelu płynu. Zaimplementuj w kontrolerze (`onAnimateBeginEvent`) prosty **model oporu lokalnego** na każdym trójkącie powierzchni zewnętrznej. Obliczenia w `water.py` jako czyste funkcje numpy (wejście: pozycje, prędkości, trójkąty; wyjście: siły węzłowe), żeby dało się je testować bez SOFA:
+SOFA has no fluid model. Implement in a controller (`onAnimateBeginEvent`) a simple **local drag model** on each triangle of the outer surface. The computations in `water.py` as pure numpy functions (input: positions, velocities, triangles; output: nodal forces), so they can be tested without SOFA:
 
-- prędkość trójkąta `v` (średnia z węzłów), normalna zewnętrzna `n`, pole `A`,
-- siła normalna: `F_n = −½ ρ C_n A (v·n)|v·n| n`,
-- siła styczna (mała): `F_t = −½ ρ C_t A |v_t| v_t`,
-- rozdział siły po równo na 3 węzły trójkąta, aplikacja przez `ConstantForceField` (pole `forces` aktualizowane co krok) bezpośrednio na węzłach FEM (powierzchnia zewnętrzna ma te same węzły, mapowanie niepotrzebne).
-- Przy `environment="water"` grawitacja jest efektywna (sekcja 5). Opisz to.
-- Opcjonalnie (rozszerzenie): masa dodana jako zwiększenie masy węzłów powierzchniowych.
+- triangle velocity `v` (mean of the nodes), outward normal `n`, area `A`,
+- normal force: `F_n = −½ ρ C_n A (v·n)|v·n| n`,
+- tangential force (small): `F_t = −½ ρ C_t A |v_t| v_t`,
+- split the force equally over the 3 nodes of the triangle, apply through `ConstantForceField` (the `forces` field updated every step) directly on the FEM nodes (the outer surface has the same nodes, no mapping needed).
+- With `environment="water"` gravity is effective (section 5). Describe this.
+- Optional (extension): added mass as an increase of the surface node masses.
 
-**Stabilność (obowiązkowo):** siła liczona z prędkości z poprzedniego kroku to jawne tłumienie. Dla węzła o masie `m` i współczynniku `c = ρ·C_n·A_węzła·|v_n|` jawny krok jest stabilny tylko przy `c·dt/m` wyraźnie < 1. Cienka płetwa ma lekkie węzły i dużą powierzchnię, więc to tu wybuchnie najpierw. Loguj `max(c·dt/m)` w każdym kroku. Jeśli przekracza ~0.5: zmniejsz `dt` i opisz w README, nie obcinaj sił. Rozszerzenie (nie wymagane): opór jako `Sofa.Core.ForceField` w Pythonie z członem tłumienia w macierzy układu (niejawnie).
+**Stability (mandatory):** a force computed from the previous step's velocity is explicit damping. For a node with mass `m` and coefficient `c = ρ·C_n·A_node·|v_n|` the explicit step is stable only when `c·dt/m` is clearly < 1. The thin fin has light nodes and a large area, so this is where it will blow up first. Log `max(c·dt/m)` at every step. If it exceeds ~0.5: reduce `dt` and describe it in the README, do not clip the forces. Extension (not required): drag as a Python `Sofa.Core.ForceField` with a damping term in the system matrix (implicit).
 
-**Ograniczenie do wypisania w README:** ten model ma tylko opór. Pomija masę dodaną (o ile nie dodasz rozszerzenia), siłę nośną i wiry, a właśnie efekty reaktywne dominują w ciągu ryb (teoria Lighthilla). Liczba ciągu z tego demo jest więc **jakościowa**, nie ilościowa.
+**Limitation to state in the README:** this model has drag only. It neglects added mass (unless you add the extension), lift and vortices, and it is exactly the reactive effects that dominate fish thrust (Lighthill's theory). The thrust number from this demo is therefore **qualitative**, not quantitative.
 
-## 8. Etapy realizacji
+## 8. Implementation stages
 
-Każdy etap kończy się: testy zielone + wykres(y) z sekcji 9 + 2–3 zdania obserwacji w README.
+Each stage ends with: tests green + plot(s) from section 9 + 2–3 sentences of observations in the README.
 
-0. **Instalacja i API** (sekcja 2). **Gotowe, gdy:** `check_sofa.py` przechodzi, ustalenia o `volumeGrowth` w README.
-1. **Siatka**: generacja, raport jakości, podgląd w GUI SOFA (sam materiał, bez aktuacji, `environment="air"`, ogon ugina się pod grawitacją w −Z). **Gotowe, gdy:** raport bez błędów, ≥ 3 elementy na grubość ścianek, 100 kroków bez NaN.
-2. **Pojedyncza komora, quasi-statycznie**: rampa `volumeGrowth` w komorze L od 0 do `dV_max` (bez prefillu), `environment="air"`, grawitacja wyłączona (`g = 0`), żeby krzywa zależała tylko od materiału i geometrii. Komora R **odpowietrzona**: bez ograniczenia objętości (ciśnienie 0), jak na stanowisku pomiarowym z otwartym drugim króćcem. Quasi-statycznie = wolna rampa (`ramp_static_time`, np. 5 s) i kryterium: energia kinetyczna < 1% energii odkształcenia w każdym punkcie pomiaru; alternatywnie `StaticSolver`, jeśli działa z ograniczeniami w tej wersji. Wykresy: ciśnienie vs objętość, kąt końcówki vs objętość. To najważniejszy wynik demo: tę samą krzywą zmierzysz na prawdziwym ogonie.
-   - **Ustalone w etapie 2:** pseudo-statyka (niejawny Euler, dt = 50 ms, LDL) daje ten sam stan co wolna rampa przy dt = 2 ms, 5–25× taniej. Solver „warp” z komorą przesuwa równowagę (−25% ciśnienia przy 30 ml), więc z komorami tylko LDL. Konstrukcja z etapu 1 prawie się nie zgina (komora się wybrzusza); przegląd wariantów wybrał V4 = kręgosłup w przegrodzie (E×20) + włókna obwodowe (README, etap 2a).
-   - **Ustalone po etapie 2 (wydajność):** domyślny solver liniowy to CHOLMOD (`EigenCholmodSupernodalLLT`, wtyczka SofaCHOLMOD z master zbudowana dla v26.06): dokładny jak LDL, także z komorami, 4.3× (coarse) do 15× (fine) szybciej. Zostajemy na SOFA v26.06, bo SOFA master (v26.12-dev) daje błędną, drgającą równowagę przy komorze ze sztywnymi włóknami (README, „Wydajność: CHOLMOD”).
-3. **Symetria**: to samo dla komory R. Wyniki muszą być lustrzane (test).
-   - **Ustalone w etapie 3:** błąd symetrii ≤ 0.75% (kąt, coarse, przy 5 ml), ≤ 0.023% (ciśnienie); resztka pochodzi z kryterium końca trzymania punktu, nie z siatki (README, etap 3).
-4. **Hydraulika antagonistyczna**: rytm `V_ref(t)` z sekcji 6, układ zamknięty L↔R, prefill, `environment="air"`. Wykres: kąt końcówki, p_L, p_R, Δp, aktywność zaworu. **Gotowe, gdy:** ustalony cykl po rozbiegu, suma zmierzonych objętości komór stała (test), sprawdzenie wpływu `dt` (sekcja 5).
-   - **Ustalone w etapie 4:** komora SOFA (91 ml) ≠ MuJoCo (30 ml), więc A_V = 17 ml, V_prefill = 20 ml, Q_max = 250 ml/s (decyzja: widoczny ruch). Prefill > ~22 ml wybocza kręgosłup (ciśnienie wspólne). Komenda pompy ma dodaną kompensację opóźnienia τ_pump·d²V_ref/dt² (bez niej 16% przeregulowania przy 2 Hz). Wynik: ±12.7° przy dt 2 ms, −5% względem dt 1 ms (README, etap 4).
-5. **Woda**: to samo z `environment="water"`. Porównanie amplitudy i przesunięcia fazowego z wodą vs bez. Ciąg (definicja w sekcji 5) = jakościowy „ciąg na uwięzi”. **Gotowe, gdy:** `max(c·dt/m)` < 0.5 przez cały przebieg.
-   - **Ustalone w etapie 5:** opór jawny wymaga dt = 0.5 ms (max(c·dt/m) = 0.27; przy 1 ms 0.54 na płetwie, wynik różni się o 1.4% amplitudy i 5% ciągu). W wodzie amplituda 0.55× powietrza (±7.3°), faza +30°, ciąg +67 mN (jakościowo), Δp prawie bez zmian (README, etap 5).
-6. **Przeglądy** (protokół: każdy punkt = osobna symulacja, 2 cykle rozbiegu + 3 cykle uśredniania; podaj czas obliczeń całego przeglądu):
-   - częstotliwość 0.5–3 Hz (te same punkty co `MuJoCo/scripts/sweep_frequency.py`) → amplituda końcówki, średni ciąg, max |Δp|, czas aktywności zaworu. Porównaj kształt z `MuJoCo/results/s5_sweep.png`.
-   - moduł Younga ×0.5, ×1, ×2, w dwóch wariantach:
-     a) quasi-statycznie (jak etap 2): ten sam ΔV → ciśnienie skaluje się ~liniowo z E, a **ugięcie prawie się nie zmienia**,
-     b) dynamicznie w wodzie przy 2 Hz: tu E zmienia amplitudę i fazę, bo przesuwa rezonans ogona względem częstotliwości machania.
-   Lekcja do README: przy sterowaniu objętością jednorodny liniowy materiał bez obciążeń zewnętrznych ugina się tak samo przy każdym E; sztywność decyduje o **wymaganym ciśnieniu** (pompa, zawór, szczelność), a o ruchu dopiero przez obciążenia (woda, bezwładność, grawitacja). Dla kontrastu jeden punkt w trybie `valueType="pressure"`: to samo p → ugięcie ~1/E.
-   - **Ustalone w etapie 6:** w wodzie brak rezonansu (amplituda maleje z f), ciąg ma maksimum ~2.25 Hz, powyżej nasyca się pompa (Q_max), zawór nie otwiera się. Prawo skalowania z E potwierdzone (README, etap 6). Przegląd liczony równolegle (`fishsofa/parallel.py`): 68 min zamiast ~7 h.
-7. **(Opcjonalnie) Eksport PRBM** (`export_prbm.py`) → `results/prbm.json`, klucze odpowiadające polom `MuJoCo/fishsim/config.py`:
-   - `joint_x` [m] – położenia N = 5 przegubów (co `segment_length`),
-   - `stiffness` [N·m/rad] – sztywność każdego przegubu. Wyznacz ją z **osobnych przypadków obciążenia** (komory bez aktuacji, mała boczna siła na płetwie przez `ConstantForceField`): moment w przekroju przegubu / kąt względny sąsiednich segmentów. Sama aktuacja ciśnieniem nie wystarczy, bo nie rozdziela sztywności poszczególnych przegubów,
-   - `A_eff_r_eff` [m³] – moment na przegubach napędzanych na jednostkę Δp (z etapów 2–3),
-   - `C_h` [m³/Pa] – podatność komór dV/dp przy zablokowanym ogonie, `V0_chamber` [m³],
-   - `tendon_weights` – względny udział przegubów napędzanych w ugięciu od ciśnienia.
-   Opisz metodę i przybliżenia (liniowość, mały kąt, segmenty sztywne). Uwaga: MuJoCo dziś przyjmuje jedno `stiffness_actuated` i liczy sztywności pasywne z `passive_resonance_hz`, więc wczytanie `prbm.json` po stronie MuJoCo to osobna, przyszła praca (wypisz ją w README, nie implementuj tutaj).
+0. **Installation and API** (section 2). **Done when:** `check_sofa.py` passes, findings about `volumeGrowth` in the README.
+1. **Mesh**: generation, quality report, preview in the SOFA GUI (material only, no actuation, `environment="air"`, the tail sags under gravity in −Z). **Done when:** report without errors, ≥ 3 elements across wall thickness, 100 steps without NaN.
+2. **Single chamber, quasi-static**: `volumeGrowth` ramp in chamber L from 0 to `dV_max` (no prefill), `environment="air"`, gravity off (`g = 0`), so that the curve depends only on material and geometry. Chamber R **vented**: no volume constraint (pressure 0), as on a measurement rig with the second port open. Quasi-static = slow ramp (`ramp_static_time`, e.g. 5 s) and the criterion: kinetic energy < 1% of strain energy at every measurement point; alternatively `StaticSolver`, if it works with constraints in this version. Plots: pressure vs volume, tip angle vs volume. This is the most important result of the demo: you will measure the same curve on the real tail.
+   - **Determined in stage 2:** pseudo-statics (implicit Euler, dt = 50 ms, LDL) gives the same state as a slow ramp at dt = 2 ms, 5–25× cheaper. The "warp" solver with a chamber shifts the equilibrium (−25% pressure at 30 ml), so with chambers only LDL. The design from stage 1 barely bends (the chamber bulges); a sweep of variants chose V4 = spine in the septum (E×20) + hoop fibers (README, stage 2a).
+   - **Determined after stage 2 (performance):** the default linear solver is CHOLMOD (`EigenCholmodSupernodalLLT`, SofaCHOLMOD plugin from master built for v26.06): as accurate as LDL, also with chambers, 4.3× (coarse) to 15× (fine) faster. We stay on SOFA v26.06, because SOFA master (v26.12-dev) gives a wrong, oscillating equilibrium for a chamber with stiff fibers (README, "Performance: CHOLMOD").
+3. **Symmetry**: the same for chamber R. The results must be mirrored (test).
+   - **Determined in stage 3:** symmetry error ≤ 0.75% (angle, coarse, at 5 ml), ≤ 0.023% (pressure); the residual comes from the end-of-hold criterion for a point, not from the mesh (README, stage 3).
+4. **Antagonistic hydraulics**: rhythm `V_ref(t)` from section 6, closed circuit L↔R, prefill, `environment="air"`. Plot: tip angle, p_L, p_R, Δp, valve activity. **Done when:** a steady cycle after the run-up, the sum of measured chamber volumes constant (test), check of the effect of `dt` (section 5).
+   - **Determined in stage 4:** SOFA chamber (91 ml) ≠ MuJoCo (30 ml), so A_V = 17 ml, V_prefill = 20 ml, Q_max = 250 ml/s (decision: visible motion). Prefill > ~22 ml buckles the spine (common pressure). The pump command has an added lag compensation τ_pump·d²V_ref/dt² (without it 16% overshoot at 2 Hz). Result: ±12.7° at dt 2 ms, −5% relative to dt 1 ms (README, stage 4).
+5. **Water**: the same with `environment="water"`. Comparison of amplitude and phase shift with water vs without. Thrust (definition in section 5) = qualitative "tethered thrust". **Done when:** `max(c·dt/m)` < 0.5 throughout the run.
+   - **Determined in stage 5:** explicit drag requires dt = 0.5 ms (max(c·dt/m) = 0.27; at 1 ms 0.54 on the fin, the result differs by 1.4% in amplitude and 5% in thrust). In water the amplitude is 0.55× that in air (±7.3°), phase +30°, thrust +67 mN (qualitative), Δp almost unchanged (README, stage 5).
+6. **Sweeps** (protocol: each point = a separate simulation, 2 run-up cycles + 3 averaging cycles; give the computation time of the whole sweep):
+   - frequency 0.5–3 Hz (the same points as `MuJoCo/scripts/sweep_frequency.py`) → tip amplitude, mean thrust, max |Δp|, valve active time. Compare the shape with `MuJoCo/results/s5_sweep.png`.
+   - Young's modulus ×0.5, ×1, ×2, in two variants:
+     a) quasi-static (as in stage 2): the same ΔV → pressure scales ~linearly with E, and **deflection barely changes**,
+     b) dynamic in water at 2 Hz: here E changes amplitude and phase, because it shifts the tail's resonance relative to the flapping frequency.
+   Lesson for the README: under volume control a homogeneous linear material without external loads deflects the same at any E; stiffness determines the **required pressure** (pump, valve, sealing), and affects motion only through loads (water, inertia, gravity). For contrast, one point in `valueType="pressure"` mode: the same p → deflection ~1/E.
+   - **Determined in stage 6:** in water there is no resonance (amplitude decreases with f), thrust has a maximum at ~2.25 Hz, above that the pump saturates (Q_max), the valve does not open. The scaling law with E is confirmed (README, stage 6). The sweep is computed in parallel (`fishsofa/parallel.py`): 68 min instead of ~7 h.
+7. **(Optional) PRBM export** (`export_prbm.py`) → `results/prbm.json`, keys corresponding to the fields of `MuJoCo/fishsim/config.py`:
+   - `joint_x` [m] – positions of the N = 5 joints (every `segment_length`),
+   - `stiffness` [N·m/rad] – stiffness of each joint. Determine it from **separate load cases** (chambers not actuated, a small lateral force on the fin via `ConstantForceField`): moment in the joint cross-section / relative angle of adjacent segments. Pressure actuation alone is not enough, because it does not separate the stiffnesses of the individual joints,
+   - `A_eff_r_eff` [m³] – moment on the actuated joints per unit Δp (from stages 2–3),
+   - `C_h` [m³/Pa] – chamber compliance dV/dp with the tail locked, `V0_chamber` [m³],
+   - `tendon_weights` – relative contribution of the actuated joints to the deflection from pressure.
+   Describe the method and approximations (linearity, small angle, rigid segments). Note: MuJoCo currently takes a single `stiffness_actuated` and computes passive stiffnesses from `passive_resonance_hz`, so loading `prbm.json` on the MuJoCo side is separate, future work (list it in the README, do not implement it here).
 
-## 9. Wyniki (results/)
+## 9. Results (results/)
 
-PNG + CSV: `s1_mesh_report.txt`, `s2_pv_curve.png`, `s2_tip_angle.png`, `s3_symmetry.png`, `s4_air_flapping.png`, `s5_water_vs_air.png`, `s6_freq_sweep.png`, `s6_young_sweep.png` (oba warianty a/b), opcjonalnie `prbm.json`. Zrzut ekranu z GUI ze zgiętym ogonem (jeśli da się zrobić automatycznie; jeśli nie, instrukcja w README jak go zrobić ręcznie).
+PNG + CSV: `s1_mesh_report.txt`, `s2_pv_curve.png`, `s2_tip_angle.png`, `s3_symmetry.png`, `s4_air_flapping.png`, `s5_water_vs_air.png`, `s6_freq_sweep.png`, `s6_young_sweep.png` (both variants a/b), optionally `prbm.json`. A GUI screenshot with the bent tail (if it can be done automatically; if not, instructions in the README on how to take it manually).
 
-## 10. Testy (tests/test_sanity.py, uruchamiane headless)
+## 10. Tests (tests/test_sanity.py, run headless)
 
-Testy używają grubej siatki testowej (`mesh_size_test`). Budżet: cały `pytest` < ~3 min. Uruchamianie: `source scripts/env.sh && pytest -q`.
+The tests use the coarse test mesh (`mesh_size_test`). Budget: the whole `pytest` < ~3 min. Run: `source scripts/env.sh && pytest -q`.
 
-- Siatka: brak czworościanów o objętości ≤ 0; normalne powierzchni zewnętrznej na zewnątrz; siatka lustrzana (węzły parami symetryczne względem XZ).
-- Scena się inicjalizuje i robi 100 kroków bez NaN i bez „eksplozji” (max przemieszczenie węzła < długość ogona); solver ograniczeń zbiega w każdym kroku.
-- Znak aktuacji: +ΔV w L → `pressure` > 0, `cavityVolume` rośnie, θ_tip ma znak zgodny z definicją z sekcji 5.
-- Symetria: θ_tip dla L(+ΔV) ≈ −θ_tip dla R(+ΔV), błąd < 5%.
-- Monotoniczność: na 0…`dV_max` większe ΔV → większe ugięcie i większe ciśnienie.
-- Hydraulika (jednostkowo, bez SOFA): `V_p` śledzi `V_ref`, zawór nie zmienia sumy objętości, asercja prefillu łapie zbyt małe `V_prefill`.
-- Hydraulika (w scenie): zmierzone `cavityVolume_L + cavityVolume_R` stałe w granicach tolerancji solvera.
-- Woda (jednostkowo, `water.py` na syntetycznych prędkościach): moc oporu F·v ≤ 0 na każdym trójkącie; zerowa prędkość → zerowa siła.
-- Woda (w scenie): amplituda z wodą < amplituda bez wody przy tej samej komendzie; `max(c·dt/m)` < 0.5.
-- Moduł Younga ×2 przy tym samym ΔV (quasi-statycznie, g = 0): ciśnienie ×2 (±10%), ugięcie zmienia się < 5%.
-- Moduł Younga ×2 przy tym samym ciśnieniu (`valueType="pressure"`, `value = p·dt`): ugięcie ~×0.5 (±15%).
-- Jednostki ciśnienia: ten sam stan ustalony przy `dt` i `2·dt` daje to samo ciśnienie w Pa (pilnuje dzielenia przez `dt`).
+- Mesh: no tetrahedra with volume ≤ 0; outer surface normals point outward; mirrored mesh (nodes pairwise symmetric about XZ).
+- The scene initializes and runs 100 steps without NaN and without "explosion" (max node displacement < tail length); the constraint solver converges at every step.
+- Actuation sign: +ΔV in L → `pressure` > 0, `cavityVolume` increases, θ_tip has the sign consistent with the definition in section 5.
+- Symmetry: θ_tip for L(+ΔV) ≈ −θ_tip for R(+ΔV), error < 5%.
+- Monotonicity: on 0…`dV_max` larger ΔV → larger deflection and larger pressure.
+- Hydraulics (unit, without SOFA): `V_p` tracks `V_ref`, the valve does not change the total volume, the prefill assertion catches a too small `V_prefill`.
+- Hydraulics (in the scene): measured `cavityVolume_L + cavityVolume_R` constant within the solver tolerance.
+- Water (unit, `water.py` on synthetic velocities): drag power F·v ≤ 0 on every triangle; zero velocity → zero force.
+- Water (in the scene): amplitude with water < amplitude without water for the same command; `max(c·dt/m)` < 0.5.
+- Young's modulus ×2 at the same ΔV (quasi-static, g = 0): pressure ×2 (±10%), deflection changes < 5%.
+- Young's modulus ×2 at the same pressure (`valueType="pressure"`, `value = p·dt`): deflection ~×0.5 (±15%).
+- Pressure units: the same steady state at `dt` and `2·dt` gives the same pressure in Pa (guards the division by `dt`).
 
-## 11. README – obowiązkowe sekcje
+## 11. README – mandatory sections
 
-- Jak zainstalować (dokładna wersja SOFA, wersja Pythona, skąd SoftRobots, licencja, co trzeba było doinstalować na Fedorze, `scripts/env.sh`).
-- Jak uruchomić GUI i scenariusze headless.
-- Ustalenia z etapu 0 (semantyka i znak `volumeGrowth`).
-- Co pokazuje każdy wykres, w 2–3 zdaniach dla osoby uczącej się.
-- Lekcja z etapu 6: sterowanie objętością vs ciśnieniem i rola modułu Younga.
-- Numeryka: wybrane `dt` i dlaczego (stabilność oporu, tłumienie numeryczne), stosunek czasu symulacji do rzeczywistego.
-- **Ograniczenia modelu**: brak CFD i efektów reaktywnych (o ile nie dodano masy dodanej), jawny opór wody (ograniczenie kroku), ogon przymocowany (brak swobodnego pływania), liniowy materiał korotacyjny zamiast hiperelastycznego, niezidentyfikowane parametry, brak kontaktu ścianek komór, komory bez kanałów doprowadzających.
-- Jak kalibrować: pomiar krzywej p–V i kąta ugięcia na prawdziwym ogonie (etap 2, drugi króciec otwarty), dopasowanie modułu Younga, pomiar ciągu na wadze w wannie i porównanie z etapem 5.
+- How to install (exact SOFA version, Python version, where SoftRobots comes from, license, what had to be installed additionally on Fedora, `scripts/env.sh`).
+- How to run the GUI and the headless scenarios.
+- Findings from stage 0 (semantics and sign of `volumeGrowth`).
+- What each plot shows, in 2–3 sentences for a learner.
+- Lesson from stage 6: volume vs pressure control and the role of Young's modulus.
+- Numerics: chosen `dt` and why (drag stability, numerical damping), ratio of simulation time to real time.
+- **Model limitations**: no CFD and no reactive effects (unless added mass was added), explicit water drag (time step limit), tail attached (no free swimming), linear corotational material instead of hyperelastic, unidentified parameters, no contact between chamber walls, chambers without supply channels.
+- How to calibrate: measure the p–V curve and the deflection angle on the real tail (stage 2, second port open), fit Young's modulus, measure thrust on a scale in a tub and compare with stage 5.
 
 ## 12. Definition of done
 
-- `source scripts/env.sh && pytest -q` (headless) → wszystkie testy zielone.
-- `python scripts/run_scenarios.py` → wykresy w `results/`.
-- `scripts/run_gui.sh` → widać ogon machający w GUI SOFA, z wizualizacją ciśnienia w komorach (jeśli ta wersja SoftRobots ją ma; sprawdź w etapie 0, inaczej kolorowanie komór wg ciśnienia z kontrolera).
-- README pozwala zrozumieć wyniki i ograniczenia bez czytania kodu.
+- `source scripts/env.sh && pytest -q` (headless) → all tests green.
+- `python scripts/run_scenarios.py` → plots in `results/`.
+- `scripts/run_gui.sh` → the tail is visibly flapping in the SOFA GUI, with pressure visualization in the chambers (if this SoftRobots version has it; check in stage 0, otherwise color the chambers by pressure from the controller).
+- The README makes it possible to understand the results and limitations without reading the code.

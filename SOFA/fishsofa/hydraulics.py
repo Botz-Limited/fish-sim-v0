@@ -1,17 +1,17 @@
-"""Hydraulika komór: jednostki ciśnienia (etap 2) i układ antagonistyczny L↔R (etap 4).
+"""Chamber hydraulics: pressure units (stage 2) and the antagonistic L↔R system (stage 4).
 
-Jednostki – ustalone w etapie 0 (scripts/probe_volume_growth.py): SurfacePressureConstraint
-w SOFA v26.06 podaje w polu `pressure` impuls z solvera ograniczeń λ = p·dt, a nie p.
-W trybie valueType="pressure" wejście `value` też jest w jednostkach p·dt.
-Wszystkie przeliczenia robimy TYLKO tutaj, żeby w reszcie kodu ciśnienie było w Pa.
+Units – established in stage 0 (scripts/probe_volume_growth.py): in SOFA v26.06 the
+`pressure` field of SurfacePressureConstraint holds the constraint-solver impulse λ = p·dt,
+not p. With valueType="pressure" the `value` input is also in units of p·dt.
+All conversions are done ONLY here, so that pressure is in Pa in the rest of the code.
 
-Układ antagonistyczny (etap 4, spec sekcja 6). Woda jest praktycznie nieściśliwa, więc
-pompa wymusza OBJĘTOŚĆ, a nie ciśnienie: komory dostają valueType="volumeGrowth",
-a SOFA liczy ciśnienie potrzebne do tej objętości. Reszta tego pliku to czysty numpy
-(bez SOFA), żeby dało się ją testować osobno:
-  TailRhythm     – V_ref(t) i komenda pompy (port MuJoCo/fishsim/controllers.py),
-  ClosedLoopPump – pompa I rzędu + zawór przelewowy na różnicy ciśnień,
-  TailHydraulics – prefill + rytm + pompa -> zadane przyrosty objętości obu komór.
+Antagonistic system (stage 4, spec section 6). Water is practically incompressible, so
+the pump imposes VOLUME, not pressure: the chambers get valueType="volumeGrowth",
+and SOFA computes the pressure needed for that volume. The rest of this file is pure numpy
+(no SOFA), so it can be tested on its own:
+  TailRhythm     – V_ref(t) and the pump command (port of MuJoCo/fishsim/controllers.py),
+  ClosedLoopPump – first-order pump + relief valve on the pressure difference,
+  TailHydraulics – prefill + rhythm + pump -> prescribed volume growth of both chambers.
 """
 from dataclasses import dataclass
 
@@ -19,21 +19,21 @@ import numpy as np
 
 
 def pressure_pa(spc, dt: float) -> float:
-    """Ciśnienie w komorze [Pa] z pola `pressure` komponentu SurfacePressureConstraint."""
+    """Chamber pressure [Pa] from the `pressure` field of a SurfacePressureConstraint."""
     return float(np.atleast_1d(spc.pressure.value)[0]) / dt
 
 
 def pressure_input(p_pa: float, dt: float) -> float:
-    """Wartość `value` dla valueType="pressure", odpowiadająca ciśnieniu p_pa [Pa]."""
+    """The `value` input for valueType="pressure" corresponding to pressure p_pa [Pa]."""
     return p_pa * dt
 
 
 def smooth_ramp(t: float, T: float) -> tuple[float, float, float]:
-    """Miękki start a(t) = ½(1 − cos(πt/T)) dla 0 ≤ t < T, 0 przed, 1 po.
-    Zwraca (a, da/dt, d²a/dt²).
+    """Soft start a(t) = ½(1 − cos(πt/T)) for 0 ≤ t < T, 0 before, 1 after.
+    Returns (a, da/dt, d²a/dt²).
 
-    Ciągła razem z pochodną, więc ani objętość, ani przepływ nie skaczą (skoki aktuacji
-    to znana przyczyna eksplozji symulacji ciśnieniowych)."""
+    Continuous together with its derivative, so neither volume nor flow jumps (actuation
+    jumps are a known cause of blow-ups in pressure-driven simulations)."""
     if t <= 0:
         return 0.0, 0.0, 0.0
     if T <= 0 or t >= T:
@@ -43,21 +43,21 @@ def smooth_ramp(t: float, T: float) -> tuple[float, float, float]:
 
 
 class TailRhythm:
-    """V_ref(t) = a(t)·(A_V·sin(2πft) + V_bias), komenda pompy z feed-forward + P.
+    """V_ref(t) = a(t)·(A_V·sin(2πft) + V_bias), pump command with feed-forward + P.
 
-    Dlaczego objętość, a nie sinus komendy pompy: objętość to całka z przepływu, więc
-    u = A·sin(ωt) dawałoby amplitudę objętości ∝ 1/f (przegląd częstotliwości w etapie 6
-    mieszałby dwa efekty), a składowa stała całkowałaby się bez końca.
+    Why volume rather than a sinusoidal pump command: volume is the integral of flow, so
+    u = A·sin(ωt) would give a volume amplitude ∝ 1/f (the frequency sweep in stage 6
+    would mix two effects), and a constant offset would integrate without bound.
 
     u = clip((dV_ref/dt + τ_pump·d²V_ref/dt² + K_v·(V_ref − V_p)) / Q_max, −1, 1)
-    Gdy 2πf·A_V > Q_max, pompa się nasyca (|u| = 1) i amplituda spada.
+    When 2πf·A_V > Q_max, the pump saturates (|u| = 1) and the amplitude drops.
 
-    Człon τ_pump·d²V_ref/dt² (nie ma go w MuJoCo) odwraca opóźnienie pompy I rzędu: bez
-    niego przy 2 Hz (ωτ = 0.38) pętla przeregulowuje – V_p dochodziło do 1.16·A_V
-    (19.7 ml przy A_V = 17 ml), a komora R prawie do objętości spoczynkowej. Z nim
-    błąd śledzenia ~1% A_V (test test_pump_tracks_v_ref).
-    Różnica względem MuJoCo: tu rampa a(t) mnoży też V_bias (w MuJoCo bias wchodzi
-    od razu), żeby niezerowy bias nie dał skoku objętości.
+    The τ_pump·d²V_ref/dt² term (absent in MuJoCo) inverts the first-order pump lag: without
+    it, at 2 Hz (ωτ = 0.38) the loop overshoots – V_p reached 1.16·A_V
+    (19.7 ml with A_V = 17 ml), and chamber R nearly its rest volume. With it the
+    tracking error is ~1% of A_V (test test_pump_tracks_v_ref).
+    Difference from MuJoCo: here the ramp a(t) also multiplies V_bias (in MuJoCo the bias
+    applies immediately), so that a nonzero bias does not cause a volume jump.
     """
 
     def __init__(self, cfg, freq=None, amp=None, bias=None):
@@ -67,7 +67,7 @@ class TailRhythm:
         self.bias = cfg.tail_volume_bias if bias is None else bias
 
     def v_ref(self, t: float) -> tuple[float, float, float]:
-        """(V_ref, dV_ref/dt, d²V_ref/dt²) [m³, m³/s, m³/s²]; t liczone od startu rytmu."""
+        """(V_ref, dV_ref/dt, d²V_ref/dt²) [m³, m³/s, m³/s²]; t measured from the start of the rhythm."""
         w = 2 * np.pi * self.freq
         a, da, dda = smooth_ramp(t, self.cfg.ramp_time)
         s, c = np.sin(w * t), np.cos(w * t)
@@ -84,25 +84,25 @@ class TailRhythm:
 
 
 class ClosedLoopPump:
-    """Pompa przetaczająca ciecz z R do L w układzie zamkniętym + zawór przelewowy.
+    """Pump transferring fluid from R to L in a closed circuit + relief valve.
 
-    Stany: Q – przepływ pompy [m³/s] (człon I rzędu, dQ/dt = (u·Q_max − Q)/τ_pump),
-           V_p – objętość przepompowana z R do L [m³].
-    Jawny Euler: stabilny i dokładny, bo dt ≪ τ_pump (2 ms vs 30 ms).
+    States: Q – pump flow [m³/s] (first-order lag, dQ/dt = (u·Q_max − Q)/τ_pump),
+            V_p – volume pumped from R to L [m³].
+    Explicit Euler: stable and accurate, since dt ≪ τ_pump (2 ms vs 30 ms).
 
-    Zawór przelewowy łączy komory: pompa w układzie zamkniętym pracuje przeciw
-    Δp = p_L − p_R, więc zawór patrzy na Δp, nie na ciśnienie jednej komory. Gdy
-    |Δp| > p_max, przepuszcza Q_valve = valve_conductance·(|Δp| − p_max) z komory
-    o wyższym ciśnieniu do drugiej. Suma objętości się nie zmienia – zawór zmienia
-    tylko V_p. Ciśnienie znamy dopiero po rozwiązaniu kroku SOFA, więc zawór reaguje
-    na Δp z poprzedniego kroku (opóźnienie 1 kroku).
+    The relief valve connects the chambers: in a closed circuit the pump works against
+    Δp = p_L − p_R, so the valve looks at Δp, not at the pressure of one chamber. When
+    |Δp| > p_max, it passes Q_valve = valve_conductance·(|Δp| − p_max) from the
+    higher-pressure chamber to the other. The total volume does not change – the valve
+    only changes V_p. The pressure is known only after the SOFA step is solved, so the
+    valve reacts to Δp from the previous step (1-step delay).
     """
 
     def __init__(self, cfg):
         self.cfg = cfg
         self.Q = 0.0
         self.V_p = 0.0
-        self.Q_valve = 0.0      # [m³/s], > 0 = z L do R
+        self.Q_valve = 0.0      # [m³/s], > 0 = from L to R
         self.valve_open = False
 
     def step(self, u: float, dp: float, dt: float):
@@ -125,17 +125,17 @@ class HydraulicsState:
     Q_valve: float
     valve_open: bool
     prefill: float
-    dV_L: float      # zadany przyrost objętości komory L [m³]
+    dV_L: float      # prescribed volume growth of chamber L [m³]
     dV_R: float
 
 
 class TailHydraulics:
-    """Prefill obu komór, potem rytm: ΔV_L = prefill + V_p, ΔV_R = prefill − V_p.
+    """Prefill of both chambers, then the rhythm: ΔV_L = prefill + V_p, ΔV_R = prefill − V_p.
 
-    Faza 1 (0 … prefill_time): obie komory napełniane rampą do V_prefill, pompa stoi.
-    Faza 2: rytm z własną rampą amplitudy (ramp_time), czas rytmu liczony od końca
-    prefillu. Kontakt ścianek komory nie jest modelowany, dlatego config pilnuje
-    V_prefill > |V_bias| + A_V + margines (komora nie zejdzie poniżej spoczynku).
+    Phase 1 (0 … prefill_time): both chambers ramp-filled to V_prefill, pump idle.
+    Phase 2: rhythm with its own amplitude ramp (ramp_time), rhythm time measured from the
+    end of the prefill. Chamber wall contact is not modeled, so the config enforces
+    V_prefill > |V_bias| + A_V + margin (the chamber never goes below its rest volume).
     """
 
     def __init__(self, cfg, rhythm: TailRhythm | None = None):
@@ -144,8 +144,8 @@ class TailHydraulics:
         self.pump = ClosedLoopPump(cfg)
 
     def step(self, t: float, dp: float, dt: float) -> HydraulicsState:
-        """Krok od t do t + dt. dp = p_L − p_R [Pa] z poprzedniego kroku.
-        Zwraca stan z zadanymi objętościami na koniec kroku (t + dt)."""
+        """Step from t to t + dt. dp = p_L − p_R [Pa] from the previous step.
+        Returns the state with the prescribed volumes at the end of the step (t + dt)."""
         c = self.cfg
         t_r = t - c.prefill_time
         u = self.rhythm.command(t_r, self.pump.V_p) if t_r >= 0 else 0.0

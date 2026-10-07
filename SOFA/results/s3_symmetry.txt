@@ -1,11 +1,11 @@
-Etap 3 – symetria L/R (V4, bez ciężaru, druga komora odpowietrzona)
-maksymalny błąd symetrii na 5…50 ml: |θL+θR|/|θL|, |pR−pL|/pL, |bR−bL|/|bL|
+Stage 3 – L/R symmetry (V4, no weight, the other chamber vented)
+maximum symmetry error over 5…50 ml: |θL+θR|/|θL|, |pR−pL|/pL, |bR−bL|/|bL|
 
-  coarse: θ 7.50e-01%, p 2.25e-02%, wydymanie 1.39e-01%
-  medium: θ 1.12e-01%, p 7.80e-03%, wydymanie 1.39e-02%
-  fine  : θ 3.40e-01%, p 1.18e-02%, wydymanie 1.12e-01%
+  coarse: θ 7.50e-01%, p 2.25e-02%, bulging 1.39e-01%
+  medium: θ 1.12e-01%, p 7.80e-03%, bulging 1.39e-02%
+  fine  : θ 3.40e-01%, p 1.18e-02%, bulging 1.12e-01%
 
-Kontrola CHOLMOD (etap 3) vs LDL (etap 2, results/s2_curves.csv), komora L:
-  coarse: max różnica p 2.14e-04%, θ 3.76e-04%
-  medium: max różnica p 1.46e-04%, θ 3.84e-04%
-  fine  : max różnica p 1.30e-04%, θ 6.04e-04%
+CHOLMOD check (stage 3) vs LDL (stage 2, results/s2_curves.csv), chamber L:
+  coarse: max difference p 2.14e-04%, θ 3.76e-04%
+  medium: max difference p 1.46e-04%, θ 3.84e-04%
+  fine  : max difference p 1.30e-04%, θ 6.04e-04%

@@ -1,14 +1,15 @@
-"""Etap 2: komora L quasi-statycznie – krzywa p–V i kąt końcówki, studium zbieżności siatki.
+"""Stage 2: chamber L quasi-statically – p–V curve and tip angle, mesh convergence study.
 
-Uruchomienie:  source scripts/env.sh && python scripts/run_stage2.py   (~25 min, głównie fine)
+Usage:  source scripts/env.sh && python scripts/run_stage2.py   (~25 min, mostly fine)
+        python scripts/run_stage2.py --plot-only                (only the plots from CSV)
 
-Konstrukcja V4 (kręgosłup + włókna obwodowe, domyślna w config.py). Komora L: zadany
-przyrost objętości 0…dV_max; komora R odpowietrzona (ciśnienie 0, jak drugi króciec
-otwarty na stanowisku pomiarowym); bez ciężaru (krzywa zależy tylko od konstrukcji).
-To jest krzywa, którą da się zmierzyć na prawdziwym ogonie: strzykawka/pompa
-dozująca objętość, czujnik ciśnienia, kątomierz albo zdjęcie z góry.
+Design V4 (spine + hoop fibers, the default in config.py). Chamber L: prescribed volume
+growth 0…dV_max; chamber R vented (pressure 0, like the second port left open on the
+test bench); no weight (the curve depends only on the design).
+This is a curve that can be measured on the real tail: a syringe/metering pump
+dosing the volume, a pressure sensor, a protractor or a photo from above.
 
-Wyniki w results/: s2_pv_curve.png, s2_tip_angle.png, s2_curves.csv, s2_convergence.txt.
+Results in results/: s2_pv_curve.png, s2_tip_angle.png, s2_curves.csv, s2_convergence.txt.
 """
 import csv
 import os
@@ -26,7 +27,7 @@ from fishsofa.config import TailConfig  # noqa: E402
 
 LEVELS = ["coarse", "medium", "fine"]
 RESULTS = os.path.join(PROJECT_DIR, "results")
-COLORS = {"coarse": "#2a78d6", "medium": "#eb6834", "fine": "#1baf7a"}   # paleta dataviz, stała kolejność
+COLORS = {"coarse": "#2a78d6", "medium": "#eb6834", "fine": "#1baf7a"}   # dataviz palette, fixed order
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 
 
@@ -51,10 +52,10 @@ def main():
             for a, b, t, k in zip(c.dV, c.p, c.tip_angle, c.ke_ratio):
                 w.writerow([lv, ntets[lv], f"{a * 1e6:.4f}", f"{b / 1e3:.5f}", f"{np.degrees(t):.5f}", f"{k:.2e}"])
 
-    # Zbieżność: różnica coarse i medium względem fine w punkcie dV_max i w połowie zakresu.
+    # Convergence: difference of coarse and medium vs fine at dV_max and at half the range.
     ref = curves["fine"]
-    lines = ["Etap 2 – zbieżność siatki (V4, komora L, R odpowietrzona, bez ciężaru)",
-             "różnica względem fine; ujemna = mniej niż fine", ""]
+    lines = ["Stage 2 – mesh convergence (V4, chamber L, R vented, no weight)",
+             "difference vs fine; negative = less than fine", ""]
     for k_pt in (len(ref.dV) // 2 - 1, len(ref.dV) - 1):
         lines.append(f"ΔV = {ref.dV[k_pt] * 1e6:.1f} ml: fine p = {ref.p[k_pt] / 1e3:.3f} kPa, "
                      f"θ = {np.degrees(ref.tip_angle[k_pt]):.3f}°")
@@ -62,7 +63,7 @@ def main():
             c = curves[lv]
             dp = (c.p[k_pt] / ref.p[k_pt] - 1) * 100
             dth = (c.tip_angle[k_pt] / ref.tip_angle[k_pt] - 1) * 100
-            lines.append(f"  {lv:6s} ({ntets[lv]} tetr): p {dp:+.1f}%, θ {dth:+.1f}%")
+            lines.append(f"  {lv:6s} ({ntets[lv]} tets): p {dp:+.1f}%, θ {dth:+.1f}%")
     txt = "\n".join(lines)
     print("\n" + txt)
     with open(os.path.join(RESULTS, "s2_convergence.txt"), "w") as f:
@@ -81,27 +82,27 @@ def plot(curves, ntets, cfg):
     plt.rcParams.update({"font.size": 10, "axes.edgecolor": GRID, "axes.labelcolor": INK2,
                          "xtick.color": INK2, "ytick.color": INK2, "axes.titlecolor": INK})
     for fname, ylab, fn, title in [
-            ("s2_pv_curve.png", "ciśnienie p [kPa]", lambda c: np.array(c.p) / 1e3,
-             "Krzywa ciśnienie–objętość komory L"),
-            ("s2_tip_angle.png", "kąt końcówki θ_tip [°]", lambda c: np.degrees(c.tip_angle),
-             "Kąt końcówki vs objętość (ujemny = zgięcie w −Y, w prawo)")]:
+            ("s2_pv_curve.png", "pressure p [kPa]", lambda c: np.array(c.p) / 1e3,
+             "Pressure–volume curve of chamber L"),
+            ("s2_tip_angle.png", "tip angle θ_tip [°]", lambda c: np.degrees(c.tip_angle),
+             "Tip angle vs volume (negative = bending towards −Y, to the right)")]:
         fig, ax = plt.subplots(figsize=(7.5, 4.6), constrained_layout=True)
         _style(ax)
         for lv, c in curves.items():
             ax.plot(np.r_[0, np.array(c.dV) * 1e6], np.r_[0, fn(c)], color=COLORS[lv], linewidth=2,
-                    marker="o", markersize=5, label=f"{lv} ({ntets[lv] // 1000}k tetr)")
-        ax.set_xlabel("przyrost objętości komory L, ΔV [ml]")
+                    marker="o", markersize=5, label=f"{lv} ({ntets[lv] // 1000}k tets)")
+        ax.set_xlabel("chamber L volume growth, ΔV [ml]")
         ax.set_ylabel(ylab)
         fig.suptitle(title, x=0.01, ha="left", color=INK, fontsize=12)
-        ax.set_title(f"V4: kręgosłup E×{cfg.spine_E_factor:.0f} + włókna obwodowe; E = {cfg.young_modulus:.0e} Pa "
-                     "(PLACEHOLDER); komora R odpowietrzona; bez ciężaru", loc="left", color=INK2, fontsize=8)
+        ax.set_title(f"V4: spine E×{cfg.spine_E_factor:.0f} + hoop fibers; E = {cfg.young_modulus:.0e} Pa "
+                     "(PLACEHOLDER); chamber R vented; no weight", loc="left", color=INK2, fontsize=8)
         ax.legend(frameon=False, labelcolor=INK)
         fig.savefig(os.path.join(RESULTS, fname), dpi=150, facecolor="white")
         plt.close(fig)
 
 
 def plot_from_csv():
-    """Przerysowanie wykresów z results/s2_curves.csv bez ponownego liczenia."""
+    """Redraw the plots from results/s2_curves.csv without recomputing."""
     from types import SimpleNamespace
     curves, ntets = {}, {}
     with open(os.path.join(RESULTS, "s2_curves.csv")) as f:

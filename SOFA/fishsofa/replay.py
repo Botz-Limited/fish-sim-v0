@@ -1,13 +1,13 @@
-"""Odtwarzanie nagrania (scripts/record.py) w GUI SOFA, w czasie rzeczywistym.
+"""Real-time playback of a recording (scripts/record.py) in the SOFA GUI.
 
-Scena bez fizyki: tylko modele wizualne skóry i komór. Kontroler w każdej klatce GUI
-liczy, która klatka nagrania odpowiada upływowi czasu na zegarze ściennym, i podmienia
-pozycje wierzchołków. Dzięki temu tempo nie zależy od tego, jak szybko GUI rysuje:
-1 s nagrania trwa 1 s (albo 1/speed s, np. speed = 0.25 to zwolnione tempo).
-Nagranie odtwarza się w pętli.
+A scene without physics: only visual models of the skin and chambers. Each GUI frame the
+controller computes which recording frame matches the elapsed wall-clock time and swaps
+in the vertex positions. So the playback speed does not depend on how fast the GUI draws:
+1 s of recording lasts 1 s (or 1/speed s, e.g. speed = 0.25 is slow motion).
+The recording plays in a loop.
 
-Komory są kolorowane ciśnieniem z nagrania (niebieski = najniższe w fazie rytmu,
-czerwony = najwyższe), skóra jest półprzezroczysta, żeby było je widać.
+Chambers are colored by the recorded pressure (blue = lowest in the rhythm phase,
+red = highest); the skin is semi-transparent so they are visible.
 """
 import time
 
@@ -18,7 +18,7 @@ SKIN = [0.95, 0.70, 0.30, 0.35]
 
 
 def _colormap(s: float) -> list:
-    """0 -> niebieski, 1 -> czerwony (przez jasną szarość), RGBA."""
+    """0 -> blue, 1 -> red (via light gray), RGBA."""
     s = float(np.clip(s, 0.0, 1.0))
     lo, mid, hi = np.array([0.16, 0.47, 0.84]), np.array([0.85, 0.85, 0.85]), np.array([0.92, 0.25, 0.15])
     c = lo + (mid - lo) * s * 2 if s < 0.5 else mid + (hi - mid) * (s - 0.5) * 2
@@ -39,12 +39,12 @@ def build(root, path: str, speed: float = 1.0):
     for name, key, color in (("skin", "tri_outer", SKIN), ("chamberL", "tri_chamber_L", _colormap(0.5)),
                              ("chamberR", "tri_chamber_R", _colormap(0.5))):
         tris = rec[key]
-        used = np.unique(tris)          # tylko wierzchołki tej powierzchni (mniej danych na klatkę)
+        used = np.unique(tris)          # only this surface's vertices (less data per frame)
         remap = np.full(len(x0), -1)
         remap[used] = np.arange(len(used))
-        # Pozycje w MechanicalObject, a OglModel dostaje je przez IdentityMapping.
-        # Bezpośredni zapis do OglModel.position nie odświeża geometrii na ekranie
-        # (kolor tak, kształt nie); mapowania SOFA aktualizuje w każdym kroku.
+        # Positions live in a MechanicalObject, and OglModel gets them via IdentityMapping.
+        # Writing directly to OglModel.position does not refresh the on-screen geometry
+        # (color does, shape does not); SOFA updates mappings every step.
         node = root.addChild(name)
         dofs = node.addObject("MechanicalObject", name="dofs", template="Vec3d", position=x0[used].tolist())
         ogl = node.addObject("OglModel", name="ogl", position=x0[used].tolist(),
@@ -60,17 +60,18 @@ class ReplayController(Sofa.Core.Controller):
         super().__init__(*args, **kwargs)
         self.t, self.x, self.models, self.speed = rec["t"], rec["x"], models, speed
         p_L, p_R, t_log = rec["log_p_L"], rec["log_p_R"], rec["log_t"]
-        # Ciśnienie w chwilach klatek (log ma krok dt, klatki co 1/60 s).
+        # Pressure at frame instants (the log has step dt, frames every 1/60 s).
         self.p = {"chamberL": np.interp(self.t, t_log, p_L), "chamberR": np.interp(self.t, t_log, p_R)}
-        # Skala z fazy rytmu (po prefillu): ruch steruje różnica ±6 kPa na tle ciśnienia
-        # wspólnego ~53 kPa; skala od 0 by ją ukryła. W prefillu kolor jest poza skalą.
+        # Scale from the rhythm phase (after prefill): motion is driven by a ±6 kPa difference
+        # on top of a ~53 kPa common pressure; a scale from 0 would hide it. During prefill the
+        # color is out of scale.
         m = self.t > float(rec["prefill_time"]) + 0.2
         lo = min(self.p["chamberL"][m].min(), self.p["chamberR"][m].min())
         hi = max(self.p["chamberL"][m].max(), self.p["chamberR"][m].max())
         self.p_range = (lo, max(hi, lo + 1.0))
         self.start = None
         self.last = -1
-        print(f"Odtwarzanie: {rec['env']}, {len(self.t)} klatek, {self.t[-1]:.2f} s nagrania, tempo ×{speed:g}")
+        print(f"Replay: {rec['env']}, {len(self.t)} frames, {self.t[-1]:.2f} s of recording, speed ×{speed:g}")
 
     def onAnimateBeginEvent(self, event):
         now = time.perf_counter()
@@ -91,6 +92,6 @@ class ReplayController(Sofa.Core.Controller):
 
 
 def _material(rgba) -> str:
-    """Materiał OglModel (format SOFA) o kolorze rozproszonym rgba."""
+    """OglModel material (SOFA format) with diffuse color rgba."""
     c = " ".join(f"{v:.3f}" for v in rgba)
     return f"Default Diffuse 1 {c} Ambient 1 {c} Specular 0 1 1 1 1 Emissive 0 0 0 0 0 Shininess 0 45"

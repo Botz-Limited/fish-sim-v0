@@ -1,12 +1,12 @@
-"""Geometria oplotu obwodowego: pierścienie punktów połączonych sprężynami.
+"""Geometry of the hoop-fiber wrap: rings of points connected by springs.
 
-Pierścień w przekroju x to elipsa ogona pomniejszona o fiber_inset (punkty muszą leżeć
-wewnątrz czworościanów, żeby BarycentricMapping mógł je „przykleić” do FEM).
-Pierścienie stoją co fiber_ring_spacing na długości komór (tam ścianka się wydyma).
+The ring at cross-section x is the tail ellipse shrunk by fiber_inset (the points must lie
+inside tetrahedra so that BarycentricMapping can "glue" them to the FEM).
+Rings are placed every fiber_ring_spacing along the chambers (where the wall bulges).
 
-Sztywność: oplot to membrana o sztywności obwodowej K = E_włókna·grubość [N/m]. Pasek
-membrany o szerokości w (= odstęp pierścieni) i długości l (= odcinek pierścienia) ma
-sztywność k = K·w/l – i taką dostaje każda sprężyna.
+Stiffness: the wrap is a membrane with hoop stiffness K = E_fiber·thickness [N/m]. A strip
+of membrane of width w (= ring spacing) and length l (= ring segment) has
+stiffness k = K·w/l – and that is what each spring gets.
 """
 from dataclasses import dataclass
 
@@ -18,8 +18,8 @@ from fishsofa.config import TailConfig
 @dataclass
 class Rings:
     points: np.ndarray     # (P, 3) [m]
-    springs: np.ndarray    # (S, 2) indeksy punktów
-    lengths: np.ndarray    # (S,) długość spoczynkowa [m]
+    springs: np.ndarray    # (S, 2) point indices
+    lengths: np.ndarray    # (S,) rest length [m]
     stiffness: np.ndarray  # (S,) [N/m]
     n_rings: int
 
@@ -36,7 +36,7 @@ def hoop_rings(cfg: TailConfig) -> Rings:
         ry, rz = cfg.ry0 * s - cfg.fiber_inset, cfg.rz0 * s - cfg.fiber_inset
         pts.append(np.column_stack([np.full(n, x), ry * np.cos(phi), rz * np.sin(phi)]))
         i = r * n + np.arange(n)
-        springs.append(np.column_stack([i, np.roll(i, -1)]))  # zamknięty pierścień
+        springs.append(np.column_stack([i, np.roll(i, -1)]))  # closed ring
     pts = np.vstack(pts)
     springs = np.vstack(springs)
     lengths = np.linalg.norm(pts[springs[:, 1]] - pts[springs[:, 0]], axis=1)

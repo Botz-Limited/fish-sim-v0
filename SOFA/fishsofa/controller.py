@@ -1,12 +1,12 @@
-"""Kontroler SOFA hydrauliki antagonistycznej (etap 4): pompa L↔R steruje objętościami komór.
+"""SOFA controller for the antagonistic hydraulics (stage 4): the L↔R pump drives chamber volumes.
 
-W każdym kroku (onAnimateBeginEvent, czyli PRZED rozwiązaniem kroku):
-  1. odczyt p_L, p_R z poprzedniego kroku (hydraulics.pressure_pa),
-  2. krok modelu pompy (hydraulics.TailHydraulics) -> zadane ΔV_L, ΔV_R na koniec kroku,
-  3. ustawienie `value` obu SurfacePressureConstraint (volumeGrowth),
-  4. zapis wiersza logu.
-Wiersz logu dotyczy stanu na początku kroku: pozycje, ciśnienia i zmierzone objętości
-to wynik poprzedniego kroku (cavityVolume SOFA i tak liczy przed rozwiązaniem kroku).
+Every step (onAnimateBeginEvent, i.e. BEFORE the step is solved):
+  1. read p_L, p_R from the previous step (hydraulics.pressure_pa),
+  2. step the pump model (hydraulics.TailHydraulics) -> prescribed ΔV_L, ΔV_R at step end,
+  3. set `value` of both SurfacePressureConstraints (volumeGrowth),
+  4. write a log row.
+A log row describes the state at the start of the step: positions, pressures and measured
+volumes are the previous step's result (SOFA computes cavityVolume before solving anyway).
 """
 import numpy as np
 import Sofa.Core
@@ -32,7 +32,7 @@ class FlapController(Sofa.Core.Controller):
         dt = self.root.dt.value
         t = self.root.time.value
         x = np.array(self.dofs.position.value)
-        if self.base is None:   # pierwszy krok: stan spoczynkowy
+        if self.base is None:   # first step: rest state
             self.base = geometry.base_center(x, self.mesh.base_nodes)
         p_L = hydraulics.pressure_pa(self.spc_L, dt)
         p_R = hydraulics.pressure_pa(self.spc_R, dt)
@@ -59,15 +59,16 @@ WATER_LOG_KEYS = ("t", "F_x", "F_y", "F_z", "drag_power", "stability")
 
 
 class WaterDragController(Sofa.Core.Controller):
-    """Opór wody (etap 5): co krok liczy siły oporu z prędkości węzłów i wpisuje je
-    do ConstantForceField "water" na skórze ogona.
+    """Water drag (stage 5): every step computes drag forces from node velocities and
+    writes them into the ConstantForceField "water" on the tail skin.
 
-    Liczone na początku kroku z pozycji i prędkości z końca poprzedniego kroku, czyli
-    JAWNIE: w rozwiązywanym kroku siła jest stała. To proste, ale ogranicza krok czasu
-    (water.stability_ratio, spec sekcja 7) – stosunek c·dt/m jest logowany co krok.
+    Computed at the start of the step from positions and velocities at the end of the
+    previous step, i.e. EXPLICITLY: the force is constant within the solved step. Simple,
+    but it limits the time step (water.stability_ratio, spec section 7) – the ratio
+    c·dt/m is logged every step.
 
-    Log: F = wypadkowa siła wody NA OGON [N] (F_x > 0 pcha ogon, a przez mocowanie
-    całą rybę, do przodu = ciąg), moc oporu [W], max(c·dt/m).
+    Log: F = net water force ON THE TAIL [N] (F_x > 0 pushes the tail, and through the
+    fixation the whole fish, forward = thrust), drag power [W], max(c·dt/m).
     """
 
     def __init__(self, *args, root, handles, force_field, cfg, **kwargs):
@@ -94,6 +95,6 @@ class WaterDragController(Sofa.Core.Controller):
 
 
 def _data(obj, name):
-    """Pole komponentu albo NaN, gdy ta wersja SOFA go nie ma."""
+    """Component data field, or NaN if this SOFA version does not have it."""
     d = obj.findData(name) if obj is not None else None
     return float(d.value) if d is not None else float("nan")

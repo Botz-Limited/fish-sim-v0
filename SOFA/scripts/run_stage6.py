@@ -1,23 +1,24 @@
-"""Etap 6: przeglądy – częstotliwość machania i moduł Younga.
+"""Stage 6: sweeps – flapping frequency and Young's modulus.
 
-Uruchomienie:  source scripts/env.sh && python scripts/run_stage6.py   (~1 h, do 10 symulacji naraz)
-               python scripts/run_stage6.py --plot-only                (tylko wykresy z CSV)
+Usage:  source scripts/env.sh && python scripts/run_stage6.py   (~1 h, up to 10 simulations at once)
+        python scripts/run_stage6.py --plot-only                (only the plots from CSV)
 
-Każdy punkt to osobna symulacja (siatka coarse), wszystkie liczone równolegle
-(fishsofa/parallel.py, jedna symulacja = jeden rdzeń):
+Each point is a separate simulation (coarse mesh), all run in parallel
+(fishsofa/parallel.py, one simulation = one core):
 
-1. Częstotliwość 0.5–3 Hz co 0.25 Hz (te same punkty co MuJoCo/scripts/sweep_frequency.py),
-   w wodzie. Protokół (spec, etap 6): prefill 1 s, potem 2 cykle rozbiegu (pierwszy to rampa
-   amplitudy) i 3 cykle uśredniania. Krok: dt = 1 ms do 2 Hz, wyżej 1 ms·2/f, bo prędkość
-   płetwy rośnie z f, a z nią max(c·dt/m) jawnego oporu (etap 5).
-2. Moduł Younga silikonu ×0.5, ×1, ×2:
-   a) quasi-statycznie, sterowanie objętością (jak etap 2: komora L, R odpowietrzona, g = 0),
-   b) dla kontrastu quasi-statycznie, sterowanie CIŚNIENIEM (valueType="pressure"),
-   c) dynamicznie w wodzie przy 2 Hz (×1 to punkt 2 Hz z przeglądu częstotliwości).
-   Zmieniamy tylko silikon (z kręgosłupem, bo ten jest E×20 silikonu); włókna obwodowe to
-   inny materiał i ich sztywność zostaje – stąd małe odstępstwa od idealnego skalowania.
+1. Frequency 0.5–3 Hz in 0.25 Hz steps (the same points as MuJoCo/scripts/sweep_frequency.py),
+   in water. Protocol (spec, stage 6): 1 s prefill, then 2 run-in cycles (the first is the
+   amplitude ramp) and 3 averaging cycles. Step: dt = 1 ms up to 2 Hz, above that 1 ms·2/f,
+   because the fin velocity grows with f, and with it max(c·dt/m) of the explicit drag (stage 5).
+2. Silicone Young's modulus ×0.5, ×1, ×2:
+   a) quasi-static, volume control (as stage 2: chamber L, R vented, g = 0),
+   b) for contrast, quasi-static PRESSURE control (valueType="pressure"),
+   c) dynamic in water at 2 Hz (×1 is the 2 Hz point of the frequency sweep).
+   Only the silicone changes (including the spine, since it is E×20 of the silicone); the hoop
+   fibers are a different material and keep their stiffness – hence small deviations from
+   ideal scaling.
 
-Wyniki w results/: s6_freq_sweep.png/.csv, s6_young_sweep.png/.csv, s6_summary.txt.
+Results in results/: s6_freq_sweep.png/.csv, s6_young_sweep.png/.csv, s6_summary.txt.
 """
 import csv
 import os
@@ -39,12 +40,12 @@ LEVEL = "coarse"
 RESULTS = os.path.join(PROJECT_DIR, "results")
 MUJOCO_SWEEP = os.path.join(os.path.dirname(PROJECT_DIR), "MuJoCo", "results", "s5_sweep.csv")
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
-BLUE, ORANGE, GREEN = "#2a78d6", "#eb6834", "#1baf7a"   # paleta dataviz, stała kolejność
+BLUE, ORANGE, GREEN = "#2a78d6", "#eb6834", "#1baf7a"   # dataviz palette, fixed order
 FREQS = [round(f, 2) for f in np.arange(0.5, 3.0 + 1e-9, 0.25)]
 E_FACTORS = (0.5, 1.0, 2.0)
-QS_VOLUMES = [10e-6, 20e-6, 30e-6, 40e-6]   # [m³] tryb objętościowy
-QS_PRESSURES = [2e3, 4e3, 6e3, 8e3]          # [Pa] tryb ciśnieniowy
-N_WARMUP, N_AVG = 2, 3                      # cykle rozbiegu (w tym rampa) i uśredniania
+QS_VOLUMES = [10e-6, 20e-6, 30e-6, 40e-6]   # [m³] volume mode
+QS_PRESSURES = [2e3, 4e3, 6e3, 8e3]          # [Pa] pressure mode
+N_WARMUP, N_AVG = 2, 3                      # run-in cycles (incl. ramp) and averaging cycles
 FREQ_COLS = ("f", "dt_ms", "amp_deg", "phase_deg", "thrust_mN", "dp_max_kPa", "valve_frac", "pump_sat_frac",
              "stability_max", "ms_per_step")
 
@@ -67,7 +68,7 @@ def qs_cfg(e_factor: float) -> TailConfig:
 def main():
     os.makedirs(RESULTS, exist_ok=True)
     jobs = {}
-    # Najdłuższe symulacje najpierw (niskie f), żeby procesy kończyły się mniej więcej razem.
+    # Longest simulations first (low f), so that the processes finish at about the same time.
     for f in FREQS:
         cfg = flap_cfg(f)
         jobs[("freq", f)] = (headless.run_flapping, dict(cfg=cfg, level=LEVEL, t_end=flap_t_end(cfg)))
@@ -80,7 +81,7 @@ def main():
         jobs[("young_qs_pressure", k)] = (headless.quasi_static_sweep,
                                           dict(cfg=qs_cfg(k), level=LEVEL, dV_targets=QS_PRESSURES, mode="pressure"))
     t0 = time.perf_counter()
-    res = parallel.run_all(_call, {k: dict(fn=fn, kw=kw) for k, (fn, kw) in jobs.items()}, label="Etap 6: ")
+    res = parallel.run_all(_call, {k: dict(fn=fn, kw=kw) for k, (fn, kw) in jobs.items()}, label="Stage 6: ")
     wall_min = (time.perf_counter() - t0) / 60
 
     freq_rows = [freq_metrics(f, res[("freq", f)]) for f in FREQS]
@@ -109,13 +110,13 @@ def main():
 
 
 def _call(fn, kw):
-    """Wywołanie w procesie roboczym (parallel.run_all przekazuje kwargs)."""
+    """Call in a worker process (parallel.run_all passes kwargs)."""
     return fn(**kw)
 
 
 def freq_metrics(f: float, r) -> dict:
-    """Metryki z N_AVG ostatnich cykli: amplituda kąta, ciąg (średnie F_x), max |Δp|,
-    udział czasu z otwartym zaworem i z nasyconą pompą (|u| = 1)."""
+    """Metrics over the last N_AVG cycles: angle amplitude, thrust (mean F_x), max |Δp|,
+    fraction of time with the valve open and with the pump saturated (|u| = 1)."""
     L, cfg = r.log, flap_cfg(f)
     T = 1.0 / f
     t1 = L["t"][-1] + r.dt
@@ -151,18 +152,18 @@ def _read_csv(name):
 
 
 def summary(freq_rows, young_rows, wall_min=np.nan, cpu_min=np.nan) -> str:
-    lines = ["Etap 6 – przeglądy (coarse, V4, woda dla dynamiki)",
-             f"czas obliczeń całego przeglądu: {wall_min:.0f} min (zegar), symulacje dynamiczne razem "
-             f"{cpu_min:.0f} min CPU – równolegle {cpu_min / wall_min:.1f}× szybciej niż po kolei", "",
-             "a) częstotliwość (A_V = 17 ml, 2 cykle rozbiegu + 3 uśredniania):",
-             "   f [Hz]  dt [ms]  amplituda [°]  faza [°]  ciąg [mN]  |Δp| max [kPa]  zawór [%]  pompa nasycona [%]  max(c·dt/m)"]
+    lines = ["Stage 6 – sweeps (coarse, V4, water for dynamics)",
+             f"compute time of the whole sweep: {wall_min:.0f} min (wall clock), dynamic simulations total "
+             f"{cpu_min:.0f} min CPU – in parallel {cpu_min / wall_min:.1f}× faster than sequentially", "",
+             "a) frequency (A_V = 17 ml, 2 run-in cycles + 3 averaging cycles):",
+             "   f [Hz]  dt [ms]  amplitude [°]  phase [°]  thrust [mN]  |Δp| max [kPa]  valve [%]  pump saturated [%]  max(c·dt/m)"]
     for r in freq_rows:
         lines.append(f"   {r['f']:5.2f}  {r['dt_ms']:6.3f}  {r['amp_deg']:12.2f}  {r['phase_deg']:8.1f}  {r['thrust_mN']:9.2f}"
                      f"  {r['dp_max_kPa']:14.1f}  {100 * r['valve_frac']:9.1f}  {100 * r['pump_sat_frac']:18.1f}"
                      f"  {r['stability_max']:11.3f}")
-    lines += ["", "b) moduł Younga silikonu (×0.5 / ×1 / ×2):"]
-    for variant, desc in (("qs_volume", "quasi-statycznie, sterowanie objętością (komora L, g = 0)"),
-                          ("qs_pressure", "quasi-statycznie, sterowanie ciśnieniem")):
+    lines += ["", "b) silicone Young's modulus (×0.5 / ×1 / ×2):"]
+    for variant, desc in (("qs_volume", "quasi-static, volume control (chamber L, g = 0)"),
+                          ("qs_pressure", "quasi-static, pressure control")):
         lines.append(f"   {desc}:")
         rows = [r for r in young_rows if r["variant"] == variant]
         for t in sorted({r["target"] for r in rows}):
@@ -171,8 +172,8 @@ def summary(freq_rows, young_rows, wall_min=np.nan, cpu_min=np.nan) -> str:
             lines.append(f"     {lab}: " + "; ".join(
                 f"E×{k:g}: p {rr[k]['p_kPa']:.2f} kPa, θ {rr[k]['theta_deg']:+.2f}°, ΔV {rr[k]['dV_ml']:.1f} ml"
                 for k in E_FACTORS if k in rr))
-    lines.append("   dynamicznie w wodzie, 2 Hz: " + "; ".join(
-        f"E×{r['E_factor']:g}: ±{r['theta_deg']:.2f}°, faza {r['phase_deg']:.0f}°, |Δp| max {r['p_kPa']:.1f} kPa"
+    lines.append("   dynamic in water, 2 Hz: " + "; ".join(
+        f"E×{r['E_factor']:g}: ±{r['theta_deg']:.2f}°, phase {r['phase_deg']:.0f}°, |Δp| max {r['p_kPa']:.1f} kPa"
         for r in young_rows if r["variant"] == "dyn_water_2Hz"))
     return "\n".join(lines)
 
@@ -196,36 +197,36 @@ def plot_freq(rows):
     fig, axes = plt.subplots(2, 2, figsize=(11, 7.5), constrained_layout=True)
     for ax in axes.flat:
         _style(ax)
-        ax.set_xlabel("częstotliwość f [Hz]")
+        ax.set_xlabel("frequency f [Hz]")
     a, b, c, d = axes.flat
-    a.plot(f, get("amp_deg"), "o-", color=BLUE, linewidth=2, label="SOFA: amplituda θ (woda)")
+    a.plot(f, get("amp_deg"), "o-", color=BLUE, linewidth=2, label="SOFA: θ amplitude (water)")
     if os.path.exists(MUJOCO_SWEEP):
         mj = np.genfromtxt(MUJOCO_SWEEP, delimiter=",", names=True)
         scale = get("amp_deg").max() / mj["amp_fin"].max()
         a.plot(mj["f"], mj["amp_fin"] * scale, "s--", color=INK2, linewidth=1.2, markersize=4,
-               label=f"MuJoCo: amp_fin × {scale:.2f} (tylko kształt)")
-    a.set_ylabel("amplituda kąta końcówki [°]")
-    a.set_title("Amplituda (ta sama amplituda objętości A_V)", loc="left", fontsize=10)
+               label=f"MuJoCo: amp_fin × {scale:.2f} (shape only)")
+    a.set_ylabel("tip angle amplitude [°]")
+    a.set_title("Amplitude (same volume amplitude A_V)", loc="left", fontsize=10)
     a.legend(frameon=False, labelcolor=INK, fontsize=9)
 
     b.plot(f, get("thrust_mN"), "o-", color=GREEN, linewidth=2)
     b.axhline(0, color=INK2, linewidth=0.8)
-    b.set_ylabel("ciąg na uwięzi [mN]")
-    b.set_title("Średni ciąg (model oporu – tylko jakościowo)", loc="left", fontsize=10)
+    b.set_ylabel("tethered thrust [mN]")
+    b.set_title("Mean thrust (drag model – qualitative only)", loc="left", fontsize=10)
 
     c.plot(f, get("dp_max_kPa"), "o-", color=ORANGE, linewidth=2)
     c.axhline(TailConfig().p_max / 1e3, color=INK2, linewidth=1, linestyle="--")
-    c.text(f[0], TailConfig().p_max / 1e3, " p_max zaworu", color=INK2, va="bottom", fontsize=9)
+    c.text(f[0], TailConfig().p_max / 1e3, " valve p_max", color=INK2, va="bottom", fontsize=9)
     c.set_ylabel("max |Δp| [kPa]")
-    c.set_title("Różnica ciśnień między komorami", loc="left", fontsize=10)
+    c.set_title("Pressure difference between the chambers", loc="left", fontsize=10)
 
-    d.plot(f, 100 * get("valve_frac"), "o-", color=ORANGE, linewidth=2, label="zawór otwarty")
-    d.plot(f, 100 * get("pump_sat_frac"), "o-", color=BLUE, linewidth=2, label="pompa nasycona |u| = 1")
-    d.set_ylabel("udział czasu [%]")
-    d.set_title("Ograniczenia hydrauliki", loc="left", fontsize=10)
+    d.plot(f, 100 * get("valve_frac"), "o-", color=ORANGE, linewidth=2, label="valve open")
+    d.plot(f, 100 * get("pump_sat_frac"), "o-", color=BLUE, linewidth=2, label="pump saturated |u| = 1")
+    d.set_ylabel("fraction of time [%]")
+    d.set_title("Hydraulic limits", loc="left", fontsize=10)
     d.legend(frameon=False, labelcolor=INK, fontsize=9)
-    fig.suptitle("Etap 6a – przegląd częstotliwości w wodzie (siatka coarse, V4, A_V = 17 ml, Q_max = 250 ml/s, "
-                 "parametry PLACEHOLDER)", x=0.01, ha="left", color=INK, fontsize=11)
+    fig.suptitle("Stage 6a – frequency sweep in water (coarse mesh, V4, A_V = 17 ml, Q_max = 250 ml/s, "
+                 "parameters PLACEHOLDER)", x=0.01, ha="left", color=INK, fontsize=11)
     fig.savefig(os.path.join(RESULTS, "s6_freq_sweep.png"), dpi=150, facecolor="white")
     plt.close(fig)
 
@@ -240,31 +241,31 @@ def plot_young(rows):
     for k in E_FACTORS:
         v = [r for r in rows if r["variant"] == "qs_volume" and r["E_factor"] == k]
         a.plot([r["dV_ml"] for r in v], [r["p_kPa"] for r in v], "o-", color=colors[k], linewidth=2,
-               label=f"E×{k:g}: ciśnienie [kPa]")
+               label=f"E×{k:g}: pressure [kPa]")
         a.plot([r["dV_ml"] for r in v], [-r["theta_deg"] for r in v], "s--", color=colors[k], linewidth=1.2,
                markersize=4, label=f"E×{k:g}: |θ| [°]")
         p = [r for r in rows if r["variant"] == "qs_pressure" and r["E_factor"] == k]
         b.plot([r["p_kPa"] for r in p], [-r["theta_deg"] for r in p], "o-", color=colors[k], linewidth=2,
                label=f"E×{k:g}")
-    a.set_xlabel("wtłoczona objętość ΔV [ml]")
-    a.set_ylabel("ciśnienie [kPa]  /  |θ| [°]")
-    a.set_title("a) Sterowanie objętością: kąt prawie ten sam,\nciśnienie ~ E", loc="left", fontsize=10)
+    a.set_xlabel("injected volume ΔV [ml]")
+    a.set_ylabel("pressure [kPa]  /  |θ| [°]")
+    a.set_title("a) Volume control: angle almost the same,\npressure ~ E", loc="left", fontsize=10)
     a.legend(frameon=False, labelcolor=INK, fontsize=8, ncol=2)
-    b.set_xlabel("zadane ciśnienie p [kPa]")
+    b.set_xlabel("prescribed pressure p [kPa]")
     b.set_ylabel("|θ| [°]")
-    b.set_title("b) Sterowanie ciśnieniem: kąt ~ 1/E", loc="left", fontsize=10)
+    b.set_title("b) Pressure control: angle ~ 1/E", loc="left", fontsize=10)
     b.legend(frameon=False, labelcolor=INK, fontsize=9)
     d = sorted((r for r in rows if r["variant"] == "dyn_water_2Hz"), key=lambda r: r["E_factor"])
     x = np.arange(len(d))
-    c.bar(x - 0.2, [r["theta_deg"] for r in d], 0.4, color=BLUE, label="amplituda θ [°]")
+    c.bar(x - 0.2, [r["theta_deg"] for r in d], 0.4, color=BLUE, label="θ amplitude [°]")
     c2 = c.twinx()
-    c2.bar(x + 0.2, [r["phase_deg"] for r in d], 0.4, color=ORANGE, label="opóźnienie fazy [°]")
+    c2.bar(x + 0.2, [r["phase_deg"] for r in d], 0.4, color=ORANGE, label="phase lag [°]")
     c2.spines["top"].set_visible(False)
     c.set_xticks(x, [f"E×{r['E_factor']:g}" for r in d])
-    c.set_ylabel("amplituda θ [°]", color=BLUE)
-    c2.set_ylabel("opóźnienie fazy względem −V_ref [°]", color=ORANGE)
-    c.set_title("c) Dynamicznie w wodzie, 2 Hz: E zmienia\namplitudę i fazę (rezonans ogona)", loc="left", fontsize=10)
-    fig.suptitle("Etap 6b – moduł Younga silikonu ×0.5 / ×1 / ×2 (siatka coarse, V4; włókna obwodowe bez zmian)",
+    c.set_ylabel("θ amplitude [°]", color=BLUE)
+    c2.set_ylabel("phase lag relative to −V_ref [°]", color=ORANGE)
+    c.set_title("c) Dynamic in water, 2 Hz: E changes\namplitude and phase (tail resonance)", loc="left", fontsize=10)
+    fig.suptitle("Stage 6b – silicone Young's modulus ×0.5 / ×1 / ×2 (coarse mesh, V4; hoop fibers unchanged)",
                  x=0.01, ha="left", color=INK, fontsize=11)
     fig.savefig(os.path.join(RESULTS, "s6_young_sweep.png"), dpi=150, facecolor="white")
     plt.close(fig)

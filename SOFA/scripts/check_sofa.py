@@ -1,13 +1,13 @@
-"""Etap 0: sprawdzenie instalacji SOFA i faktycznych nazw komponentów.
+"""Stage 0: check the SOFA installation and the actual component names.
 
-Uruchomienie:  source SOFA/scripts/env.sh && python SOFA/scripts/check_sofa.py
+Usage:  source SOFA/scripts/env.sh && python SOFA/scripts/check_sofa.py
 
-Po co: API SOFA zmienia się między wersjami (np. GenericConstraintSolver został
-zastąpiony przez BlockGaussSeidelConstraintSolver i inne, FixedConstraint przez
-FixedProjectiveConstraint). Zamiast zgadywać, próbujemy utworzyć każdy komponent
-w małej scenie i wypisujemy, która nazwa istnieje w fabryce obiektów tej wersji.
+Why: the SOFA API changes between versions (e.g. GenericConstraintSolver was replaced
+by BlockGaussSeidelConstraintSolver and others, FixedConstraint by
+FixedProjectiveConstraint). Instead of guessing, we try to create each component
+in a small scene and print which name exists in this version's object factory.
 
-Kod wyjścia 0 = każdy wymagany komponent ma co najmniej jedną działającą nazwę.
+Exit code 0 = every required component has at least one working name.
 """
 import os
 import sys
@@ -17,41 +17,41 @@ import Sofa.Core
 import Sofa.Simulation
 import SofaRuntime
 
-# Rola w scenie ogona (sekcja 5 specu) -> nazwy do sprawdzenia, w kolejności preferencji,
-# oraz węzeł, w którym komponent tworzymy (część potrzebuje MechanicalObject w kontekście,
-# żeby SOFA mogła wydedukować szablon, np. Vec3d).
+# Role in the tail scene (spec section 5) -> names to check, in order of preference,
+# plus the node in which the component is created (some need a MechanicalObject in the
+# context so that SOFA can deduce the template, e.g. Vec3d).
 CANDIDATES = [
-    # (rola, wymagany?, węzeł, [nazwy])
-    ("pętla animacji z ograniczeniami", True, "root", ["FreeMotionAnimationLoop"]),
-    ("solver ograniczeń Lagrange'a", True, "root",
+    # (role, required?, node, [names])
+    ("constrained animation loop", True, "root", ["FreeMotionAnimationLoop"]),
+    ("Lagrange constraint solver", True, "root",
      ["BlockGaussSeidelConstraintSolver", "GenericConstraintSolver",
       "NNCGConstraintSolver", "ProjectedGaussSeidelConstraintSolver"]),
-    ("integrator niejawny", True, "fem", ["EulerImplicitSolver"]),
-    ("solver statyczny (opcja dla etapu 2)", False, "fem", ["StaticSolver"]),
-    ("bezpośredni solver liniowy", True, "fem", ["SparseLDLSolver"]),
-    ("korekcja ograniczeń", True, "fem",
+    ("implicit integrator", True, "fem", ["EulerImplicitSolver"]),
+    ("static solver (option for stage 2)", False, "fem", ["StaticSolver"]),
+    ("direct linear solver", True, "fem", ["SparseLDLSolver"]),
+    ("constraint correction", True, "fem",
      ["GenericConstraintCorrection", "LinearSolverConstraintCorrection"]),
-    ("stan mechaniczny (węzły)", True, "root", ["MechanicalObject"]),
-    ("topologia tetra", True, "fem", ["TetrahedronSetTopologyContainer", "MeshTopology"]),
-    ("FEM korotacyjny", True, "fem", ["TetrahedronFEMForceField"]),
-    ("masa", True, "fem", ["MeshMatrixMass", "UniformMass"]),
-    ("mocowanie węzłów", True, "fem", ["FixedProjectiveConstraint", "FixedConstraint"]),
-    ("wybór węzłów prostopadłościanem", True, "fem", ["BoxROI"]),
-    ("siły węzłowe (opór wody)", True, "fem", ["ConstantForceField"]),
-    ("loader siatki objętościowej", True, "root", ["MeshVTKLoader", "MeshGmshLoader"]),
-    ("loader powierzchni komory", True, "root", ["MeshSTLLoader", "MeshOBJLoader"]),
-    ("komora ciśnieniowa (SoftRobots)", True, "sub", ["SurfacePressureConstraint"]),
-    ("mapowanie komory na FEM", True, "sub", ["BarycentricMapping"]),
+    ("mechanical state (nodes)", True, "root", ["MechanicalObject"]),
+    ("tetra topology", True, "fem", ["TetrahedronSetTopologyContainer", "MeshTopology"]),
+    ("corotational FEM", True, "fem", ["TetrahedronFEMForceField"]),
+    ("mass", True, "fem", ["MeshMatrixMass", "UniformMass"]),
+    ("node fixing", True, "fem", ["FixedProjectiveConstraint", "FixedConstraint"]),
+    ("node selection by box", True, "fem", ["BoxROI"]),
+    ("nodal forces (water drag)", True, "fem", ["ConstantForceField"]),
+    ("volume mesh loader", True, "root", ["MeshVTKLoader", "MeshGmshLoader"]),
+    ("chamber surface loader", True, "root", ["MeshSTLLoader", "MeshOBJLoader"]),
+    ("pressure chamber (SoftRobots)", True, "sub", ["SurfacePressureConstraint"]),
+    ("chamber-to-FEM mapping", True, "sub", ["BarycentricMapping"]),
 ]
 
-# Pola SurfacePressureConstraint, z których korzystają hydraulika i testy.
+# SurfacePressureConstraint fields used by the hydraulics and the tests.
 SPC_FIELDS = ["value", "valueType", "pressure", "cavityVolume", "initialCavityVolume",
               "volumeGrowth", "maxPressure", "minPressure", "maxVolumeGrowth",
               "minVolumeGrowth", "maxVolumeGrowthVariation", "flipNormal",
               "drawPressure", "drawScale"]
 
 
-# Prawdziwe pliki siatek z binarki SOFA – loader bez pliku zgłasza błąd już przy tworzeniu.
+# Real mesh files from the SOFA binary – a loader without a file fails already on creation.
 _SHARE = os.path.join(os.environ.get("SOFA_ROOT", ""), "share", "sofa", "mesh")
 _SPRINGY = os.path.join(os.environ.get("SOFA_ROOT", ""), "plugins", "SoftRobots", "lib", "python3",
                         "site-packages", "softrobots", "parts", "bunny", "mesh")
@@ -60,16 +60,16 @@ EXTRA_ARGS = {
     "MeshGmshLoader": {"filename": os.path.join(_SHARE, "liver2.msh")},
     "MeshSTLLoader": {"filename": os.path.join(_SPRINGY, "Springy_Cavity.stl")},
     "MeshOBJLoader": {"filename": os.path.join(_SPRINGY, "Hollow_Bunny_Body_Cavity.obj")},
-    # Mapowanie łączy dwa stany mechaniczne – bez linków SOFA nie wydedukuje szablonu.
+    # The mapping links two mechanical states – without links SOFA cannot deduce the template.
     "BarycentricMapping": {"input": "@../dofs", "output": "@dofs"},
 }
 
 
 def build_context():
-    """Mała scena: root -> fem (MechanicalObject) -> sub (MechanicalObject).
+    """Small scene: root -> fem (MechanicalObject) -> sub (MechanicalObject).
 
-    Nic tu nie jest symulowane – węzły dają tylko kontekst do tworzenia komponentów.
-    Każdy komponent dostaje świeży kontekst, żeby np. dwie masy nie trafiły do jednego węzła.
+    Nothing is simulated here – the nodes only provide a context for creating components.
+    Each component gets a fresh context, so that e.g. two masses don't end up in one node.
     """
     root = Sofa.Core.Node("root")
     fem = root.addChild("fem")
@@ -80,28 +80,28 @@ def build_context():
 
 
 def try_create(where, name):
-    # Trzymamy referencję do całego słownika: gdyby root został zwolniony przez Pythona,
-    # węzeł-dziecko straciłby rodzica i linki typu "@../dofs" nie miałyby celu.
+    # Keep a reference to the whole dict: if Python freed root, the child node would
+    # lose its parent and links like "@../dofs" would have no target.
     ctx = build_context()
     node = ctx[where]
     try:
         return node.addObject(name, name=f"probe_{name}", **EXTRA_ARGS.get(name, {})), None
-    except Exception as e:  # SofaPython3 rzuca ValueError, gdy fabryka nie zna nazwy
+    except Exception as e:  # SofaPython3 raises ValueError when the factory does not know the name
         return None, str(e).strip().splitlines()[-1]
 
 
 def main():
-    # "Sofa.Component" to meta-plugin ładujący wszystkie standardowe moduły komponentów.
+    # "Sofa.Component" is a meta-plugin that loads all standard component modules.
     for plugin in ("Sofa.Component", "SoftRobots"):
         SofaRuntime.importPlugin(plugin)
     print(f"Python: {sys.version.split()[0]}")
     print(f"SOFA_ROOT: {os.environ.get('SOFA_ROOT')}")
-    print(f"Wersja SOFA: {Sofa.GetVersion()}")
+    print(f"SOFA version: {Sofa.GetVersion()}")
 
     missing_required = []
     spc = None
 
-    print("\nKomponenty (✓ = istnieje, - = brak w tej wersji):")
+    print("\nComponents (✓ = exists, - = missing in this version):")
     for role, required, where, names in CANDIDATES:
         found = []
         for n in names:
@@ -116,24 +116,24 @@ def main():
             missing_required.append(role)
 
     if spc is not None:
-        print("\nPola SurfacePressureConstraint:")
+        print("\nSurfacePressureConstraint fields:")
         all_fields = {d.getName(): d for d in spc.getDataFields()}
         for f in SPC_FIELDS:
             if f in all_fields:
                 help_txt = " ".join(all_fields[f].getHelp().split())
                 print(f"  ✓ {f:26s} {help_txt[:90]}")
             else:
-                print(f"  - {f:26s} (brak)")
+                print(f"  - {f:26s} (missing)")
                 if f in ("value", "valueType", "pressure", "cavityVolume"):
-                    missing_required.append(f"pole SurfacePressureConstraint.{f}")
+                    missing_required.append(f"field SurfacePressureConstraint.{f}")
         opts = all_fields.get("valueType")
         if opts is not None:
-            print(f"  valueType domyślnie: {opts.value}")
+            print(f"  valueType default: {opts.value}")
 
     if missing_required:
-        print("\nBRAK wymaganych:", ", ".join(missing_required))
+        print("\nMISSING required:", ", ".join(missing_required))
         return 1
-    print("\nOK: wszystkie wymagane komponenty i pola są dostępne.")
+    print("\nOK: all required components and fields are available.")
     return 0
 
 

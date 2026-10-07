@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# GUI SOFA z ogonem.  Użycie:  SOFA/scripts/run_gui.sh [coarse|medium|fine|test] [flap|sag]
-# flap (domyślnie): obie komory + pompa, ogon macha; sag: ugięcie pod ciężarem (etap 1).
-# Po otwarciu okna naciśnij Animate.
+# SOFA GUI with the tail.  Usage:  SOFA/scripts/run_gui.sh [coarse|medium|fine|test] [flap|sag]
+# flap (default): both chambers + pump, the tail flaps; sag: sag under its own weight (stage 1).
+# After the window opens, press Animate.
 set -e
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HERE/env.sh"

@@ -1,16 +1,17 @@
-"""Etap 5: ogon w wodzie – porównanie z powietrzem, ciąg na uwięzi.
+"""Stage 5: tail in water – comparison with air, tethered thrust.
 
-Uruchomienie:  source scripts/env.sh && python scripts/run_stage5.py   (~25 min, 3 symulacje naraz)
-               python scripts/run_stage5.py --plot-only                (tylko wykres z CSV)
+Usage:  source scripts/env.sh && python scripts/run_stage5.py   (~25 min, 3 simulations at once)
+        python scripts/run_stage5.py --plot-only                (only the plot from CSV)
 
-Ten sam przebieg co etap 4 (siatka coarse, prefill 1 s, rytm 2 Hz z rampą 1 s, 4.5 s),
-ale environment="water": ciężar pozorny silikonu, woda w komorach bez ciężaru, opór wody
-na skórze (fishsofa/water.py). Trzy symulacje, liczone równolegle (fishsofa/parallel.py):
-  - powietrze, dt = 1 ms  (odniesienie; przy 2 ms różnica 5% to tłumienie numeryczne, etap 4),
-  - woda, dt = 1 ms       (opór jawny: przy 2 ms max(c·dt/m) ≈ 0.7 > 0.5 na płetwie),
-  - woda, dt = 0.5 ms     (kontrola: czy wynik w wodzie nie zależy od dt).
+The same run as stage 4 (coarse mesh, 1 s prefill, 2 Hz rhythm with a 1 s ramp, 4.5 s),
+but environment="water": apparent weight of the silicone, weightless water in the chambers,
+water drag on the skin (fishsofa/water.py). Three simulations, run in parallel
+(fishsofa/parallel.py):
+  - air, dt = 1 ms        (reference; at 2 ms the 5% difference is numerical damping, stage 4),
+  - water, dt = 1 ms      (explicit drag: at 2 ms max(c·dt/m) ≈ 0.7 > 0.5 on the fin),
+  - water, dt = 0.5 ms    (check: whether the water result is independent of dt).
 
-Wyniki w results/: s5_water_vs_air.png, s5_water_vs_air.csv, s5_summary.txt.
+Results in results/: s5_water_vs_air.png, s5_water_vs_air.csv, s5_summary.txt.
 """
 import csv
 import os
@@ -31,9 +32,9 @@ LEVEL = "coarse"
 T_END = 4.5
 RESULTS = os.path.join(PROJECT_DIR, "results")
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
-BLUE, ORANGE, GREEN = "#2a78d6", "#eb6834", "#1baf7a"   # paleta dataviz, stała kolejność
+BLUE, ORANGE, GREEN = "#2a78d6", "#eb6834", "#1baf7a"   # dataviz palette, fixed order
 COLS = ("t", "V_ref", "V_p", "p_L", "p_R", "theta", "F_x", "F_y", "drag_power", "stability")
-RUNS = {  # klucz: (environment, dt)
+RUNS = {  # key: (environment, dt)
     "air_1ms": ("air", 0.001),
     "water_1ms": ("water", 0.001),
     "water_0.5ms": ("water", 0.0005),
@@ -45,7 +46,7 @@ def main():
     base = TailConfig()
     jobs = {k: dict(cfg=replace(base, environment=env, dt=dt), level=LEVEL, t_end=T_END)
             for k, (env, dt) in RUNS.items()}
-    runs = parallel.run_all(headless.run_flapping, jobs, label="Etap 5: ")
+    runs = parallel.run_all(headless.run_flapping, jobs, label="Stage 5: ")
     with open(os.path.join(RESULTS, "s5_water_vs_air.csv"), "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["run"] + list(COLS))
@@ -61,7 +62,7 @@ def main():
 
 
 def steady_metrics(L: dict, cfg: TailConfig) -> dict:
-    """Amplituda i faza (headless.cycle_metrics) + ciąg = średnie F_x z 2 ostatnich cykli."""
+    """Amplitude and phase (headless.cycle_metrics) + thrust = mean F_x over the last 2 cycles."""
     c = headless.cycle_metrics(L, cfg)
     T = 1.0 / cfg.tail_freq
     t0 = cfg.prefill_time + cfg.ramp_time
@@ -80,25 +81,25 @@ def steady_metrics(L: dict, cfg: TailConfig) -> dict:
 
 
 def summary(runs: dict, cfg: TailConfig) -> str:
-    lines = ["Etap 5 – woda vs powietrze (coarse, V4, układ antagonistyczny, ten sam rytm V_ref)",
+    lines = ["Stage 5 – water vs air (coarse, V4, antagonistic system, same V_ref rhythm)",
              f"f = {cfg.tail_freq} Hz, A_V = {cfg.tail_volume_amp * 1e6:g} ml, V_prefill = {cfg.V_prefill * 1e6:g} ml, "
              f"C_n = {cfg.drag_C_n}, C_t = {cfg.drag_C_t} (PLACEHOLDER)", ""]
     met = {}
     for key, (L, ms, dt) in runs.items():
         m = met[key] = steady_metrics(L, cfg)
-        lines += [f"{key}: {ms:.0f} ms/krok = {ms / (dt * 1e3):.0f}× wolniej niż czas rzeczywisty",
-                  "  amplituda θ w kolejnych cyklach [°]: " + ", ".join(f"{a:.2f}" for a in m["amps_deg"]),
-                  f"  ustalony cykl: ±{m['amp_deg']:.2f}°, zmiana w ostatnim cyklu {100 * m['steady_change']:.2f}%, "
-                  f"opóźnienie fazy względem −V_ref {m['phase_deg']:.1f}°, |Δp| max {m['dp_max_kPa']:.1f} kPa"]
+        lines += [f"{key}: {ms:.0f} ms/step = {ms / (dt * 1e3):.0f}× slower than real time",
+                  "  θ amplitude in successive cycles [°]: " + ", ".join(f"{a:.2f}" for a in m["amps_deg"]),
+                  f"  steady cycle: ±{m['amp_deg']:.2f}°, change in the last cycle {100 * m['steady_change']:.2f}%, "
+                  f"phase lag relative to −V_ref {m['phase_deg']:.1f}°, |Δp| max {m['dp_max_kPa']:.1f} kPa"]
         if "thrust_mN" in m:
-            lines += [f"  ciąg (średnie F_x, 2 ostatnie cykle): {m['thrust_mN']:+.2f} mN; siła boczna ±{m['Fy_amp_mN']:.0f} mN; "
-                      f"średnia moc oporu {m['drag_power_mW']:.0f} mW",
-                      f"  stabilność jawnego oporu: max(c·dt/m) = {m['stability_max']:.3f} (wymagane < 0.5)"]
+            lines += [f"  thrust (mean F_x, last 2 cycles): {m['thrust_mN']:+.2f} mN; lateral force ±{m['Fy_amp_mN']:.0f} mN; "
+                      f"mean drag power {m['drag_power_mW']:.0f} mW",
+                      f"  explicit drag stability: max(c·dt/m) = {m['stability_max']:.3f} (required < 0.5)"]
         lines.append("")
     a, w, w2 = met["air_1ms"], met["water_1ms"], met["water_0.5ms"]
-    lines += [f"woda/powietrze: amplituda {w['amp_deg'] / a['amp_deg']:.2f}×, faza {w['phase_deg'] - a['phase_deg']:+.1f}°",
-              f"woda, dt 1 ms vs 0.5 ms: amplituda {100 * (w['amp_deg'] / w2['amp_deg'] - 1):+.2f}%, "
-              f"ciąg {100 * (w['thrust_mN'] / w2['thrust_mN'] - 1):+.1f}%"]
+    lines += [f"water/air: amplitude {w['amp_deg'] / a['amp_deg']:.2f}×, phase {w['phase_deg'] - a['phase_deg']:+.1f}°",
+              f"water, dt 1 ms vs 0.5 ms: amplitude {100 * (w['amp_deg'] / w2['amp_deg'] - 1):+.2f}%, "
+              f"thrust {100 * (w['thrust_mN'] / w2['thrust_mN'] - 1):+.1f}%"]
     return "\n".join(lines)
 
 
@@ -119,44 +120,44 @@ def plot(logs: dict, cfg: TailConfig):
         ax.axvspan(0, cfg.prefill_time, color=GRID, alpha=0.5, linewidth=0)
     a, b, c, d = axes
 
-    a.plot(A["t"], np.degrees(A["theta"]), color=ORANGE, linewidth=2, label="powietrze")
-    a.plot(W["t"], np.degrees(W["theta"]), color=BLUE, linewidth=2, label="woda")
-    a.plot(W2["t"], np.degrees(W2["theta"]), color=INK2, linewidth=1, linestyle="--", label="woda, dt/2")
-    a.set_ylabel("kąt końcówki θ [°]")
-    a.set_title("Kąt końcówki przy tym samym rytmie objętości V_ref", loc="left", fontsize=10)
+    a.plot(A["t"], np.degrees(A["theta"]), color=ORANGE, linewidth=2, label="air")
+    a.plot(W["t"], np.degrees(W["theta"]), color=BLUE, linewidth=2, label="water")
+    a.plot(W2["t"], np.degrees(W2["theta"]), color=INK2, linewidth=1, linestyle="--", label="water, dt/2")
+    a.set_ylabel("tip angle θ [°]")
+    a.set_title("Tip angle for the same volume rhythm V_ref", loc="left", fontsize=10)
     a.legend(frameon=False, labelcolor=INK, loc="upper left", ncol=3)
 
-    b.plot(A["t"], (A["p_L"] - A["p_R"]) / 1e3, color=ORANGE, linewidth=2, label="powietrze")
-    b.plot(W["t"], (W["p_L"] - W["p_R"]) / 1e3, color=BLUE, linewidth=2, label="woda")
+    b.plot(A["t"], (A["p_L"] - A["p_R"]) / 1e3, color=ORANGE, linewidth=2, label="air")
+    b.plot(W["t"], (W["p_L"] - W["p_R"]) / 1e3, color=BLUE, linewidth=2, label="water")
     b.set_ylabel("Δp = p_L − p_R [kPa]")
-    b.set_title("Różnica ciśnień: w wodzie prawie bez zmian (Δp ustala głównie sztywność ogona, nie opór)", loc="left", fontsize=10)
+    b.set_title("Pressure difference: almost unchanged in water (Δp is set mainly by tail stiffness, not drag)", loc="left", fontsize=10)
     b.legend(frameon=False, labelcolor=INK, loc="upper left", ncol=2)
 
     T = 1.0 / cfg.tail_freq
     t0 = cfg.prefill_time + cfg.ramp_time
-    c.plot(W["t"], 1e3 * W["F_y"], color=GREEN, linewidth=1.2, label="F_y (bok)")
-    c.plot(W["t"], 1e3 * W["F_x"], color=BLUE, linewidth=2, label="F_x (ciąg > 0)")
+    c.plot(W["t"], 1e3 * W["F_y"], color=GREEN, linewidth=1.2, label="F_y (lateral)")
+    c.plot(W["t"], 1e3 * W["F_x"], color=BLUE, linewidth=2, label="F_x (thrust > 0)")
     m = W["t"] >= t0
-    # Średnia krocząca F_x po jednym cyklu – sam ciąg jest mały wobec siły bocznej.
+    # Moving average of F_x over one cycle – the thrust itself is small vs the lateral force.
     n = int(round(T / (W["t"][1] - W["t"][0])))
     fx_avg = np.convolve(W["F_x"], np.ones(n) / n, mode="same")
     c.plot(W["t"][m][n // 2:-n // 2], 1e3 * fx_avg[m][n // 2:-n // 2], color=INK, linewidth=1.5,
-           linestyle="--", label="F_x średnio na cykl")
-    c.set_ylabel("siła wody na ogon [mN]")
-    c.set_title("Siły oporu wody (model lokalny, bez masy dodanej – ciąg tylko jakościowy)", loc="left", fontsize=10)
+           linestyle="--", label="F_x cycle average")
+    c.set_ylabel("water force on the tail [mN]")
+    c.set_title("Water drag forces (local model, no added mass – thrust is only qualitative)", loc="left", fontsize=10)
     c.legend(frameon=False, labelcolor=INK, loc="upper left", ncol=3)
 
     d.plot(W["t"], W["stability"], color=BLUE, linewidth=1.5, label="dt = 1 ms")
     d.plot(W2["t"], W2["stability"], color=INK2, linewidth=1, linestyle="--", label="dt = 0.5 ms")
     d.axhline(0.5, color=ORANGE, linewidth=1.5)
-    d.text(W["t"][-1], 0.5, "granica 0.5 ", color=ORANGE, va="bottom", ha="right", fontsize=9)
+    d.text(W["t"][-1], 0.5, "limit 0.5 ", color=ORANGE, va="bottom", ha="right", fontsize=9)
     d.set_ylabel("max(c·dt/m)")
-    d.set_xlabel("czas [s]")
-    d.set_title("Stabilność jawnie liczonego oporu (najgorszy węzeł, zwykle na płetwie)", loc="left", fontsize=10)
+    d.set_xlabel("time [s]")
+    d.set_title("Stability of the explicitly computed drag (worst node, usually on the fin)", loc="left", fontsize=10)
     d.legend(frameon=False, labelcolor=INK, loc="center left", ncol=2)
 
-    fig.suptitle(f"Etap 5 – woda vs powietrze: f = {cfg.tail_freq:g} Hz, A_V = {cfg.tail_volume_amp * 1e6:g} ml, "
-                 f"C_n = {cfg.drag_C_n:g}, C_t = {cfg.drag_C_t:g} (PLACEHOLDER)\nsiatka {LEVEL}, V4, "
+    fig.suptitle(f"Stage 5 – water vs air: f = {cfg.tail_freq:g} Hz, A_V = {cfg.tail_volume_amp * 1e6:g} ml, "
+                 f"C_n = {cfg.drag_C_n:g}, C_t = {cfg.drag_C_t:g} (PLACEHOLDER)\nmesh {LEVEL}, V4, "
                  f"E = {cfg.young_modulus:.0e} Pa (PLACEHOLDER)", x=0.01, ha="left", color=INK, fontsize=11)
     fig.savefig(os.path.join(RESULTS, "s5_water_vs_air.png"), dpi=150, facecolor="white")
     plt.close(fig)

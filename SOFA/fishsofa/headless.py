@@ -1,6 +1,6 @@
-"""Uruchamianie sceny z Pythona, bez GUI (testy, skrypty scenariuszy).
+"""Running the scene from Python, without the GUI (tests, scenario scripts).
 
-Wymaga `source scripts/env.sh` (moduły Sofa z binarki SOFA na PYTHONPATH).
+Requires `source scripts/env.sh` (Sofa modules from the SOFA binary on PYTHONPATH).
 """
 import time
 from dataclasses import dataclass, field
@@ -14,7 +14,7 @@ _PLUGINS_LOADED = False
 
 
 def _sofa():
-    """Import SOFA dopiero przy pierwszym użyciu – reszta pakietu działa bez SOFA."""
+    """Imports SOFA only on first use – the rest of the package works without SOFA."""
     global _PLUGINS_LOADED
     import Sofa
     import Sofa.Core
@@ -29,8 +29,8 @@ def _sofa():
 @dataclass
 class RunLog:
     t: list = field(default_factory=list)          # [s]
-    tip: list = field(default_factory=list)        # przemieszczenie centroidu płetwy [m] (3,)
-    max_disp: list = field(default_factory=list)   # max |u| po węzłach [m]
+    tip: list = field(default_factory=list)        # fin centroid displacement [m] (3,)
+    max_disp: list = field(default_factory=list)   # max |u| over nodes [m]
     tip_angle: list = field(default_factory=list)  # [rad]
     ms_per_step: float = float("nan")
     init_s: float = float("nan")
@@ -71,27 +71,27 @@ def run(cfg: TailConfig, level: str, n_steps: int, mesh_root: str | None = None,
 
 
 def static_sag(cfg: TailConfig, level: str, mesh_root: str | None = None, n_steps: int = 1) -> RunLog:
-    """Ugięcie statyczne pod ciężarem: jeden krok StaticSolver (Newton) = stan równowagi."""
+    """Static sag under weight: one StaticSolver (Newton) step = equilibrium state."""
     return run(cfg, level, n_steps, mesh_root, solver="static")
 
 
-# ----------------------------------------------------------------------------- etap 2: quasi-statyka
+# ----------------------------------------------------------------------------- stage 2: quasi-statics
 
 @dataclass
 class QuasiStaticCurve:
     dV_target: list = field(default_factory=list)  # [m³]
-    dV: list = field(default_factory=list)         # zmierzony przyrost objętości wnęki [m³]
+    dV: list = field(default_factory=list)         # measured cavity volume growth [m³]
     p: list = field(default_factory=list)          # [Pa]
     tip_angle: list = field(default_factory=list)  # [rad]
-    bulge: list = field(default_factory=list)      # wydymanie ścianki zewnętrznej [m]
-    ke_ratio: list = field(default_factory=list)   # energia kinetyczna / praca ciśnienia
-    v0: float = float("nan")                       # objętość wnęki w spoczynku [m³]
+    bulge: list = field(default_factory=list)      # outer wall bulging [m]
+    ke_ratio: list = field(default_factory=list)   # kinetic energy / pressure work
+    v0: float = float("nan")                       # cavity volume at rest [m³]
     wall_s: float = float("nan")
 
 
 def _bulge_probe(mesh, cfg: TailConfig, side: int):
-    """Węzły do pomiaru wydymania: najbardziej zewnętrzny węzeł skóry po stronie komory
-    i węzeł najbliżej osi (y = z = 0), oba w przekroju w połowie długości komory."""
+    """Nodes for measuring bulging: the outermost skin node on the chamber side and the
+    node closest to the axis (y = z = 0), both in the cross-section at mid-chamber length."""
     x1, x2 = cfg.chamber_x_range
     xm = 0.5 * (x1 + x2)
     pts = mesh.points
@@ -110,22 +110,23 @@ def quasi_static_sweep(cfg: TailConfig, level: str, dV_targets, side: str = "L",
                        max_hold_steps: int = 60, ke_tol: float = 0.01,
                        p_stop: float | None = None, max_fraction: float | None = None,
                        mode: str = "volume") -> QuasiStaticCurve:
-    """Krzywa ciśnienie–objętość–kąt dla jednej komory (druga odpowietrzona), quasi-statycznie.
+    """Pressure–volume–angle curve for one chamber (the other vented), quasi-statically.
 
-    mode="volume" (domyślnie): dV_targets to przyrosty objętości [m³] (pompa wymusza objętość).
-    mode="pressure": dV_targets to ciśnienia [Pa] (valueType="pressure", wejście p·dt);
-    etap 6 porównuje oba tryby przy zmianie modułu Younga.
+    mode="volume" (default): dV_targets are volume increments [m³] (the pump imposes volume).
+    mode="pressure": dV_targets are pressures [Pa] (valueType="pressure", input p·dt);
+    stage 6 compares both modes when the Young's modulus changes.
 
-    Metoda „pseudo-statyki”: niejawny Euler z dużym krokiem (dt = 50 ms). Bezwładność
-    (M/dt²) jest wtedy mała wobec sztywności, więc każdy krok prawie od razu trafia
-    w równowagę. Sprawdzone w planie etapu 2: stan końcowy taki sam jak przy wolnej
-    rampie z dt = 2 ms (1950.4 Pa w obu), przy 5–25× mniejszym koszcie. Statyka
-    (StaticSolver) odpada, bo nie działa z ograniczeniami Lagrange'a komory.
+    "Pseudo-static" method: implicit Euler with a large step (dt = 50 ms). Inertia
+    (M/dt²) is then small compared to stiffness, so each step lands almost immediately
+    at equilibrium. Verified in the stage 2 plan: same final state as a slow ramp with
+    dt = 2 ms (1950.4 Pa in both), at 5–25× lower cost. Statics (StaticSolver) is
+    ruled out, since it does not work with the chamber's Lagrange constraints.
 
-    Kryterium „quasi-statyczności” (spec, etap 2): po dojściu do każdego punktu trzymamy
-    objętość, aż energia kinetyczna < ke_tol · praca ciśnienia ∫p dV (dla procesu
-    quasi-statycznego praca ciśnienia ≈ zmagazynowana energia odkształcenia).
-    Zawsze dokładny solver ("cholmod" albo "ldl") – "warp" z komorą daje błędną równowagę (README).
+    "Quasi-static" criterion (spec, stage 2): after reaching each point we hold the volume
+    until kinetic energy < ke_tol · pressure work ∫p dV (for a quasi-static process the
+    pressure work ≈ stored strain energy).
+    Always an exact solver ("cholmod" or "ldl") – "warp" with a chamber gives a wrong
+    equilibrium (README).
     """
     from dataclasses import replace
 
@@ -162,12 +163,12 @@ def quasi_static_sweep(cfg: TailConfig, level: str, dV_targets, side: str = "L",
             v = np.array(dofs.velocity.value)
             dV = float(spc.cavityVolume.value) - res.v0
             p = hydraulics.pressure_pa(spc, dt)
-            work += 0.5 * (p + p_prev) * (dV - dV_prev)   # ∫p dV (trapezy)
+            work += 0.5 * (p + p_prev) * (dV - dV_prev)   # ∫p dV (trapezoidal rule)
             p_prev, dV_prev = p, dV
             ke = 0.5 * float((m * (v ** 2).sum(axis=1)).sum())
             ratio = ke / work if work > 0 else float("inf")
-            # steps > ramp_steps: co najmniej jeden krok trzymania, bo cavityVolume SOFA
-            # liczy PRZED rozwiązaniem kroku (odczyt spóźnia się o jeden krok).
+            # steps > ramp_steps: at least one hold step, because SOFA computes cavityVolume
+            # BEFORE solving the step (the reading lags by one step).
             if (steps > ramp_steps and ratio < ke_tol) or steps >= ramp_steps + max_hold_steps:
                 break
         res.dV_target.append(target)
@@ -185,26 +186,26 @@ def quasi_static_sweep(cfg: TailConfig, level: str, dV_targets, side: str = "L",
     return res
 
 
-# ----------------------------------------------------------------------------- etap 4: machanie
+# ----------------------------------------------------------------------------- stage 4: flapping
 
 @dataclass
 class FlapRun:
-    log: dict                     # tablice numpy, klucze z controller.LOG_KEYS
+    log: dict                     # numpy arrays, keys from controller.LOG_KEYS
     dt: float
     ms_per_step: float
-    cycles: dict                  # metryki z cycle_metrics()
-    frames: dict | None = None    # nagranie do odtwarzania (record_fps), patrz run_flapping
+    cycles: dict                  # metrics from cycle_metrics()
+    frames: dict | None = None    # recording for playback (record_fps), see run_flapping
 
 
 def run_flapping(cfg: TailConfig, level: str, t_end: float, mesh_root: str | None = None,
                  progress_every: int = 0, record_fps: float | None = None) -> FlapRun:
-    """Układ antagonistyczny L↔R: prefill, potem rytm V_ref(t) (hydraulics.TailHydraulics).
+    """Antagonistic L↔R system: prefill, then the rhythm V_ref(t) (hydraulics.TailHydraulics).
 
-    Obie komory w trybie volumeGrowth, dynamika (niejawny Euler, cfg.dt), ciężar wg
-    cfg.environment. Solver dokładny ("cholmod" albo "ldl") – warp z komorami jest błędny.
+    Both chambers in volumeGrowth mode, dynamics (implicit Euler, cfg.dt), weight per
+    cfg.environment. Exact solver ("cholmod" or "ldl") – warp with chambers is wrong.
 
-    record_fps: zapis pozycji węzłów co 1/record_fps czasu symulacji (float32), do
-    odtwarzania w czasie rzeczywistym (scripts/record.py, tryb replay w scene.py).
+    record_fps: record node positions every 1/record_fps of simulation time (float32), for
+    real-time playback (scripts/record.py, replay mode in scene.py).
     """
     from dataclasses import replace
 
@@ -232,10 +233,10 @@ def run_flapping(cfg: TailConfig, level: str, t_end: float, mesh_root: str | Non
             frames["x"].append(np.array(h["dofs"].position.value, dtype=np.float32))
         if progress_every and (i + 1) % progress_every == 0:
             el = time.perf_counter() - t0
-            print(f"  t = {(i + 1) * cfg.dt:.2f} s, {1e3 * el / (i + 1):.0f} ms/krok", flush=True)
+            print(f"  t = {(i + 1) * cfg.dt:.2f} s, {1e3 * el / (i + 1):.0f} ms/step", flush=True)
     ms = 1e3 * (time.perf_counter() - t0) / n
     log = {k: np.array(v, dtype=float) for k, v in ctrl.log.items()}
-    if h["water"] is not None:   # te same chwile co log pompy (oba kontrolery na początku kroku)
+    if h["water"] is not None:   # same instants as the pump log (both controllers run at step start)
         log.update({k: np.array(v, dtype=float) for k, v in h["water"].log.items() if k != "t"})
     Sofa.Simulation.unload(root)
     if frames:
@@ -244,11 +245,12 @@ def run_flapping(cfg: TailConfig, level: str, t_end: float, mesh_root: str | Non
 
 
 def cycle_metrics(log: dict, cfg: TailConfig) -> dict:
-    """Amplituda kąta w każdym pełnym cyklu po rampie i faza względem V_ref.
+    """Angle amplitude in each full cycle after the ramp, and phase relative to V_ref.
 
-    Cykle liczone od końca rampy amplitudy (prefill_time + ramp_time). Amplituda cyklu =
-    (max − min)/2 kąta. Faza z pierwszej harmonicznej w ostatnich 2 cyklach: o ile kąt
-    opóźnia się względem −V_ref (+V_p zgina ogon w −Y, więc odniesieniem jest −V_ref).
+    Cycles are counted from the end of the amplitude ramp (prefill_time + ramp_time). Cycle
+    amplitude = (max − min)/2 of the angle. Phase from the first harmonic over the last 2
+    cycles: how much the angle lags −V_ref (+V_p bends the tail toward −Y, so −V_ref is the
+    reference).
     """
     t, th, vref = log["t"], log["theta"], log["V_ref"]
     T = 1.0 / cfg.tail_freq
