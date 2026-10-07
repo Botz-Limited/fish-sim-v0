@@ -10,12 +10,17 @@ Krok 3, pompa (calibrate.py pump): punkty pracy w stanie ustalonym przy kilku na
 dławiącego. Równania pompy są liniowe w parametrach, więc wystarcza regresja liniowa. Silnik z kroku 2
 służy jako czujnik momentu, a jego niepewność przenosi się na sprawność pompy.
 
+Krok 4, przewód (calibrate.py pipe): charakterystyka Δp(Q) od laminarnej do turbulentnej, dopasowanie
+symulacji jak w kroku 2, ale reszty w skali logarytmicznej (szum czujnika ciśnienia jest względny).
+
   .venv/bin/python scripts/calibrate.py motor                   # pomiar syntetyczny (znane parametry + szum)
   .venv/bin/python scripts/calibrate.py motor --data pomiar.csv --U 6 --t-step 0.01
   .venv/bin/python scripts/calibrate.py pump [--data punkty.csv]
+  .venv/bin/python scripts/calibrate.py pipe [--data punkty.csv --l 0.2]
 
 Pliki pomiaru: CSV z nagłówkiem; silnik: time [s], i [A], w [rad/s]; pompa: U [V], i [A], w [rad/s],
-dp [Pa], Q [m³/s]. Wyniki -> results/calibration/.
+dp [Pa], Q [m³/s];
+przewód: Q [m³/s], dp [Pa]. Wyniki -> results/calibration/.
 """
 
 import argparse
@@ -41,6 +46,7 @@ MOTOR = {
     # pomiar syntetyczny: „prawdziwy” silnik i szum czujników (odchylenie standardowe)
     "true": {"motor.R": 1.6, "motor.L": 8e-4, "motor.k": 0.0125, "motor.J": 3.5e-6, "motor.b": 2e-6},
     "noise": {"i": 0.03, "w": 2.0},
+    "component": "FishRobot.Electrical.DCMotor motor",
 }
 
 
@@ -69,7 +75,12 @@ def fit(work_dir, exp, t, meas, setup):
     # dostawałyby za małą niepewność.
     scale = {s: 0.01 * np.ptp(y) for s, y in meas.items()}
 
+    if exp.get("log"):  # szum względny (np. % odczytu): reszty ln(sim/pomiar) mają wtedy stałą wariancję
+        scale = {s: 0.01 for s in meas}
+
     def residuals_from(sim):
+        if exp.get("log"):
+            return np.concatenate([np.log(sim[s] / meas[s]) / scale[s] for s in meas])
         return np.concatenate([(sim[s] - meas[s]) / scale[s] for s in meas])
 
     def fun(x):
@@ -102,24 +113,26 @@ def fit(work_dir, exp, t, meas, setup):
 def report(exp, p_fit, sigma, cov, res, noise, truth=None):
     names = list(exp["params"])
     corr = cov / np.outer(sigma, sigma)
-    lines = [f"{'parametr':<10}{'start':>12}{'dopasowany':>13}{'±1σ':>9}" + (f"{'prawdziwy':>13}{'błąd':>9}" if truth else "")]
+    wn = max(10, max(len(n) for n in names) + 2)
+    lines = [f"{'parametr':<{wn}}{'start':>12}{'dopasowany':>13}{'±1σ':>9}" + (f"{'prawdziwy':>13}{'błąd':>9}" if truth else "")]
     for j, n in enumerate(names):
         p0, unit = exp["params"][n]
-        line = f"{n:<10}{p0:>12.4g}{p_fit[j]:>13.5g}{100 * sigma[j]:>8.2f}%"
+        line = f"{n:<{wn}}{p0:>12.4g}{p_fit[j]:>13.5g}{100 * sigma[j]:>8.2f}%"
         if truth:
             line += f"{truth[n]:>13.5g}{100 * (p_fit[j] / truth[n] - 1):>8.2f}%"
         lines.append(f"{line}   [{unit}]")
     lines.append("")
     lines.append("korelacje ln(p):")
-    lines.append(" " * 10 + "".join(f"{n.split('.')[-1]:>7}" for n in names))
+    lines.append(" " * wn + "".join(f"{n.split('.')[-1][:9]:>10}" for n in names))
     for j, n in enumerate(names):
-        lines.append(f"{n:<10}" + "".join(f"{corr[j, k]:>7.2f}" for k in range(len(names))))
+        lines.append(f"{n:<{wn}}" + "".join(f"{corr[j, k]:>10.2f}" for k in range(len(names))))
     lines.append("")
-    lines.append("szum oszacowany z reszt: " + ", ".join(f"{s} {v:.3g} {exp['signals'][s][0]}" for s, v in noise.items()))
+    unit = (lambda s: "(względnie)") if exp.get("log") else (lambda s: exp["signals"][s][0])
+    lines.append("szum oszacowany z reszt: " + ", ".join(f"{s} {v:.3g} {unit(s)}" for s, v in noise.items()))
     lines.append(f"iteracje: {res.nfev} wywołań funkcji; "
                  f"RMS reszt: {np.sqrt(np.mean(res.fun ** 2)):.3f} (w jednostkach szumu, powinno być ok. 1)")
     mod = ", ".join(f"{n.split('.')[-1]}={p_fit[j]:.5g}" for j, n in enumerate(names))
-    lines.append(f"do modelu: FishRobot.Electrical.DCMotor motor({mod});")
+    lines.append(f"do modelu: {exp['component']}({mod});")
     return "\n".join(lines)
 
 
@@ -309,6 +322,78 @@ def pump_main(args):
     print(pump_plot(U, meas, extra, f"Kalibracja pompy: {len(U)} punktów pracy ({src})", "pump_fit.png"))
 
 
+# --- Krok 4: przewód -------------------------------------------------------------------------------
+
+PIPE = {
+    "model": "FishRobot.Calibration.PipeBench",
+    "params": {"pipe.d": (4e-3, "m"), "pipe.zeta": (1.5, "–"), "pipe.roughness": (2.5e-5, "m")},
+    "signals": {"dp": ("Pa", "spadek ciśnienia")},
+    "log": True,
+    # „prawdziwy” przewód: wąż o średnicy wewnętrznej mniejszej od nominalnej, gładki, z kilkoma złączkami
+    "true": {"pipe.d": 3.6e-3, "pipe.zeta": 2.5, "pipe.roughness": 5e-6},
+    "noise_rel": 0.01,  # czujnik różnicowy: 1% odczytu
+    "Q": np.geomspace(1e-6, 4e-5, 20).tolist(),  # 1–40 ml/s, Re ok. 350–14 000
+    "component": "FishRobot.Hydraulics.Pipe pipe",
+}
+
+
+def pipe_plot(Q, dp, sim_fit, sim_start, d_fit, title, name):
+    nu = 1.002e-3 / 998.2
+    fig, (ax, ax_r) = plotting.plt.subplots(2, 1, figsize=(9, 6.2), sharex=True, gridspec_kw={"height_ratios": [3, 1.3]})
+    q = Q * 1e6
+    # Zakres przejściowy Re 2000–4000 przy dopasowanej średnicy: Q = Re·ν·π·d/4
+    q_re = [re * nu * np.pi * d_fit / 4 * 1e6 for re in (2000, 4000)]
+    for a in (ax, ax_r):
+        a.axvspan(*q_re, color=plotting.GRID, alpha=0.7, linewidth=0)
+    ax.annotate("przejście\nRe 2000–4000", (np.sqrt(q_re[0] * q_re[1]), 0.97), xycoords=("data", "axes fraction"),
+                ha="center", va="top", color=plotting.TEXT_2, fontsize=9)
+    ax.plot(q, dp / 1e3, "o", color="#9a9994", markersize=4, label="pomiar")
+    ax.plot(q, sim_start["dp"] / 1e3, color=plotting.SERIES[1], linestyle=(0, (4, 3)), linewidth=1.5,
+            label="start (placeholdery)")
+    ax.plot(q, sim_fit["dp"] / 1e3, color=plotting.SERIES[0], label="dopasowanie")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_ylabel("Δp [kPa]")
+    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3, borderaxespad=0.2)
+    ax.set_title(title, loc="left", fontsize=11, pad=26)
+    ax_r.plot(q, (dp / sim_fit["dp"] - 1) * 100, "o-", color=plotting.SERIES[0], markersize=3, linewidth=0.8)
+    ax_r.axhline(0, color=plotting.TEXT_2, linewidth=0.8)
+    ax_r.set_ylabel("reszty [%]")
+    ax_r.set_xlabel("Q [ml/s]")
+    fig.align_ylabels((ax, ax_r))
+    return plotting.save(fig, name, "calibration")
+
+
+def pipe_main(args):
+    exp = PIPE
+    work_dir = om_fast.compile_model(exp["model"])
+    if args.data:
+        data = np.genfromtxt(args.data, delimiter=",", names=True)
+        order = np.argsort(data["Q"])
+        Q, dp = data["Q"][order], data["dp"][order]
+        truth = None
+    else:
+        Q = np.array(exp["Q"])
+        truth = exp["true"]
+    setup = {"l": args.l, "Q_max": Q[-1]}
+    t = Q / Q[-1]  # w PipeBench chwila t odpowiada przepływowi Q_max·t
+    if truth:
+        clean = simulate(work_dir, exp, [truth[p] for p in exp["params"]], "true", setup, t)["dp"]
+        dp = clean * (1 + np.random.default_rng(3).normal(0.0, exp["noise_rel"], clean.size))
+        np.savetxt(OUT / "pipe_synthetic.csv", np.column_stack([Q, dp]), delimiter=",", header="Q,dp",
+                   comments="", fmt="%.6g")
+
+    p_fit, sigma, cov, res, noise = fit(work_dir, exp, t, {"dp": dp}, setup)
+    text = report(exp, p_fit, sigma, cov, res, noise, truth)
+    print(text)
+    (OUT / "pipe_fit.txt").write_text(text + "\n")
+    sim_fit = simulate(work_dir, exp, p_fit, "fit", setup, t)
+    sim_start = simulate(work_dir, exp, [v for v, _ in exp["params"].values()], "start", setup, t)
+    src = "pomiar syntetyczny" if truth else args.data
+    print(pipe_plot(Q, dp, sim_fit, sim_start, p_fit[0], f"Kalibracja przewodu: l = {args.l:g} m ({src})",
+                    "pipe_fit.png"))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="step", required=True)
@@ -318,9 +403,12 @@ def main():
     m.add_argument("--t-step", type=float, default=0.01, help="chwila skoku napięcia w pomiarze [s]")
     p = sub.add_parser("pump", help="krok 3: pompa z punktów pracy (wymaga wyniku kroku 2)")
     p.add_argument("--data", help="CSV z punktami pracy (U, i, w, dp, Q); bez tej opcji: pomiar syntetyczny")
+    q = sub.add_parser("pipe", help="krok 4: przewód z charakterystyki Δp(Q)")
+    q.add_argument("--data", help="CSV z punktami (Q [m³/s], dp [Pa]); bez tej opcji: pomiar syntetyczny")
+    q.add_argument("--l", type=float, default=0.2, help="zmierzona długość przewodu [m]")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
-    {"motor": motor_main, "pump": pump_main}[args.step](args)
+    {"motor": motor_main, "pump": pump_main, "pipe": pipe_main}[args.step](args)
 
 
 if __name__ == "__main__":

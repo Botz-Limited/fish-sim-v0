@@ -48,6 +48,7 @@ setup/install_user.sh     # bez sudo: .venv z requirements.txt + MSL 4.1.0 przez
 .venv/bin/python scripts/calibrate.py motor     # identyfikacja silnika DC (pomiar syntetyczny) -> results/calibration/
 .venv/bin/python scripts/calibrate.py motor --data pomiar.csv --U 6 --t-step 0.01   # to samo na prawdziwym pomiarze
 .venv/bin/python scripts/calibrate.py pump      # identyfikacja pompy (wymaga wyniku kroku motor)
+.venv/bin/python scripts/calibrate.py pipe [--data punkty.csv --l 0.2]   # identyfikacja przewodu z Δp(Q)
 ```
 
 Każdy model jest sprawdzany (`checkModel`: liczba równań = liczba niewiadomych), kompilowany, symulowany i porównywany z wynikiem analitycznym. Modele są przetwarzane równolegle (osobny proces i osobna sesja omc na model). Wykresy trafiają do `results/tests/`.
@@ -333,3 +334,19 @@ Model stanowiska służy tu tylko do wygenerowania pomiaru syntetycznego: 3 napi
 **Lekcja: błąd czujnika nie uśrednia się.** `eta_m` ma stały błąd −0,33%, także bez żadnego szumu. Bierze się z parametrów silnika z kroku 2 (`b` wyszło tam o 1,2% za małe), a ten sam błąd momentu jest w każdym punkcie pracy. Więcej punktów zmniejsza tylko część niepewności pochodzącą z rozrzutu (0,63%), a część od silnika (0,36%) zostaje. Dlatego skrypt podaje obie części osobno i uwzględnia korelację `k` i `b` z kroku 2. Tarcie silnika `b·ω` to od 15% (przy najwyższym Δp) do ponad 80% (zawór otwarty) momentu z prądu, więc dokładne `b` jest tu ważniejsze, niż sugerowałby sam krok 2. Druga pułapka: tarcie lepkie pompy (proporcjonalne do ω) byłoby nie do odróżnienia od `b` silnika, bo w tym stanowisku zawsze występują razem. Jeśli prawdziwa pompa takie tarcie ma, pokaże się jako stały moment przy `Δp ≈ 0` na prawym wykresie.
 
 Najmniej dokładny jest przeciek (ok. 4%): przy 85 kPa to tylko 2,5 ml/s wobec ok. 30 ml/s wyparcia, a szum przepływomierza to 0,1 ml/s. Pomaga więcej punktów przy wysokim Δp i niskiej prędkości, gdzie przeciek stanowi większą część przepływu.
+
+### Identyfikacja przewodu (krok 4): `calibrate.py pipe`
+
+Pompa przetłacza wodę przez badany przewód, a w kilkunastu punktach pracy mierzy się przepływ i spadek ciśnienia czujnikiem różnicowym (`FishRobot.Calibration.PipeBench`). Plik pomiaru to CSV z kolumnami `Q [m³/s], dp [Pa]`. Długość mierzy się linijką (`--l`), a dopasowujemy średnicę hydrauliczną `d`, straty miejscowe `zeta` i chropowatość `roughness`. Charakterystyka jest nieliniowa i przechodzi z laminarnej w turbulentną, więc tu znowu dopasowujemy symulację. Model nie ma inertancji, więc rampa przepływu w czasie służy tylko do przejścia po punktach pracy. Szum czujnika ciśnienia jest względny (procent odczytu), a Δp zmienia się o 3 rzędy wielkości, dlatego reszty liczone są jako `ln(Δp_sym/Δp_pomiar)`.
+
+Pomiar syntetyczny: 20 punktów od 1 do 40 ml/s (Re ok. 350–14 000), szum 1% odczytu. „Prawdziwy” przewód ma średnicę 3,6 mm zamiast nominalnych 4 mm, `zeta = 2,5` i gładką ściankę (5 µm). Wyniki z 200 powtórzeń (`results/calibration/pipe_fit.{txt,png}`):
+
+| Parametr | Niepewność 1σ | Rozrzut | Średni błąd |
+|---|---|---|---|
+| `d` | 0,23% | 0,24% | 0,0% |
+| `zeta` | 2,2% | 2,3% | 0,1% |
+| `roughness` | 29% | 32% | −7% |
+
+**Lekcja: nie każdy parametr da się wyznaczyć z danego eksperymentu.** Średnicę wyznacza głównie zakres laminarny, bo opór rośnie tam jak `1/d⁴`: 0,23% niepewności `d` to ok. 1% oporu. Dla tego węża placeholder 4 mm dawał prawie 2 razy za mały opór. Chropowatość ma niepewność 29%, bo przy Re poniżej ok. 15 000 gładki wąż zachowuje się prawie jak idealnie gładka rura i ścianka ledwo wpływa na tarcie. Taki parametr lepiej przyjąć z tablic, niż dopasowywać. Sprawdzenie: przy chropowatości z tablic 1,5 µm, czyli 3 razy za małej, `d` przesuwa się o 0,25%, a `zeta` o 3,4%, czyli o 1–1,6σ. Średnica i `zeta` są silnie skorelowane (0,96), bo obie podnoszą opór w całym zakresie. Gdyby `d` zmierzyć osobno (np. objętością wody w odcinku węża), niepewność `zeta` by spadła.
+
+Model przejścia laminarny–turbulentny (interpolacja między `Re_lam` a `Re_turb`) jest tu założeniem, a nie wynikiem. W pomiarze syntetycznym zgadza się z „rzeczywistością” z definicji. Na prawdziwym pomiarze błędne progi przejścia pokażą się jako garb reszt w szarym pasie na wykresie.
