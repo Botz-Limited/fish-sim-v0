@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- ====================================================================== -->
+<!-- Konfiguracja preCICE v3: ogon ryby (CalculiX) w wodzie (OpenFOAM).     -->
+<!-- Wariant: sprzężenie JAWNE (explicit) – celowo NIESTABILNE (etap 3).  -->
+<!-- Na bazie tutorialu perpendicular-flap (preCICE tutorials, develop).    -->
+<!-- ====================================================================== -->
+<precice-configuration>
+  <!-- Logi preCICE: informacje z procesu 0, ostrzeżenia i błędy ze wszystkich -->
+  <log>
+    <sink
+      filter="(%Severity% > debug and %Rank% = 0) or %Severity% > info"
+      format="---[precice] %ColorizedSeverity% %Message%"
+      enabled="true" />
+  </log>
+
+  <!-- Podstawowy profil czasów (precice-profiling) – pokazuje, ile czasu
+       zajmuje płyn, ciało stałe, mapowanie i komunikacja -->
+  <profiling mode="fundamental" synchronize="false" />
+
+  <!-- Wymieniane dane: siła od wody na ogon i przemieszczenie ogona -->
+  <data:vector name="Force" />
+  <data:vector name="Displacement" />
+
+  <!-- Siatki interfejsu (2D: preCICE widzi przekrój x-y).
+       Fluid-Mesh: środki ścian patcha "tail" w OpenFOAM.
+       Solid-Mesh: węzły zbioru Nsurface w CalculiX. -->
+  <mesh name="Fluid-Mesh" dimensions="2">
+    <use-data name="Force" />
+    <use-data name="Displacement" />
+  </mesh>
+
+  <mesh name="Solid-Mesh" dimensions="2">
+    <use-data name="Displacement" />
+    <use-data name="Force" />
+  </mesh>
+
+  <participant name="Fluid">
+    <provide-mesh name="Fluid-Mesh" />
+    <receive-mesh name="Solid-Mesh" from="Solid" />
+    <write-data name="Force" mesh="Fluid-Mesh" />
+    <read-data name="Displacement" mesh="Fluid-Mesh" />
+    <!-- MAPOWANIE. Siatki płynu i ciała stałego się nie pokrywają (inne
+         rozmieszczenie punktów), więc dane trzeba przenieść interpolacją.
+         RBF (radialne funkcje bazowe) nie potrzebuje połączeń między punktami,
+         a CalculiX przekazuje tylko węzły – stąd RBF, jak w tutorialu.
+         * Siła: "conservative" – suma sił węzłowych zostaje zachowana
+           (inaczej zmieniłby się wypadkowy ciąg/opór).
+         * Przemieszczenie: "consistent" – wartość w punkcie jest
+           interpolowana (stałe przesunięcie musi zostać stałe).
+         Promień nośnika 5 mm: obejmuje kilka punktów każdej siatki, ale jest
+         mniejszy od grubości końcówki (10 mm), więc lewa i prawa powierzchnia
+         ogona słabo się "mieszają". PLACEHOLDER – sprawdzić przy zagęszczaniu. -->
+    <mapping:rbf direction="write" from="Fluid-Mesh" to="Solid-Mesh" constraint="conservative">
+      <basis-function:compact-polynomial-c6 support-radius="0.005" />
+    </mapping:rbf>
+    <mapping:rbf direction="read" from="Solid-Mesh" to="Fluid-Mesh" constraint="consistent">
+      <basis-function:compact-polynomial-c6 support-radius="0.005" />
+    </mapping:rbf>
+  </participant>
+
+  <participant name="Solid">
+    <provide-mesh name="Solid-Mesh" />
+    <write-data name="Displacement" mesh="Solid-Mesh" />
+    <read-data name="Force" mesh="Solid-Mesh" />
+    <!-- Punkt obserwacji: środek końcówki ogona (x = L = 0.15 m, y = 0).
+         Zapisuje plik precice-Solid-watchpoint-Tip.log -->
+    <watch-point mesh="Solid-Mesh" name="Tip" coordinate="0.15;0.0" />
+  </participant>
+
+  <!-- Komunikacja przez gniazda TCP; pliki adresowe w katalogu wyżej -->
+  <m2n:sockets acceptor="Fluid" connector="Solid" exchange-directory=".." />
+
+  <!-- SCHEMAT SPRZĘŻENIA – JAWNY (do demonstracji niestabilności).
+       Jedna wymiana danych na okno czasowe, bez powtarzania kroku.
+       Przy gęstości ciała ~ gęstości płynu efekt masy dodanej sprawia, że
+       błąd siły na interfejsie mnoży się w każdym kroku przez czynnik > 1
+       (ok. m_dodana / m_ciała) – oscylacje rosną wykładniczo, aż do NaN
+       albo zdegenerowania siatki. Zmniejszanie kroku czasowego NIE pomaga. -->
+  <coupling-scheme:serial-explicit>
+    <time-window-size value="@DT@" />
+    <max-time value="@T_END@" />
+    <participants first="Fluid" second="Solid" />
+    <exchange data="Force" mesh="Solid-Mesh" from="Fluid" to="Solid" />
+    <exchange data="Displacement" mesh="Solid-Mesh" from="Solid" to="Fluid" />
+  </coupling-scheme:serial-explicit>
+</precice-configuration>

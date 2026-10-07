@@ -1,0 +1,63 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+    \\  /    A nd           |
+     \\/     M anipulation  | Demo FSI ogona ryby
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSchemes;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+ddtSchemes
+{
+    // backward: drugi rząd w czasie (Euler jest tylko pierwszego rzędu i
+    // sztucznie tłumi drgania). Adapter v1.4 poprawnie checkpointuje V0/V00,
+    // więc backward działa ze sprzężeniem niejawnym.
+    default         backward;
+}
+
+gradSchemes
+{
+    default         Gauss linear;
+    // ograniczony gradient dla członu konwekcji – mniej oscylacji
+    grad(U)         cellLimited Gauss linear 1;
+}
+
+divSchemes
+{
+    default         none;
+    // linearUpwind: drugi rząd, stabilny na siatkach niestrukturalnych
+    div(phi,U)      Gauss linearUpwind grad(U);
+    div((nuEff*dev2(T(grad(U))))) Gauss linear;
+}
+
+laplacianSchemes
+{
+    // "limited corrected 0.5": korekcja nieortogonalności ograniczona do
+    // połowy – kompromis dokładność/stabilność na siatce z gmsh, która
+    // dodatkowo deformuje się w czasie
+    default         Gauss linear limited corrected 0.5;
+}
+
+interpolationSchemes
+{
+    default         linear;
+}
+
+snGradSchemes
+{
+    default         limited corrected 0.5;
+}
+
+wallDist
+{
+    method          meshWave;
+}
+
+// ************************************************************************* //

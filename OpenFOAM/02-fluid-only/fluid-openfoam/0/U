@@ -1,0 +1,70 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+    \\  /    A nd           |
+     \\/     M anipulation  | Demo FSI ogona ryby
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    object      U;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+#include "$FOAM_CASE/system/caseParams"
+
+dimensions      [0 1 -1 0 0 0 0];
+
+// Start z jednorodnego pola napływu (szybciej się ustala niż od zera)
+internalField   uniform ($U_IN 0 0);
+
+boundaryField
+{
+    // Wlot: zadana prędkość napływu
+    inlet
+    {
+        type            fixedValue;
+        value           uniform ($U_IN 0 0);
+    }
+
+    // Wylot: zerowy gradient przy wypływie, ale gdy wir wraca do domeny
+    // (przepływ wsteczny) – prędkość zero. Stabilniejsze niż czyste zeroGradient.
+    outlet
+    {
+        type            inletOutlet;
+        inletValue      uniform (0 0 0);
+        value           $internalField;
+    }
+
+    // Ściany boczne: poślizg – udajemy nieograniczony ośrodek (bez warstwy
+    // przyściennej na ścianach kanału). Wpływ odległości sprawdzamy w etapie 2.
+    sides
+    {
+        type            slip;
+    }
+
+    // Sztywna głowa: brak poślizgu
+    head
+    {
+        type            noSlip;
+    }
+
+    // Ogon: ściana ruchoma – prędkość płynu = prędkość ściany (z ruchu siatki).
+    // Dla nieruchomej siatki (etap 2) to samo co noSlip.
+    tail
+    {
+        type            movingWallVelocity;
+        value           uniform (0 0 0);
+    }
+
+    // 2D: przód i tył domeny nie są liczone
+    frontAndBack
+    {
+        type            empty;
+    }
+}
+
+// ************************************************************************* //

@@ -1,0 +1,11 @@
+# Konfiguracja adaptera CalculiX-preCICE
+participants:
+    Solid:
+        interfaces:
+        # węzły zbioru Nsurface (CalculiX szuka NSET o nazwie N + "patch")
+        - nodes-mesh: Solid-Mesh
+          patch: surface
+          read-data: [Force]
+          write-data: [Displacement]
+
+precice-config-file: ../precice-config.xml

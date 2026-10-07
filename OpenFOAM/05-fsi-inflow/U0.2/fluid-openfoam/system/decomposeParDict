@@ -1,0 +1,24 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+    \\  /    A nd           |
+     \\/     M anipulation  | Demo FSI ogona ryby
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      decomposeParDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Podział siatki na procesy MPI. Na 6-rdzeniowym Ryzenie: 4 procesy płynu,
+// pozostałe rdzenie zostają dla CalculiX (OpenMP) w etapach FSI.
+numberOfSubdomains 4;
+
+// scotch: automatyczny podział minimalizujący granice między procesami
+method          scotch;
+
+// ************************************************************************* //

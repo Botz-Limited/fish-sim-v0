@@ -1,0 +1,64 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+    \\  /    A nd           |
+     \\/     M anipulation  | Demo FSI ogona ryby
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       pointVectorField;
+    object      pointDisplacement;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Przemieszczenie punktów siatki płynu. Na ogonie wartości wpisuje adapter
+// preCICE (przemieszczenia z CalculiX), wnętrze wylicza solver ruchu siatki.
+
+dimensions      [0 1 0 0 0 0 0];
+
+internalField   uniform (0 0 0);
+
+boundaryField
+{
+    inlet
+    {
+        type            fixedValue;
+        value           uniform (0 0 0);
+    }
+
+    outlet
+    {
+        type            fixedValue;
+        value           uniform (0 0 0);
+    }
+
+    // Boki: punkty mogą się ślizgać wzdłuż ściany
+    sides
+    {
+        type            slip;
+    }
+
+    // Głowa jest sztywna i nieruchoma
+    head
+    {
+        type            fixedValue;
+        value           uniform (0 0 0);
+    }
+
+    // Ogon: wartość nadpisywana przez adapter preCICE w każdej iteracji
+    tail
+    {
+        type            fixedValue;
+        value           $internalField;
+    }
+
+    frontAndBack
+    {
+        type            empty;
+    }
+}
+
+// ************************************************************************* //

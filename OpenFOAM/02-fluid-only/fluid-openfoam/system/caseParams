@@ -1,0 +1,40 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+    \\  /    A nd           |
+     \\/     M anipulation  | Demo FSI ogona ryby
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      caseParams;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Parametry tego przypadku (wczytywane przez 0/*, controlDict i preciceDict).
+// Zmieniaj tylko tutaj.
+
+// Prędkość napływu [m/s]. 0 = woda stojąca.
+// PLACEHOLDER – do identyfikacji z pomiarów (prędkość pływania ryby)
+U_IN            0.2;
+
+// Krok czasowy [s] i czas końcowy [s].
+// Przy sprzężeniu z preCICE krok narzuca time-window-size w precice-config.xml,
+// ale OpenFOAM musi dostać ten sam deltaT.
+DELTA_T         0.002;
+END_TIME        10;
+
+// Co ile sekund zapisywać pola (do ParaView).
+WRITE_INTERVAL  0.25;
+
+// Od kiedy uśredniać pola w czasie (pMean, UMean) [s] – po zaniku rozruchu.
+AVG_START       5;
+
+// Gęstość wody [kg/m^3] – OpenFOAM (pimpleFoam) liczy ciśnienie kinematyczne
+// p/rho, więc siły w N/m dostajemy, mnożąc przez RHO.
+RHO             1000;
+
+// ************************************************************************* //

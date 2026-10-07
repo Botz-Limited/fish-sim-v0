@@ -1,0 +1,48 @@
+** ======================================================================
+** Ogon ryby w wodzie – część ciała stałego (CalculiX + adapter preCICE).
+** Na bazie solid-calculix/flap.inp z tutorialu perpendicular-flap.
+** ======================================================================
+** Siatka, zbiory i materiał generuje: python ../../tools/make_geometry.py solid .
+*INCLUDE, INPUT=tail.msh
+*INCLUDE, INPUT=tail_sets.nam
+*INCLUDE, INPUT=material.inc
+** Przebiegi czasowe ciśnienia w komorach (pusty plik = ogon pasywny)
+*INCLUDE, INPUT=amplitude.inc
+**
+** NLGEOM: duże ugięcia (geometrycznie nieliniowa analiza).
+** INC: maks. liczba przyrostów – musi być >= T_END / DT.
+*STEP, NLGEOM, INC=1000000
+** Analiza dynamiczna (bezwładność ogona). DIRECT = stały przyrost czasu,
+** SOLVER=PARDISO: Intel MKL, ~1.6x szybszy od SPOOLES (NOTES.md),
+** równy oknu czasowemu preCICE.
+** ALPHA = -0.2: schemat HHT z numerycznym tłumieniem WYSOKICH częstotliwości
+** (tutorial ma 0.0). Bez tego nietłumione mody osiowe miękkiego ogona
+** (~30 Hz) rozbiegały Newtona – nawet bez wody (NOTES.md). Tłumienie HHT
+** rośnie jak (omega*dt)^3, więc przy 1–3 Hz jest pomijalne.
+*DYNAMIC, ALPHA=-0.2, DIRECT, SOLVER=PARDISO
+0.001, 0.1
+**
+** Nasada sklejona ze sztywną głową: pełne utwierdzenie
+*BOUNDARY
+Nfix, 1, 3
+** Model 2D: blokujemy z we wszystkich węzłach
+*BOUNDARY
+Nall, 3, 3
+**
+** Siły od wody: adapter preCICE nadpisuje te zerowe obciążenia węzłowe
+** na interfejsie (zbiór Nsurface) w każdej iteracji sprzężenia.
+*CLOAD
+Nsurface, 1, 0.0
+Nsurface, 2, 0.0
+Nsurface, 3, 0.0
+**
+** Ciśnienie w komorach (pusty plik = ogon pasywny)
+*INCLUDE, INPUT=dload.inc
+**
+** Wyniki: przemieszczenia do .frd (ParaView/cgx) co 10 przyrostów,
+** przemieszczenie końcówki do .dat w każdym przyroście
+*NODE FILE, FREQUENCY=10
+U
+*NODE PRINT, NSET=Ntip, FREQUENCY=1
+U
+*END STEP

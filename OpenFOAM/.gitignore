@@ -1,0 +1,36 @@
+# Wyniki solverów (duże, odtwarzalne przez run.sh) – w repo tylko results/
+**/processor*/
+**/postProcessing/
+**/precice-profiling/
+**/precice-exports/
+**/precice-run/
+**/[0-9]*.[0-9]*/
+**/[1-9]*/
+!**/0/
+**/constant/polyMesh/
+**/dynamicCode/
+**/*.foam
+**/log.*
+**/*.log
+!00-reference-flap/reference/*.log
+**/*.frd
+**/*.dat
+**/*.sta
+**/*.cvg
+**/*.12d
+**/*.rout
+**/spooles.out
+**/*.eig
+# generowane przez tools/make_geometry.py i make_actuation.py
+**/tail.msh
+**/tail_sets.nam
+**/material.inc
+**/amplitude.inc
+**/dload.inc
+**/fluid.msh
+# warianty etapu 2 tworzone przez run_all.sh
+02-fluid-only/mesh-*/
+02-fluid-only/domain-*/
+queue.log
+__pycache__/
+logs/

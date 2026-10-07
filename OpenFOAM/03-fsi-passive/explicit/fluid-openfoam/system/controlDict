@@ -1,0 +1,120 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Wersja: v2606 (openfoam.com)
+    \\  /    A nd           |
+     \\/     M anipulation  | Demo FSI ogona ryby
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+#include "caseParams"
+
+// pimpleFoam: nieściśliwy, nieustalony, laminarny lub turbulentny solver.
+// Obsługuje ruchomą siatkę (constant/dynamicMeshDict).
+application     pimpleFoam;
+
+startFrom       startTime;
+startTime       0;
+stopAt          endTime;
+endTime         $END_TIME;
+
+// Stały krok czasowy: przy sprzężeniu preCICE oba solvery muszą iść tym samym
+// krokiem (time-window-size). Liczbę Couranta pilnujemy, dobierając DELTA_T.
+deltaT          $DELTA_T;
+adjustTimeStep  no;
+
+writeControl    adjustableRunTime;
+writeInterval   $WRITE_INTERVAL;
+purgeWrite      0;
+writeFormat     binary;         // binarnie = szybciej i mniej miejsca
+writePrecision  8;
+writeCompression off;
+timeFormat      general;
+timePrecision   8;
+runTimeModifiable false;        // nie sprawdzaj plików co krok (szybciej)
+
+functions
+{
+    // Siła od wody na całe ciało (głowa + ogon) -> postProcessing/forces*/
+    // Składowa x: dodatnia = opór, ujemna = ciąg.
+    forcesBody
+    {
+        type            forces;
+        libs            (forces);
+        writeControl    timeStep;
+        writeInterval   1;
+        patches         (head tail);
+        rho             rhoInf;     // solver nieściśliwy: podajemy gęstość
+        rhoInf          $RHO;
+        CofR            (0 0 0);    // moment liczony względem nasady ogona
+    }
+
+    // To samo, ale tylko ogon
+    forcesTail
+    {
+        $forcesBody;
+        patches         (tail);
+    }
+
+    // Wirowość (rot U) – do zrzutów śladu wirowego w ParaView
+    vorticity
+    {
+        type            vorticity;
+        libs            (fieldFunctionObjects);
+        writeControl    writeTime;
+    }
+
+    // Liczba Couranta w logu (kontrola kroku czasowego)
+    CourantNo
+    {
+        type            CourantNo;
+        libs            (fieldFunctionObjects);
+        writeControl    writeTime;
+    }
+
+    // Uśrednianie w czasie (od AVG_START): pMean, UMean
+    fieldAverage
+    {
+        type            fieldAverage;
+        libs            (fieldFunctionObjects);
+        timeStart       $AVG_START;
+        writeControl    writeTime;
+        fields
+        (
+            p { mean on; prime2Mean off; base time; }
+            U { mean on; prime2Mean off; base time; }
+        );
+    }
+
+    // Ciśnienie na powierzchni ciała (chwilowe i średnie) -> postProcessing/bodySurface
+    bodySurface
+    {
+        type            surfaces;
+        libs            (sampling);
+        writeControl    writeTime;
+        surfaceFormat   raw;
+        fields          (p pMean);
+        interpolationScheme cell;
+        surfaces
+        {
+            body
+            {
+                type        patch;
+                patches     (head tail);
+                interpolate false;
+            }
+        }
+    }
+
+    // Adapter preCICE – plik istnieje tylko w przypadkach FSI (etapy 3–5)
+    #includeIfPresent "preciceFunctionObject"
+}
+
+// ************************************************************************* //
