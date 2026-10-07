@@ -101,7 +101,7 @@ Ten sam obwód zbudowany na `Modelica.Fluid` i porównanie obu wersji opisuje se
   - Pompa przetłacza wodę z komory R do L. Różnica ciśnień rośnie coraz szybciej, bo silikon sztywnieje.
   - Przy ok. 51 kPa otwiera się zawór przelewowy. Od tej chwili woda krąży w pętli pompa → zawór, komory stoją, a cała moc pompy idzie w ciepło.
   - Po zdjęciu komendy mostek zwiera silnik, a napięte komory wypychają wodę z powrotem, głównie przez przeciek pompy. Silnik działa wtedy jak hamulec prądnicowy, stąd ujemny prąd.
-  - Przy placeholderowych parametrach silnik jest mocno przewymiarowany względem pompy. Prąd pod obciążeniem to tylko ok. 0,14 A, więc parametry trzeba zidentyfikować, zanim wyciągnie się wnioski o doborze napędu.
+  - Przy placeholderowych parametrach silnik jest mocno przewymiarowany względem pompy. Prąd pod obciążeniem to tylko ok. 0,35 A, więc parametry trzeba zidentyfikować, zanim wyciągnie się wnioski o doborze napędu.
 
 - **`hydraulics_msl_fluid.png`** (scenariusz 8, opcjonalny) – ten sam przebieg co `hydraulics_step.png`, policzony na komponentach `Modelica.Fluid`. Na oko wykresy są identyczne. Różnice pokazuje `results/fluid/fluid_vs_own.png` (sekcja niżej).
 
@@ -110,7 +110,7 @@ Ten sam obwód zbudowany na `Modelica.Fluid` i porównanie obu wersji opisuje se
   - Ciśnienia w komorach zmieniają się w przeciwfazie.
   - Prąd baterii ma podwójną częstotliwość i chwilami jest ujemny. W każdej połówce okresu silnik najpierw rozpędza się, a potem hamuje, oddając energię do baterii.
   - Amplituda rośnie przez 2 okresy, bo CPG zaczyna od łagodnej rampy.
-- **`relief_valve_demo.png`** (scenariusz 4) – pełna komenda przy 0,25 Hz. Różnica ciśnień dochodzi do ±`p_set`, zawory się otwierają, a szczyty kąta ogona się spłaszczają (ok. ±31°). Dolny panel pokazuje, że ponad połowa energii hydraulicznej oddanej przez pompę idzie w ciepło w zaworach.
+- **`relief_valve_demo.png`** (scenariusz 4) – pełna komenda przy 0,25 Hz. Różnica ciśnień dochodzi do ±`p_set`, zawory się otwierają, a szczyty kąta ogona się spłaszczają (ok. ±31°). Dolny panel pokazuje, że ok. 43% energii hydraulicznej oddanej przez pompę idzie w ciepło w zaworach. Reszta to głównie tarcie w przewodach, bo przy pełnej komendzie przepływ jest turbulentny.
 
 - **`depth_control.png`** (scenariusz 6) – skoki zadanej głębokości −0,5 → −1,5 → −1,0 m:
   - Żeby zejść głębiej, regulator najpierw zmniejsza pęcherz (ryba robi się cięższa), a przed celem zwiększa go z powrotem, żeby wyhamować. Ryba opada ze stałą prędkością ok. 3 cm/s, bo filtr zadanej zamienia skok na rampę.
@@ -121,7 +121,7 @@ Ten sam obwód zbudowany na `Modelica.Fluid` i porównanie obu wersji opisuje se
 - **`swim_forward.png`** (scenariusz 7) – CPG 1 Hz, amplituda komendy 0,8, 120 s:
   - Ciąg pulsuje z podwójną częstotliwością, bo płetwa pcha w obu kierunkach machnięcia. Chwilami spada do zera, gdy ogon zawraca.
   - Prędkość rośnie powoli i ustala się na ok. 6,4 cm/s, gdy średni ciąg (ok. 3 mN) zrówna się z oporem kadłuba. Stała czasowa to ok. 20 s, bo przy małym ciągu opór długo nie dorównuje mu.
-  - Z 207 J pobranych z baterii płetwa dostaje tylko ok. 40 mJ, a pracę użyteczną (przeciw oporowi kadłuba) daje ok. 20 mJ, czyli 0,01%. Reszta to straty napędu ogona, opisane w scenariuszu 5.
+  - Z 216 J pobranych z baterii płetwa dostaje tylko ok. 40 mJ, a pracę użyteczną (przeciw oporowi kadłuba) daje ok. 20 mJ, czyli 0,01%. Reszta to straty napędu ogona, opisane w scenariuszu 5.
 
 ## Pływanie do przodu (scenariusz 7)
 
@@ -139,13 +139,13 @@ Parametry `s_fin` i `C_T` są placeholderami. Trzeba je wyznaczyć z pomiaru ci�
 
 | f [Hz] | U [cm/s] | θ [°] | θ·f [°·Hz] | P_bat [W] |
 |---|---|---|---|---|
-| 0,25 | 7,8 | 31,4 | 7,9 | 1,0 |
-| 0,5 | 8,6 | 17,2 | 8,6 | 1,1 |
-| 1 | 8,1 | 7,8 | 7,8 | 2,8 |
-| 2 | 7,3 | 3,5 | 6,9 | 7,9 |
-| 4 | 6,7 | 1,6 | 6,2 | 16,6 |
+| 0,25 | 7,6 | 31,1 | 7,8 | 1,1 |
+| 0,5 | 8,5 | 16,9 | 8,5 | 1,25 |
+| 1 | 8,0 | 7,7 | 7,7 | 2,9 |
+| 2 | 7,3 | 3,4 | 6,9 | 7,9 |
+| 4 | 6,6 | 1,6 | 6,2 | 16,6 |
 
-**Lekcja: szybsze machanie nie przyspiesza ryby, gdy ogranicza pompa.** Średni ciąg rośnie z kwadratem prędkości krawędzi spływu, czyli z (θ·f)². Powyżej ok. 0,5 Hz pompa przetłacza w półokresie stałą objętość, więc θ·f jest prawie stałe (patrz scenariusz 3). Ciąg i prędkość stoją w miejscu, a nawet lekko maleją, a moc z baterii rośnie 16 razy, bo silnik coraz częściej zawraca wirnik. Poniżej 0,5 Hz ogranicza zawór przelewowy: amplituda przestaje rosnąć, więc θ·f i prędkość spadają. Przy placeholderowych parametrach optimum to ok. 0,5 Hz. Żeby płynąć szybciej, trzeba zwiększyć przepływ pompy albo `D_tail`, a nie częstotliwość.
+**Lekcja: szybsze machanie nie przyspiesza ryby, gdy ogranicza pompa.** Średni ciąg rośnie z kwadratem prędkości krawędzi spływu, czyli z (θ·f)². Powyżej ok. 0,5 Hz pompa przetłacza w półokresie stałą objętość, więc θ·f jest prawie stałe (patrz scenariusz 3). Ciąg i prędkość stoją w miejscu, a nawet lekko maleją, a moc z baterii rośnie 15 razy, bo silnik coraz częściej zawraca wirnik. Poniżej 0,5 Hz ogranicza zawór przelewowy: amplituda przestaje rosnąć, więc θ·f i prędkość spadają. Przy placeholderowych parametrach optimum to ok. 0,5 Hz. Żeby płynąć szybciej, trzeba zwiększyć przepływ pompy albo `D_tail`, a nie częstotliwość.
 
 ## Balast i pion (scenariusz 6)
 
@@ -159,22 +159,22 @@ Strzykawka (`Buoyancy.BallastSyringe`) to mostek H, silnik DC, przekładnia, śr
 
 ## Bilans energii (scenariusz 5)
 
-Podukład `TailDrive` całkuje osobno każdą stratę (`E_loss_*`) i liczy energię zmagazynowaną (`E_stored`): wirnik, indukcyjność, ścianki komór, ogon. Zmienna `E_balance_error = E_battery − E_loss_total − ΔE_stored` musi być bliska zeru. `check_tests.py` sprawdza to automatycznie w każdym modelu z podukładem `drive`; błąd wynosi ok. 2e-6 energii z baterii. To test całego modelu: zły znak, brakujący człon albo niespójne równania w dowolnym komponencie rozjechałyby bilans.
+Podukład `TailDrive` całkuje osobno każdą stratę (`E_loss_*`) i liczy energię zmagazynowaną (`E_stored`): wirnik, indukcyjność, ścianki komór, ogon. Zmienna `E_balance_error = E_battery − E_loss_total − ΔE_stored` musi być bliska zeru. `check_tests.py` sprawdza to automatycznie w każdym modelu z podukładem `drive`; błąd jest rzędu 1e-6 energii z baterii. To test całego modelu: zły znak, brakujący człon albo niespójne równania w dowolnym komponencie rozjechałyby bilans.
 
 Mostek H jest bezstratny. Moc ciśnienia otoczenia znosi się w obiegu zamkniętym, bo objętość krąży, a nie znika. Energię oddaną przez oś ogona na zewnątrz (np. płetwie w scenariuszu 7) liczy osobny człon `E_mech_out`; bez podłączenia jest zerowa.
 
-**`energy_budget.png`** – 60 s machania przy 1 Hz i amplitudzie komendy 0,8. Szacowany czas pracy samego napędu ogona to ok. 9,6 h przy 1,7 W i placeholderowej baterii 16,3 Wh.
+**`energy_budget.png`** – 60 s machania przy 1 Hz i amplitudzie komendy 0,8. Szacowany czas pracy samego napędu ogona to ok. 9,2 h przy 1,8 W i placeholderowej baterii 16,3 Wh.
 
 | Pozycja | Udział |
 |---|---|
-| silnik: uzwojenie R·i² | 82,6% |
-| silnik: łożyska | 8,9% |
-| przewody | 5,5% |
-| pompa: tarcie | 1,9% |
+| silnik: uzwojenie R·i² | 78,5% |
+| przewody | 9,3% |
+| silnik: łożyska | 8,4% |
+| pompa: tarcie | 2,7% |
 | bateria | 0,8% |
 | ogon (woda i materiał) | 0,1% |
 
-**Lekcja: przy odwracalnej pompie energię zjada zawracanie wirnika, a nie woda.** Przy ok. 600 rad/s wirnik ma ok. 0,9 J energii kinetycznej. Dwa razy na okres silnik musi ją wytracić i odbudować, a prąd hamowania i rozpędzania grzeje uzwojenie. Sprawdzenie: przy 10 razy mniejszej bezwładności wirnika energia z baterii spada 5 razy, a udział uzwojenia z 82% do 4%, przy tej samej amplitudzie ogona. Wnioski projektowe do zweryfikowania na prawdziwych parametrach:
+**Lekcja: przy odwracalnej pompie energię zjada zawracanie wirnika, a nie woda.** Przy ok. 550 rad/s wirnik ma ok. 0,8 J energii kinetycznej. Dwa razy na okres silnik musi ją wytracić i odbudować, a prąd hamowania i rozpędzania grzeje uzwojenie. Sprawdzenie: przy 10 razy mniejszej bezwładności wirnika energia z baterii spada ponad 4 razy, a udział uzwojenia z 79% do 4%, przy tej samej amplitudzie ogona. Wnioski projektowe do zweryfikowania na prawdziwych parametrach:
 
 - silnik o małej bezwładności (np. bezrdzeniowy),
 - przekładnia i wolniejszy silnik, bo energia kinetyczna rośnie z ω²,
@@ -196,12 +196,12 @@ Mostek H jest bezstratny. Moc ciśnienia otoczenia znosi się w obiegu zamknięt
 
 `export_fmu.py` eksportuje `Subsystems.TailDriveFMU` jako **FMU 2.0 Co-Simulation**: bateria, mostek H, silnik, pompa, przewody, komory, zawory i ogon. Wejście to komenda `u`, a wyjścia to `theta`, `w_tail`, `tau_tail`, `p_L`, `p_R` i `i_motor`. `TailDriveFMU` to cienkie opakowanie `TailDrive`. Złącza mechanicznego `flange_tail` (kąt i moment jako zmienna przepływowa) nie da się wystawić jako zwykłego wejścia lub wyjścia FMU, więc zostaje w środku niepodłączone.
 
-**Solver w FMU: CVODE** (`--fmiFlags=s:cvode`). Domyślnie OpenModelica wkłada do FMU CS jawną metodę Eulera z krokiem równym krokowi komunikacji. Przy sztywnej hydraulice i kroku 2 ms taki FMU pada po ok. 0,1 s. CVODE dobiera kroki wewnątrz każdego kroku komunikacji, a biblioteki sundials są spakowane do FMU (1,7 MB).
+**Solver w FMU: CVODE** (`--fmiFlags=s:cvode`). Domyślnie OpenModelica wkłada do FMU CS jawną metodę Eulera z krokiem równym krokowi komunikacji. Przy sztywnej hydraulice i kroku 2 ms taki FMU pada po ok. 0,1 s. CVODE dobiera kroki wewnątrz każdego kroku komunikacji, a biblioteki sundials są spakowane do FMU (1,8 MB).
 
 `fmu_demo.py` uruchamia FMU w pętli Pythona przez FMPy (`FMU2Slave`) z krokiem 2 ms. Komendę CPG liczy Python tym samym wzorem co `Control.CPG`. Wynik porównuje ze scenariuszem `TailFlapping` policzonym w OpenModelica (`fmu_vs_om.png`):
 
-- komenda próbkowana **w środku kroku** `u(t + h/2)`: max różnica kąta 0,023% amplitudy,
-- komenda próbkowana **na początku kroku** `u(t)`: 0,64% amplitudy.
+- komenda próbkowana **w środku kroku** `u(t + h/2)`: max różnica kąta 0,016% amplitudy,
+- komenda próbkowana **na początku kroku** `u(t)`: 0,62% amplitudy.
 
 **Lekcja: w co-simulation wejście jest stałe w kroku komunikacji** (ZOH). Próbkowane na początku kroku spóźnia się średnio o h/2 = 1 ms, a przy 1 Hz daje to błąd fazy rzędu 2π·f·h/2 ≈ 0,6%. Próbkowanie w środku kroku usuwa to opóźnienie. Przy sprzężeniu dwóch symulatorów takiego triku nie ma, bo wejście pochodzi z drugiego symulatora. Wtedy krok trzeba dobrać do najszybszej dynamiki sprzężenia.
 
