@@ -253,4 +253,32 @@ Placeholderową krzywą p–V można zastąpić danymi z demo SOFA albo z pomiar
 
 ## Ograniczenia
 
-Model jest jednowymiarowy, o skupionych parametrach. Parametry nie są zidentyfikowane. Przewód liczy opór tylko ze wzoru laminarnego, choć przy szybkim pompowaniu Re dochodzi do ok. 5200 (porównanie z `Modelica.Fluid` wyżej). Ciąg pochodzi z placeholderowego modelu płetwy (wyżej). Ruchy do przodu, w pionie i obrót są niezależne: machanie nie odchyla kadłuba, a balast nie wpływa na pływanie. Pełna lista ograniczeń i plan kalibracji pojawią się wraz z kolejnymi etapami.
+Model odpowiada na pytania typu „czy pompa i bateria wystarczą” i „gdzie ucieka energia”, a nie „jak dokładnie płynie woda”. Główne uproszczenia:
+
+- **Ogon jako 1 DOF.** `Tail.TailEquivalent` to sztywna belka obracana o kąt θ ze sprężyną, tłumieniem i masą dodaną. Prawdziwy ogon z silikonu wygina się wzdłuż długości (kształt fali), czego ten model nie odda.
+- **Ciąg z placeholderu.** `Propulsion.LighthillFin` to reaktywna teoria Lighthilla dla sztywnej płetwy z empirycznym współczynnikiem `C_T`. Nie ma w niej oderwania przepływu, śladu wirowego o skończonej długości ani wpływu kształtu płetwy. Liczby prędkości pokazują trendy, a nie wartości do projektowania.
+- **Brak sprzężenia ruchów.** Ruch do przodu (`SurgeDynamics`), pion (`VerticalDynamics`) i obrót są niezależne. Machanie ogonem nie odchyla kadłuba (brak yaw i recoil), balast nie zmienia oporu ani trymu, a prędkość pływania nie daje siły nośnej.
+- **Brak hydrodynamiki przestrzennej.** Opór kadłuba to `½·ρ·C_d·A·U²` ze stałym `C_d`, a masa dodana jest stała. Nie ma przepływu wokół ciała, fal, ściany basenu ani prądów.
+- **Hydraulika o skupionych parametrach.** Woda jest nieściśliwa i ma stałą temperaturę. Komory mają statyczną krzywą p–V bez histerezy i lepkosprężystości silikonu. Przewód liczy opór tylko ze wzoru laminarnego, choć przy szybkim pompowaniu Re dochodzi do ok. 5200 (porównanie z `Modelica.Fluid` wyżej). Zawory nie mają dynamiki grzybka.
+- **Elektryka uproszczona.** Bateria to źródło napięcia z rezystancją wewnętrzną, bez spadku napięcia w miarę rozładowania. Mostek H jest idealny (uśredniony PWM, bez strat przełączania). Silnik nie ma nasycenia magnetycznego ani temperatury uzwojenia.
+- **Parametry niezidentyfikowane.** Wszystkie wartości oznaczone `PLACEHOLDER` w kodzie są szacunkami rzędu wielkości. Przy obecnych parametrach silnik jest np. mocno przewymiarowany względem pompy (scenariusz 1).
+
+## Plan kalibracji
+
+Parametry najlepiej identyfikować od źródła energii w stronę wody. Każdy krok korzysta z elementów zidentyfikowanych wcześniej, np. silnik z kroku 1 służy potem jako czujnik momentu (moment = `k·i`).
+
+| Krok | Element | Pomiar na stole | Parametry |
+|---|---|---|---|
+| 1 | Bateria | napięcie jałowe i pod znanym obciążeniem, w kilku stanach naładowania | `U_nom`, `R_int`, `capacity_Wh` |
+| 2 | Silnik DC | rezystancja uzwojenia (miernik, zablokowany wał); prędkość biegu jałowego przy kilku napięciach; wybieg po odłączeniu zasilania; odpowiedź prądu na skok napięcia przy zablokowanym wale | `R`, `k`, `b`, `J`, `L` |
+| 3 | Pompa | przepływ (cylinder miarowy lub przepływomierz) przy kilku prędkościach i ciśnieniach (zawór dławiący na wyjściu); prąd silnika daje moment | `D_rev`, `k_leak`, `eta_m` |
+| 4 | Przewody | spadek ciśnienia przy kilku przepływach (dwa czujniki ciśnienia); sprawdzić, przy jakim przepływie charakterystyka przestaje być liniowa | `l`, `d`, `zeta` (i czy potrzebny model turbulentny) |
+| 5 | Komory | quasi-statyczne napełnianie strzykawką z czujnikiem ciśnienia, ogon zablokowany; kilka cykli napełnij–opróżnij (histereza) | krzywa p–V (`table` lub plik CSV), `V_prefill` |
+| 6 | Zawory przelewowe | ciśnienie otwarcia i przepływ ponad nim (pompa na zamknięty obwód) | `p_set`, `dp_open`, `V_flow_nominal` |
+| 7 | Ogon (statycznie) | moment na zablokowanym ogonie (siłomierz na ramieniu) vs różnica ciśnień; kąt swobodnego ogona vs różnica ciśnień | `D_tail` (z momentu), `k` (z kąta) |
+| 8 | Ogon (dynamicznie) | drgania własne po wychyleniu: w powietrzu (`J`, `c`), potem w wodzie (`J_added`, `c_h`) | `J`, `c`, `J_added`, `c_h` |
+| 9 | Ciąg | ciąg na uwięzi (siłomierz) przy kilku częstotliwościach i amplitudach; najlepiej też przy przepływie w tunelu | `C_T`, `s_fin`, `L_tail` |
+| 10 | Kadłub | holowanie ze stałą prędkością albo wybieg (spadek prędkości po wyłączeniu napędu) | `C_d·A`, `m_added_x` |
+| 11 | Balast i pion | ważenie w wodzie przy kilku położeniach tłoka; wybieg w pionie po skoku pęcherza; zależność wyporu od głębokości | `V_b_neutral`, `V_air0`, `m_added_z`, `C_dz·A_z`, `lead`, `gear_ratio` |
+
+Po każdym kroku warto powtórzyć odpowiedni test z `FishRobot.Tests` z nowymi parametrami i porównać przebieg z pomiarem. Kroki 1–8 dotyczą samego napędu ogona i można je wykonać na stole bez wody (oprócz kroku 8). Kroki 9–11 wymagają basenu.
