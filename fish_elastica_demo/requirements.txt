@@ -1,5 +1,5 @@
-# Wersje przypięte (zainstalowane i sprawdzone 2026-10-07, Python 3.14.7).
-# PyElastica 1.0.0: API przez `import elastica as ea`, mixiny z elastica.modules.
+# Pinned versions (installed and verified 2026-10-07, Python 3.14.7).
+# PyElastica 1.0.0: API via `import elastica as ea`, mixins from elastica.modules.
 pyelastica==1.0.0
 numba==0.68.0
 llvmlite==0.50.0

@@ -1,3 +1,3 @@
-"""Demo: miękka ryba jako pręt Cosserata (PyElastica)."""
-# perf musi być zaimportowany PRZED numpy/numbą, żeby zmienne środowiskowe zadziałały.
+"""Demo: a soft fish as a Cosserat rod (PyElastica)."""
+# perf must be imported BEFORE numpy/numba so that the environment variables take effect.
 from . import perf  # noqa: F401

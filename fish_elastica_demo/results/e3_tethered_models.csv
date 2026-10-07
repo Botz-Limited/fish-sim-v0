@@ -1,0 +1,4 @@
+model,tip_amp_m,phase_deg,theta_amp_rad,dp_amp_Pa,thrust_N,thrust_drag_N,thrust_reactive_N,lateral_force_amp_N
+none,0.0923394,-2.73894,0.763194,14880.1,-0,-0,-0,0
+drag,0.0389036,-70.316,0.290874,16529.1,0.00456202,0.00456202,-0,0.243363
+drag+reactive,0.0360761,-73.41,0.286643,16556.5,0.149164,0.00588537,0.143279,0.244019

@@ -1,4 +1,4 @@
-"""Sprawdzenie środowiska: wersja PyElastica i ustawienia wydajności."""
+"""Environment check: PyElastica version and performance settings."""
 import os
 
 import elastica as ea
