@@ -1,13 +1,5 @@
 .venv/
 __pycache__/
-build/
+.pytest_cache/
+.numba_cache/
 results/
-*.fmu
-
-# artefakty omc wygenerowane w katalogu głównym (kompilacja idzie do build/)
-/FishRobot.*.c
-/FishRobot.*.h
-/FishRobot.*.makefile
-/FishRobot.*.bin
-/FishRobot.*.json
-/FishRobot.*.xml
