@@ -106,6 +106,8 @@ build/fish_gui config/s2_swim.json              # dowolny plik config/*.json
 build/fish_gui config/s1_hover.json --out /tmp/log.csv   # opcjonalnie z logiem
 ```
 
+**Rozmiar okna.** Stonefish 1.5 nie obsługuje zmiany rozmiaru okna: bufory renderingu mają rozmiar ustalony przy starcie, więc po rozciągnięciu albo maksymalizacji obraz zostaje w starym rozmiarze lub się rozjeżdża. Dlatego okno ma rozmiar wybrany przy starcie, domyślnie 90% ekranu głównego, i jest zablokowane przed zmianą. Inny rozmiar: `build/fish_gui config/s2_swim.json --window 1600x900`. Na Waylandzie SDL podaje rozdzielczość fizyczną, a kompozytor liczy rozmiar okna w pikselach logicznych, więc program dzieli rozmiar przez skalę ekranu (z DPI). Przy skalowaniu ułamkowym (np. 125%) obraz jest i tak lekko rozmyty: biblioteka tworzy okno bez `SDL_WINDOW_ALLOW_HIGHDPI` i kompozytor je skaluje. Ostrzejszy obraz daje uruchomienie na monitorze ze skalą 100%.
+
 | Klawisz | Działanie |
 |---|---|
 | Spacja | start/stop ogona (CPG) |

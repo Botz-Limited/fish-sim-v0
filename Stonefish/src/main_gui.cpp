@@ -5,12 +5,17 @@
 // Klawisze biblioteki (zachowane): W/S/A/D/Q/Z – kamera, mysz – obrót/przesuwanie widoku,
 //   H – panel, C – konsola komunikatów, K – lista klawiszy, Esc – wyjście.
 // Kamera jest "przyklejona" do głowy ryby (OpenGLTrackball::GlueToMoving).
+//
+// Rozmiar okna: Stonefish 1.5 nie obsługuje zmiany rozmiaru okna – bufory renderingu
+// (OpenGLPipeline) mają rozmiar ustalony przy starcie, więc po rozciągnięciu albo
+// maksymalizacji obraz zostaje w starym rozmiarze lub się rozjeżdża. Dlatego rozmiar
+// wybieramy przy starcie (--window SZERxWYS, domyślnie 90% ekranu) i blokujemy zmianę.
 
 #include <Stonefish/core/GraphicalSimulationApp.h>
 #include <Stonefish/graphics/IMGUI.h>
 #include <Stonefish/graphics/OpenGLTrackball.h>
 
-#include <SDL2/SDL_events.h>
+#include <SDL2/SDL.h>
 
 #include <cstdio>
 #include <iostream>
@@ -51,6 +56,7 @@ namespace
                 // MouseScroll zmienia promień: r += s·r/15, więc s = 15·(r_nowy/r − 1).
                 fm_->getTrackball()->MouseScroll(15.f * (1.2f / 5.f - 1.f));
                 glued_ = true;
+                LockWindowSize();
             }
             // Nakładka z ASCII (czcionka GUI nie musi mieć polskich znaków).
             const fish::FishStatus s = fm_->Status();
@@ -76,6 +82,18 @@ namespace
         }
 
     private:
+        // Okno tworzy biblioteka (wskaźnik jest prywatny), ale DoHUD działa w wątku z jego
+        // kontekstem OpenGL, więc znajdujemy je przez SDL_GL_GetCurrentWindow().
+        void LockWindowSize()
+        {
+            SDL_Window* w = SDL_GL_GetCurrentWindow();
+            if(w == nullptr) return;
+            const int W = getWindowWidth(), H = getWindowHeight();
+            SDL_SetWindowResizable(w, SDL_FALSE);
+            SDL_SetWindowMinimumSize(w, W, H);
+            SDL_SetWindowMaximumSize(w, W, H);
+        }
+
         fish::FishSimManager* fm_;
         bool glued_ = false;
     };
@@ -90,8 +108,30 @@ int main(int argc, char** argv)
     catch(const std::exception& e) { std::cerr << "BŁĄD konfiguracji: " << e.what() << "\n"; return 2; }
 
     sf::RenderSettings r;
-    r.windowW = 1280;
-    r.windowH = 800;
+    if(args.windowW > 0)
+    {
+        r.windowW = args.windowW;
+        r.windowH = args.windowH;
+    }
+    else
+    {
+        // 90% obszaru roboczego ekranu, na którym otworzy się okno (ekran główny),
+        // w pikselach logicznych (przy skalowaniu ekranu 125% to mniej niż rozdzielczość fizyczna).
+        r.windowW = 1280;
+        r.windowH = 800;
+        // Uwaga: na Waylandzie SDL podaje rozdzielczość FIZYCZNĄ ekranu, a kompozytor traktuje
+        // rozmiar okna jako LOGICZNY. Przy skalowaniu 125% okno "90% ekranu" wychodziło poza
+        // ekran i było dodatkowo rozciągane. Skalę ekranu bierzemy z DPI (96 DPI = 100%).
+        SDL_Rect b;
+        if(SDL_InitSubSystem(SDL_INIT_VIDEO) == 0 && SDL_GetDisplayUsableBounds(0, &b) == 0)
+        {
+            float dpi = 96.f;
+            const float scale = (SDL_GetDisplayDPI(0, &dpi, nullptr, nullptr) == 0 && dpi > 96.f) ? dpi / 96.f : 1.f;
+            r.windowW = (int)(0.9 * b.w / scale);
+            r.windowH = (int)(0.9 * b.h / scale);
+        }
+    }
+    std::cout << "Okno " << r.windowW << "x" << r.windowH << " (zmiana: --window SZERxWYS; rozciąganie okna jest zablokowane)\n";
     r.aa = sf::RenderQuality::HIGH;
     sf::HelperSettings h;
     h.showCoordSys = false;
