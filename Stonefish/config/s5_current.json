@@ -1,0 +1,5 @@
+// Scenariusz 5 – prąd boczny 5 cm/s (XML), pływanie na wprost bez regulatora kursu -> dryf.
+{
+  "sim": { "scenario": "s5_current.scn", "duration": 30.0 },
+  "rhythm": { "enabled": true, "freq": 2.0 }
+}

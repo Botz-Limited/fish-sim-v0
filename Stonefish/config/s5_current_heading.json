@@ -1,0 +1,6 @@
+// Scenariusz 5 z regulatorem kursu: odchylenie z IMU -> V_bias ogona (PI), kurs zadany 0° (oś X).
+{
+  "sim": { "scenario": "s5_current.scn", "duration": 30.0 },
+  "rhythm": { "enabled": true, "freq": 2.0 },
+  "heading": { "enabled": true, "yaw_ref_deg": 0.0 }
+}

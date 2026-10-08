@@ -1,0 +1,202 @@
+// Wszystkie parametry demo Stonefish w jednym pliku (JSON z komentarzami //).
+//
+// UWAGA: to NIE jest skalibrowany model. Każda wartość oznaczona
+// "PLACEHOLDER – do identyfikacji z pomiarów" jest zgadnięta na rząd wielkości.
+// Wartości są celowo TAKIE SAME jak w demo MuJoCo (../MuJoCo/fishsim/config.py),
+// żeby dało się porównać wyniki obu symulatorów.
+//
+// Kto czyta które sekcje:
+//   geometry, materials, joints, vbs  -> tools/make_meshes.py (siatki OBJ + data/scenarios/fish_base.scn)
+//   sim, tail, hydraulics, rhythm, depth, heading, log -> program C++ (przy każdym starcie, bez rekompilacji)
+// Po zmianie geometry/materials/joints/vbs uruchom ponownie tools/make_meshes.py.
+// Pliki config/sN_*.json nadpisują wybrane pola tego pliku (scalanie JSON merge-patch),
+// a opcja --set klucz.podklucz=wartość nadpisuje pojedyncze pole z linii poleceń.
+{
+  // ---------------------------------------------------------------- symulacja
+  "sim": {
+    "scenario": "s1_hover.scn",     // plik XML w data/scenarios/
+    // [Hz] krok fizyki 0.5 ms. Przy 2 ms (jak w MuJoCo) sprężyny przegubów −k·θ, liczone
+    // jawnie, wpadają w niestabilność: lekkie, krótkie segmenty (Seg4: 36 g) między dwiema
+    // sprężynami mają mod drgań z ω·dt > 2. 1000 Hz już działa, 2000 Hz to zapas x2.
+    "steps_per_second": 2000,
+    // Stonefish domyślnie przelicza siły hydrodynamiczne co sps/50 kroków (50 Hz)
+    // i trzyma je stałe pomiędzy. Przy ogonie 2–3 Hz to tylko 15–25 próbek na cykl,
+    // więc liczymy je w KAŻDYM kroku (1). Wolniej, ale bez schodków w sile.
+    "fluid_prescaler": 1,
+    "duration": 10.0,               // [s] czas symulacji w aplikacji konsolowej
+    "realtime_factor": 1.0          // tylko aplikacja graficzna
+  },
+
+  // ---------------------------------------------------------------- geometria (siatki)
+  // Układ współrzędnych Stonefish to NED: +X do przodu (nos), +Y w prawo (sterburta),
+  // +Z W DÓŁ. Głębokość = +z. Ogon macha w płaszczyźnie XY (przeguby wokół osi Z).
+  "geometry": {
+    "hull_semi_axes": [0.125, 0.05, 0.05],  // [m] głowa/kadłub: elipsoida 25 x 10 x 10 cm; PLACEHOLDER – do identyfikacji z pomiarów
+    "n_segments": 5,                        // liczba sztywnych segmentów ogona
+    "tail_attach_x": -0.11,                 // [m] 1. przegub względem środka kadłuba
+    "segment_length": 0.04,                 // [m] odległość między przegubami; PLACEHOLDER – do identyfikacji z pomiarów
+    "segment_ry0": 0.030,                   // [m] półoś Y (grubość) 1. segmentu; PLACEHOLDER – do identyfikacji z pomiarów
+    "segment_rz0": 0.040,                   // [m] półoś Z (wysokość) 1. segmentu; PLACEHOLDER – do identyfikacji z pomiarów
+    "taper_last": 0.4,                      // [-] skala przekroju ostatniego segmentu względem 1.
+    "segment_overlap": 0.002,               // [m] segmenty zachodzą na siebie (bez szczelin)
+    "fin_semi_axes": [0.035, 0.003, 0.06],  // [m] płetwa: cienka w Y, wysoka w Z; PLACEHOLDER – do identyfikacji z pomiarów
+    // Płetwa grzbietowa: cienka pionowa płytka na grzbiecie głowy. Tłumi PRZECHYŁ: gładka
+    // elipsoida obracająca się wokół własnej osi prawie nie stawia oporu (ścianki suną stycznie),
+    // a Stonefish przyjmuje zerową dołączoną bezwładność dla obrotu wokół osi X. Bez płetwy
+    // grzbietowej ryba po przechyle kołysze się ±10–20° przez wiele sekund (README, scen. 1).
+    // Połowa elipsoidy jest schowana w kadłubie (siatka wypiera wodę podwójnie tylko w tej części –
+    // pomijalne: ~1% objętości ryby). "dorsal_enabled": false usuwa ją z modelu.
+    "dorsal_enabled": true,
+    "dorsal_semi_axes": [0.045, 0.0025, 0.035], // [m] PLACEHOLDER – do identyfikacji z pomiarów
+    "dorsal_center": [-0.01, 0.0, -0.06],       // [m] w układzie głowy (NED: −z = do góry)
+    // Rozdzielczość siatek: fizyczna (hydrodynamika liczona na KAŻDEJ ściance,
+    // więc mało trójkątów) i wizualna (gładka, tylko do renderingu).
+    "phys_subdiv": 2,                       // ikosfera 2 -> 320 trójkątów na elipsoidę
+    "vis_subdiv": 4                         // ikosfera 4 -> 5120 trójkątów
+  },
+
+  // ---------------------------------------------------------------- materiały
+  "materials": {
+    "rho_water": 1000.0,     // [kg/m³] woda słodka (wartość fizyczna, jak w MuJoCo)
+    "rho_hull": 600.0,       // [kg/m³] średnia gęstość skorupy + powietrza + elektroniki; PLACEHOLDER – do identyfikacji z pomiarów
+    "rho_tail": 1100.0,      // [kg/m³] silikon (Ecoflex/Dragon Skin ~1070–1140); PLACEHOLDER – do identyfikacji z pomiarów
+    "rho_ballast": 7850.0,   // [kg/m³] stal – balast na dnie kadłuba (wartość fizyczna)
+    // Balast: prostopadłościan na dnie kadłuba. Jego MASĘ i położenie X wylicza
+    // make_meshes.py z warunków: (1) neutralna pływalność przy VBS w połowie zakresu,
+    // (2) trym wzdłużny (środek masy pod środkiem wyporu). Tu podajemy tylko przekrój.
+    "ballast_width": 0.035,  // [m] wymiar Y
+    "ballast_height": 0.017, // [m] wymiar Z
+    "ballast_z": 0.026       // [m] środek balastu POD osią kadłuba (NED: +z w dół) -> środek masy pod środkiem wyporu
+  },
+
+  // ---------------------------------------------------------------- przeguby (XML)
+  "joints": {
+    "limit_deg": 35.0,       // [deg] ograniczenie każdego przegubu ogona
+    // Tłumienie wiskotyczne przegubu (natywne w Stonefish: <damping value=.../>,
+    // moment −c·θ̇ dodawany w każdym kroku). Sztywność NIE jest natywna – patrz "tail".
+    "damping": 0.005         // [N·m·s/rad] tłumienie materiałowe silikonu; PLACEHOLDER – do identyfikacji z pomiarów
+  },
+
+  // ---------------------------------------------------------------- VBS (Variable Buoyancy System)
+  // W Stonefish 1.5 VBS to zbiornik, do którego WPOMPOWUJEMY WODĘ: dodaje ciężar ρ·V·g
+  // w środku objętości wody. Więcej wody = ryba cięższa. Zakres objętości wyznaczają
+  // siatki "pusty" i "pełny" (objętość interpolowana liniowo).
+  "vbs": {
+    "v_min": 0.5e-6,         // [m³] 0.5 ml – siatka "pusta" musi mieć niezerową objętość (wymóg biblioteki)
+    "v_max": 40.5e-6,        // [m³] 40.5 ml -> użyteczny zakres 40 ml jak pęcherz w MuJoCo; PLACEHOLDER – do identyfikacji z pomiarów
+    "center": [-0.041, 0.0, -0.015], // [m] środek zbiornika w układzie kadłuba: X ≈ środek wyporu całej ryby
+                                      // (napełnianie nie zmienia trymu), Z nad osią (−z = w górę)
+    "q_max": 10e-6,          // [m³/s] maks. wydatek pompy balastowej (10 ml/s); PLACEHOLDER – do identyfikacji z pomiarów
+    "k_track": 5.0           // [1/s] wzmocnienie śledzenia V_ref przez pompę balastową
+  },
+
+  // ---------------------------------------------------------------- siła nośna płetwy (C++, src/FinLift.cpp)
+  // Stonefish 1.5 liczy dla zwykłych brył tylko wypór, masę dołączoną i OPÓR (siła na ściankę
+  // wzdłuż prędkości względnej) – bez siły nośnej. Bez niej ryba prawie nie płynie (README,
+  // "Diagnoza ciągu"). Dodajemy siłę nośną płetwy: C_L = ½·C_Lα·sin(2α), L = ½ρ·S·C_L·u².
+  // S = π·a·c z geometry.fin_semi_axes (rzut boczny płetwy), punkt przyłożenia = środek płetwy.
+  "fin_lift": {
+    "enabled": true,         // false = czysta hydrodynamika Stonefish z geometrii
+    "cl_alpha": 2.8          // [1/rad] nachylenie C_L(α) dla małych kątów; płetwa o wydłużeniu ~2.2
+                             // (wzór Helmbolda) – PLACEHOLDER – do identyfikacji z pomiarów
+  },
+
+  // ---------------------------------------------------------------- opór tarcia (C++ -> API Stonefish)
+  // Stonefish liczy tarcie LINIOWO: F = ρ·c·Σ A·v_t (v_t – prędkość styczna ścianki). Domyślnie
+  // c = 0.1·Cd (Cd unormowane do 1), czyli ~0.1 m/s – dla małej ryby kilkadziesiąt razy więcej
+  // niż tarcie fizyczne (README, "Diagnoza ciągu"). Opcje:
+  //   "library" – współczynniki oszacowane automatycznie przez bibliotekę,
+  //   "blasius" – tarcie warstwy przyściennej laminarnej (Blasius): C_f = 1.328/√Re, Re = U_ref·L/ν,
+  //               zlinearyzowane w U_ref: ½ρ·C_f·U² ≈ ρ·c·U  ->  c = ½·C_f·U_ref.
+  //               L = długość całej ryby. To samo, co atrybut <hydrodynamics viscous_drag="c c c"/> w XML.
+  "hydro": {
+    "skin_friction": "blasius",
+    "U_ref": 0.2,            // [m/s] prędkość, przy której linearyzujemy tarcie; PLACEHOLDER – rząd prędkości pływania
+    "nu": 1.0e-6             // [m²/s] lepkość kinematyczna wody ~20°C (wartość fizyczna)
+  },
+
+  // ---------------------------------------------------------------- czujniki (XML)
+  "sensors": {
+    "pressure_rate": 50.0,   // [Hz] częstotliwość próbkowania czujnika ciśnienia
+    "pressure_noise": 50.0,  // [Pa] odchylenie std szumu (50 Pa ≈ 5 mm wody); PLACEHOLDER – do identyfikacji z pomiarów
+    "imu_rate": 100.0,       // [Hz]
+    "imu_noise_angle": [0.005, 0.005, 0.01], // [rad] roll, pitch, yaw; PLACEHOLDER – do identyfikacji z pomiarów
+    "imu_noise_gyro": 0.01,  // [rad/s] PLACEHOLDER – do identyfikacji z pomiarów
+    "imu_yaw_drift": 0.0,    // [rad/s] dryf kursu
+    "imu_noise_acc": 0.05    // [m/s²] PLACEHOLDER – do identyfikacji z pomiarów
+  },
+
+  // ---------------------------------------------------------------- ogon (C++)
+  "tail": {
+    "n_actuated": 3,         // K – ile pierwszych przegubów napędza hydraulika (reszta pasywna)
+    "tendon_weight_last": 0.4, // waga ostatniego napędzanego przegubu (w_1 = 1, liniowo malejąco)
+    // Sztywność przegubów k·θ (silikon jako sprężyna skrętna, pseudo-rigid-body model).
+    "stiffness_actuated": 0.3, // [N·m/rad] przeguby napędzane (ścianki komór) – jak w MuJoCo; PLACEHOLDER – do identyfikacji z pomiarów
+    // Przeguby pasywne: sztywność LICZONA (ta sama reguła co w MuJoCo) z zadanego rezonansu:
+    //   k = I·(2π·f_res)², I – bezwładność części ogona ZA przegubem względem jego osi,
+    //   z masą dołączoną – tak, jak ją policzył Stonefish (getAugmentedMass/Inertia).
+    // Liczb z MuJoCo (1.287 i 0.528) nie przepisujemy, bo Stonefish inaczej liczy masę dołączoną.
+    "passive_resonance_hz": 3.0, // [Hz] PLACEHOLDER – do identyfikacji z pomiarów
+    "stiffness_override": null,  // albo tablica k dla wszystkich przegubów [N·m/rad] – wtedy nic nie jest liczone
+    "locked": false          // true = w C++ nie przykładamy momentów (do wariantu z zablokowanym ogonem
+                             // służy osobny scenariusz z przegubami "fixed")
+  },
+
+  // ---------------------------------------------------------------- hydraulika ogona (C++)
+  "hydraulics": {
+    "A_eff": 4e-4,           // [m²] efektywna powierzchnia ścianki komory; PLACEHOLDER – do identyfikacji z pomiarów
+    "r_eff": 0.05,           // [m] efektywne ramię siły; PLACEHOLDER – do identyfikacji z pomiarów
+    "C_h": 8e-11,            // [m³/Pa] podatność komór (ścianki + ściśliwość); PLACEHOLDER – do identyfikacji z pomiarów
+    "p_max": 50e3,           // [Pa] ciśnienie otwarcia zaworu przelewowego; PLACEHOLDER – do identyfikacji z pomiarów
+    "V0_chamber": 30e-6,     // [m³] objętość każdej komory przy prostym ogonie; PLACEHOLDER – do identyfikacji z pomiarów
+    "Q_max": 60e-6,          // [m³/s] maks. wydatek pompy ogona (60 ml/s); PLACEHOLDER – do identyfikacji z pomiarów
+    "tau_pump": 0.03         // [s] stała czasowa pompy; PLACEHOLDER – do identyfikacji z pomiarów
+  },
+
+  // ---------------------------------------------------------------- rytm ogona / CPG (C++)
+  // Generator zadaje OBJĘTOŚĆ przepompowaną V_ref = A_V·sin(2πft) + V_bias, a komenda
+  // pompy to u = (dV_ref/dt + K_v·(V_ref − V_p))/Q_max. Dlaczego nie u = A·sin + bias
+  // wprost – patrz README (sekcja "Sterowanie").
+  "rhythm": {
+    "enabled": false,
+    "freq": 2.0,             // [Hz] częstotliwość machania
+    "volume_amp": 8e-6,      // [m³] amplituda A_V (8 ml ≈ 0.4 rad tendonu); PLACEHOLDER – do identyfikacji z pomiarów
+    "volume_bias": 0.0,      // [m³] V_bias – stałe ugięcie ogona (skręt); + = w prawo (+Y)
+    "K_v": 10.0,             // [1/s] korekta błędu objętości
+    "ramp_time": 1.0         // [s] miękki start amplitudy
+  },
+
+  // ---------------------------------------------------------------- regulator głębokości (C++)
+  // Wejście: ODCZYT CZUJNIKA CIŚNIENIA (z szumem) -> głębokość -> filtr dolnoprzepustowy.
+  // Wyjście: zadana objętość wody w VBS V_ref (więcej wody = w dół).
+  "depth": {
+    "enabled": false,
+    "schedule": [[0.0, 1.0]],  // [[t, z_ref], ...] – głębokość zadana [m] (NED: + w dół), skokowo od czasu t
+    // Nastawy z modelu (README, scenariusz 4), nie z MuJoCo: pion to m·z̈ = −ρg·ΔV,
+    // m ≈ 2.6 kg (ryba + woda w VBS + masa dołączona). Dla ω_n = 0.3 rad/s i ζ ≈ 1:
+    //   kp = ω_n²·m/(ρg) ≈ 24 ml/m,  kd = 2ζ·ω_n·m/(ρg) ≈ 160 ml/(m/s).
+    // Wolniej niż w MuJoCo, bo pompa VBS (10 ml/s) nie nadąża za szybszym regulatorem
+    // i powstaje cykl graniczny "od ściany do ściany" (sprawdzone: nastawy z MuJoCo -> ±10–40 cm).
+    "kp": 24e-6,             // [m³/m]
+    "ki": 1.5e-6,            // [m³/(m·s)] usuwa mały uchyb ustalony
+    "kd": 160e-6,            // [m³·s/m] działa na prędkość z filtru (nie na uchyb – brak "kopnięcia")
+    "i_band": 0.2,           // [m] całkowanie tylko gdy |uchyb| < 0.2 m (inaczej wind-up przy dużych skokach)
+    "lpf_cutoff_hz": 1.0,    // [Hz] filtr dolnoprzepustowy I rzędu na głębokości z czujnika
+    "z_min": 0.3             // [m] najpłytsza dozwolona głębokość zadana
+  },
+
+  // ---------------------------------------------------------------- regulator kursu (C++, scenariusz 5)
+  // Wejście: odchylenie (yaw) z IMU. Wyjście: V_bias ogona (skręt).
+  "heading": {
+    "enabled": false,
+    "yaw_ref_deg": 0.0,      // [deg] kurs zadany (0 = oś X świata, "na północ")
+    "kp": 5e-6,              // [m³/rad] PLACEHOLDER – dobrane w scenariuszu 5
+    "ki": 1e-6,              // [m³/(rad·s)]
+    "bias_max": 4e-6         // [m³] ograniczenie V_bias (jak w MuJoCo: ±4 ml)
+  },
+
+  // ---------------------------------------------------------------- logowanie CSV
+  "log": {
+    "every_n_steps": 20      // zapis co 20 kroków = 100 Hz
+  }
+}

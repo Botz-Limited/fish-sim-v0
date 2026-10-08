@@ -1,0 +1,6 @@
+// Test napędu wewnętrznego: brak sił wody (bryły "surface"), grawitacja 0, ogon machający.
+{
+  "sim": { "scenario": "t_internal.scn", "duration": 3.0, "gravity": 0.0 },
+  "fin_lift": { "enabled": false },
+  "rhythm": { "enabled": true, "freq": 2.0 }
+}

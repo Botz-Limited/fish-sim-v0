@@ -1,0 +1,205 @@
+<?xml version="1.0"?>
+<!--
+  Wspólna definicja robota-ryby (dołączana przez <include> w każdym scenariuszu sN_*.scn).
+
+  Układ współrzędnych: NED (Stonefish) – X do przodu, Y w prawo, Z W DÓŁ.
+  Głębokość ryby = współrzędna z (dodatnia pod powierzchnią).
+
+  Argumenty <include> (ustawiane w pliku głównym scenariusza):
+    xyz, rpy      – położenie [m] i orientacja [rad] (przechył, pochylenie, odchylenie) głowy na starcie
+    physics       – tryb fizyki brył: "submerged" (wypór + opór + masa dołączona) albo
+                    "surface" (bez sił wody – tylko do testu napędu wewnętrznego)
+    tail_joint    – "revolute" (ogon ruchomy) albo "fixed" (ogon zablokowany, scenariusz 2)
+    vbs_initial   – początkowa objętość wody w VBS [m³]
+
+  Każda liczba fizyczna pochodzi z config/default.json – PLACEHOLDER, do identyfikacji z pomiarów.
+-->
+<scenario>
+    <looks>
+        <look name="fish_body" rgb="0.95 0.55 0.15" roughness="0.4"/>
+        <look name="fish_tail" rgb="0.95 0.70 0.30" roughness="0.5"/>
+        <look name="fish_fin" rgb="0.90 0.35 0.10" roughness="0.5"/>
+        <look name="ballast" gray="0.25" roughness="0.3" metalness="0.8"/>
+        <look name="marker" rgb="0.1 0.9 0.9" roughness="0.5"/>
+    </looks>
+
+    <robot name="Fish" fixed="false" self_collisions="false">
+        <!-- ============================================================ GŁOWA (base_link)
+             Bryła z siatki kadłuba (elipsoida) razem z płetwą grzbietową (jedna zamknięta siatka –
+             suma brył; płetwa tłumi przechył). Z siatki Stonefish liczy wypór (objętość),
+             opór (siła na każdej ściance – patrz README) i masę dołączoną (elipsoida zastępcza).
+             Masę, środek masy i bezwładność podajemy jawnie – to kadłub @HULL_MASS_G@ g
+             (średnia gęstość @RHO_HULL@ kg/m³: skorupa + powietrze + elektronika) RAZEM ze stalowym
+             balastem @BALLAST_MASS_G@ g (@BALLAST_DIMS@ m) leżącym na dnie kadłuba w @BALLAST_XYZ@ m.
+             Wylicza je make_meshes.py z warunków: pływalność neutralna przy VBS w połowie zakresu
+             i trym (środek masy pod środkiem wyporu). Środek masy leży NIŻEJ (+z) niż środek
+             wyporu (środek elipsoidy) -> moment prostujący po przechyle.
+             Dlaczego nie bryła złożona (compound) z balastem jako częścią wewnętrzną: w Stonefish 1.5
+             bryła złożona nie dostaje dołączonego momentu bezwładności wody (README, "Diagnoza"). -->
+        <base_link name="Head" type="model" physics="$(arg physics)" buoyant="true">
+            <physical>
+                <mesh filename="meshes/head_phy.obj" scale="1.0"/>
+                <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            </physical>
+            <visual>
+                <mesh filename="meshes/head_vis.obj" scale="1.0"/>
+                <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            </visual>
+            <material name="Hull"/>
+            <look name="fish_body"/>
+            <mass value="@HEAD_MASS@"/>
+            <inertia xyz="@HEAD_INERTIA@"/>               <!-- główne momenty bezwładności [kg·m²] -->
+            <cg xyz="@HEAD_CG_XYZ@" rpy="@HEAD_CG_RPY@"/>   <!-- środek masy i osie główne w układzie głowy -->
+        </base_link>
+
+        <!-- ============================================================ OGON
+             Łańcuch sztywnych segmentów z silikonu (Stonefish nie symuluje ciał miękkich –
+             to model "pseudo-rigid-body": giętki ogon = sztywne ogniwa + sprężyny w przegubach).
+             Układ każdego ogniwa leży NA jego przegubie, siatka rozciąga się do tyłu (−X). -->
+        <link name="Seg1" type="model" physics="$(arg physics)" buoyant="true">
+            <physical><mesh filename="meshes/seg1_phy.obj" scale="1.0"/><origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/></physical>
+            <visual><mesh filename="meshes/seg1_vis.obj" scale="1.0"/><origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/></visual>
+            <material name="Silicone"/>
+            <look name="fish_tail"/>
+        </link>
+        <link name="Seg2" type="model" physics="$(arg physics)" buoyant="true">
+            <physical><mesh filename="meshes/seg2_phy.obj" scale="1.0"/><origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/></physical>
+            <visual><mesh filename="meshes/seg2_vis.obj" scale="1.0"/><origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/></visual>
+            <material name="Silicone"/>
+            <look name="fish_tail"/>
+        </link>
+        <link name="Seg3" type="model" physics="$(arg physics)" buoyant="true">
+            <physical><mesh filename="meshes/seg3_phy.obj" scale="1.0"/><origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/></physical>
+            <visual><mesh filename="meshes/seg3_vis.obj" scale="1.0"/><origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/></visual>
+            <material name="Silicone"/>
+            <look name="fish_tail"/>
+        </link>
+        <link name="Seg4" type="model" physics="$(arg physics)" buoyant="true">
+            <physical><mesh filename="meshes/seg4_phy.obj" scale="1.0"/><origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/></physical>
+            <visual><mesh filename="meshes/seg4_vis.obj" scale="1.0"/><origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/></visual>
+            <material name="Silicone"/>
+            <look name="fish_tail"/>
+        </link>
+        <link name="Seg5" type="model" physics="$(arg physics)" buoyant="true">
+            <physical><mesh filename="meshes/seg5_phy.obj" scale="1.0"/><origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/></physical>
+            <visual><mesh filename="meshes/seg5_vis.obj" scale="1.0"/><origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/></visual>
+            <material name="Silicone"/>
+            <look name="fish_tail"/>
+        </link>
+        <!-- Płetwa ogonowa: cienka w osi Y, wysoka w osi Z – przy machaniu w Y pcha wodę
+             dużą powierzchnią. Osobne ogniwo przyspawane do ostatniego segmentu. -->
+        <link name="Fin" type="model" physics="$(arg physics)" buoyant="true">
+            <physical><mesh filename="meshes/fin_phy.obj" scale="1.0"/><origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/></physical>
+            <visual><mesh filename="meshes/fin_vis.obj" scale="1.0"/><origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/></visual>
+            <material name="Silicone"/>
+            <look name="fish_fin"/>
+        </link>
+
+        <!-- ============================================================ PRZEGUBY
+             Obrót wokół osi Z (pionowej), ograniczenie ±@JOINT_LIMIT_DEG@°.
+             <origin> przegubu jest w układzie ogniwa-RODZICA; układ ogniwa-dziecka
+             zostaje umieszczony w tym punkcie.
+             <damping> to natywne tłumienie wiskotyczne Stonefish (moment −c·θ̇).
+             Sztywności (−k·θ) biblioteka nie ma – dodaje ją C++ (TailDriver) przez aktuatory "motor". -->
+        <joint name="TailJ1" type="$(arg tail_joint)">
+            <parent name="Head"/>
+            <child name="Seg1"/>
+            <origin xyz="@TAIL_ATTACH_XYZ@" rpy="0.0 0.0 0.0"/>
+            <axis xyz="0.0 0.0 1.0"/>
+            <limits min="@JOINT_MIN@" max="@JOINT_MAX@"/>
+            <damping value="@JOINT_DAMPING@"/>
+        </joint>
+        <joint name="TailJ2" type="$(arg tail_joint)">
+            <parent name="Seg1"/>
+            <child name="Seg2"/>
+            <origin xyz="@SEG_JOINT_XYZ@" rpy="0.0 0.0 0.0"/>
+            <axis xyz="0.0 0.0 1.0"/>
+            <limits min="@JOINT_MIN@" max="@JOINT_MAX@"/>
+            <damping value="@JOINT_DAMPING@"/>
+        </joint>
+        <joint name="TailJ3" type="$(arg tail_joint)">
+            <parent name="Seg2"/>
+            <child name="Seg3"/>
+            <origin xyz="@SEG_JOINT_XYZ@" rpy="0.0 0.0 0.0"/>
+            <axis xyz="0.0 0.0 1.0"/>
+            <limits min="@JOINT_MIN@" max="@JOINT_MAX@"/>
+            <damping value="@JOINT_DAMPING@"/>
+        </joint>
+        <joint name="TailJ4" type="$(arg tail_joint)">
+            <parent name="Seg3"/>
+            <child name="Seg4"/>
+            <origin xyz="@SEG_JOINT_XYZ@" rpy="0.0 0.0 0.0"/>
+            <axis xyz="0.0 0.0 1.0"/>
+            <limits min="@JOINT_MIN@" max="@JOINT_MAX@"/>
+            <damping value="@JOINT_DAMPING@"/>
+        </joint>
+        <joint name="TailJ5" type="$(arg tail_joint)">
+            <parent name="Seg4"/>
+            <child name="Seg5"/>
+            <origin xyz="@SEG_JOINT_XYZ@" rpy="0.0 0.0 0.0"/>
+            <axis xyz="0.0 0.0 1.0"/>
+            <limits min="@JOINT_MIN@" max="@JOINT_MAX@"/>
+            <damping value="@JOINT_DAMPING@"/>
+        </joint>
+        <joint name="FinJoint" type="fixed">
+            <parent name="Seg5"/>
+            <child name="Fin"/>
+            <origin xyz="@SEG_JOINT_XYZ@" rpy="0.0 0.0 0.0"/>
+        </joint>
+
+        <!-- ============================================================ NAPĘD OGONA
+             Aktuator "motor" (w Stonefish 1.5 obecny w parserze, choć nieopisany w dokumentacji)
+             przykłada zadany MOMENT w przegubie: +τ na ogniwo-dziecko, −τ na rodzica
+             (Featherstone, uogólniona siła przegubu). Napęd jest więc WEWNĘTRZNY: akcja = reakcja.
+             Wartość momentu ustawia C++ w każdym kroku: τ_i = w_i·A_eff·r_eff·(p_L − p_R) − k_i·θ_i.
+             Serwo ("servo") się nie nadaje: w v1.5 ma tylko tryb pozycji i prędkości
+             (tryb TORQUE jest w nagłówku, ale Servo::Update traktuje go jak prędkość). -->
+        <actuator name="TailM1" type="motor"><joint name="TailJ1"/></actuator>
+        <actuator name="TailM2" type="motor"><joint name="TailJ2"/></actuator>
+        <actuator name="TailM3" type="motor"><joint name="TailJ3"/></actuator>
+        <actuator name="TailM4" type="motor"><joint name="TailJ4"/></actuator>
+        <actuator name="TailM5" type="motor"><joint name="TailJ5"/></actuator>
+
+        <!-- Siła nośna płetwy (której Stonefish nie liczy dla zwykłych brył) jest dodawana w C++
+             (src/FinLift.cpp) jako aktuator przyczepiony do ogniwa "Fin" – patrz README. -->
+
+        <!-- ============================================================ VBS (regulacja głębokości)
+             Zbiornik wody o objętości @VBS_MIN@ … @VBS_MAX@ m³ (z siatek pusty/pełny).
+             Pompa C++ zmienia objętość z ograniczonym wydatkiem (VariableBuoyancy::setFlowRate).
+             Więcej wody = większy ciężar = ryba opada. Zbiornik leży NAD osią kadłuba (−z)
+             i w X środka wyporu całej ryby, więc napełnianie nie zmienia trymu. -->
+        <actuator name="VBS" type="vbs">
+            <volume initial="$(arg vbs_initial)">
+                <mesh filename="meshes/vbs_empty.obj"/>
+                <mesh filename="meshes/vbs_full.obj"/>
+            </volume>
+            <origin xyz="@VBS_CENTER@" rpy="0.0 0.0 0.0"/>
+            <link name="Head"/>
+        </actuator>
+
+        <!-- ============================================================ CZUJNIKI
+             Regulator głębokości działa na ODCZYCIE czujnika ciśnienia (z szumem),
+             nie na prawdziwym położeniu z symulatora – jak w prawdziwym robocie. -->
+        <sensor name="Pressure" type="pressure" rate="@P_RATE@">
+            <range pressure="200000.0"/>
+            <noise pressure="@P_NOISE@"/>
+            <history samples="1"/>
+            <origin xyz="0.1 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <link name="Head"/>
+        </sensor>
+        <sensor name="IMU" type="imu" rate="@IMU_RATE@">
+            <noise angle="@IMU_NOISE_ANGLE@" angular_velocity="@IMU_NOISE_GYRO@" yaw_drift="@IMU_YAW_DRIFT@" linear_acceleration="@IMU_NOISE_ACC@"/>
+            <history samples="1"/>
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <link name="Head"/>
+        </sensor>
+        <!-- Enkodery przegubów ogona (kąt i prędkość kątowa). -->
+        <sensor name="Enc1" type="encoder"><history samples="1"/><joint name="TailJ1"/></sensor>
+        <sensor name="Enc2" type="encoder"><history samples="1"/><joint name="TailJ2"/></sensor>
+        <sensor name="Enc3" type="encoder"><history samples="1"/><joint name="TailJ3"/></sensor>
+        <sensor name="Enc4" type="encoder"><history samples="1"/><joint name="TailJ4"/></sensor>
+        <sensor name="Enc5" type="encoder"><history samples="1"/><joint name="TailJ5"/></sensor>
+
+        <world_transform xyz="$(arg xyz)" rpy="$(arg rpy)"/>
+    </robot>
+</scenario>

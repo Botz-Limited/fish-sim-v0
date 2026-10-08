@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<!--
+  Scenariusz 2, wariant: OGON ZABLOKOWANY. Przeguby ogona są typu "fixed" (sztywno spawane),
+  więc momenty z hydrauliki nie mają na co działać. Pokazuje, że ciąg pochodzi z ruchu ogona.
+-->
+<scenario>
+    <!-- Środowisko: ocean bez fal (fale wymagają GPU – nie działają w trybie konsolowym). -->
+    <environment>
+        <ned latitude="41.77" longitude="3.03"/>
+        <ocean>
+            <water density="@RHO_WATER@" jerlov="0.2"/>
+            <waves height="0.0"/>
+        </ocean>
+        <atmosphere>
+            <sun azimuth="20.0" elevation="50.0"/>
+        </atmosphere>
+    </environment>
+
+    <!-- Materiały fizyczne: Stonefish pozwala je definiować TYLKO w pliku głównym. -->
+    <materials>
+        <material name="Hull" density="@RHO_HULL@" restitution="0.3"/>
+        <material name="Silicone" density="@RHO_TAIL@" restitution="0.2"/>
+        <material name="Steel" density="@RHO_BALLAST@" restitution="0.5"/>
+        <material name="Rock" density="3000.0" restitution="0.5"/>
+        <friction_table>
+            <friction material1="Hull" material2="Hull" static="0.5" dynamic="0.3"/>
+            <friction material1="Hull" material2="Silicone" static="0.6" dynamic="0.4"/>
+            <friction material1="Hull" material2="Steel" static="0.5" dynamic="0.3"/>
+            <friction material1="Hull" material2="Rock" static="0.6" dynamic="0.4"/>
+            <friction material1="Silicone" material2="Silicone" static="0.9" dynamic="0.7"/>
+            <friction material1="Silicone" material2="Steel" static="0.7" dynamic="0.5"/>
+            <friction material1="Silicone" material2="Rock" static="0.8" dynamic="0.6"/>
+            <friction material1="Steel" material2="Steel" static="0.4" dynamic="0.2"/>
+            <friction material1="Steel" material2="Rock" static="0.5" dynamic="0.3"/>
+            <friction material1="Rock" material2="Rock" static="0.9" dynamic="0.7"/>
+        </friction_table>
+    </materials>
+
+    <include file="scenarios/world_base.scn"/>
+
+    <include file="scenarios/fish_base.scn">
+        <arg name="xyz" value="0.0 0.0 1.5"/>
+        <arg name="rpy" value="0.0 0.0 0.0"/>
+        <arg name="physics" value="submerged"/>
+        <arg name="tail_joint" value="fixed"/>   <!-- ogon zablokowany -->
+        <arg name="vbs_initial" value="@VBS_NEUTRAL@"/>
+    </include>
+</scenario>

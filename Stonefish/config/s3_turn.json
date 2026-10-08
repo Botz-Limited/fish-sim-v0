@@ -1,0 +1,5 @@
+// Scenariusz 3 – skręt: CPG 2 Hz + stałe ugięcie ogona V_bias. Inne wartości: --set rhythm.volume_bias=...
+{
+  "sim": { "scenario": "s3_turn.scn", "duration": 30.0 },
+  "rhythm": { "enabled": true, "freq": 2.0, "volume_bias": 2e-6 }
+}

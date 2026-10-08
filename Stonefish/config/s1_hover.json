@@ -1,0 +1,4 @@
+// Scenariusz 1 – zawis bez napędu, VBS neutralny, start poziomo: dryf pionowy i poziomy.
+{
+  "sim": { "scenario": "s1_hover.scn", "duration": 10.0 }
+}

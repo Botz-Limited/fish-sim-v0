@@ -1,0 +1,5 @@
+// Scenariusz 2 – pływanie na wprost, CPG 2 Hz. Warianty: s2_swim_locked.json, s2_swim_nolift.json.
+{
+  "sim": { "scenario": "s2_swim.scn", "duration": 15.0 },
+  "rhythm": { "enabled": true, "freq": 2.0 }
+}

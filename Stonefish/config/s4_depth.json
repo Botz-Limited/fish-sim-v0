@@ -1,0 +1,5 @@
+// Scenariusz 4 – skoki głębokości zadanej 1 -> 3 -> 2 m (ogon nieruchomy), PID na czujniku ciśnienia.
+{
+  "sim": { "scenario": "s4_depth.scn", "duration": 120.0 },
+  "depth": { "enabled": true, "schedule": [[0.0, 1.0], [5.0, 3.0], [60.0, 2.0]] }
+}

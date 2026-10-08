@@ -1,0 +1,4 @@
+// Scenariusz 1b – ten sam zawis, start z przechyłem 30° (XML): powrót do pionu.
+{
+  "sim": { "scenario": "s1_righting.scn", "duration": 20.0 }
+}
