@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <!--
-  Wspólne otoczenie: dno basenu i obiekty referencyjne (żeby w podglądzie było widać ruch).
-  Ciała statyczne – nie mają dynamiki, służą tylko do kolizji i renderingu.
-  NED: z rośnie w dół, więc dno na z = 4 m to 4 m pod powierzchnią.
+  Shared surroundings: pool bottom and reference objects (so that motion is visible in the viewer).
+  Static bodies – they have no dynamics, they are only used for collisions and rendering.
+  NED: z grows downwards, so the bottom at z = 4 m is 4 m below the surface.
 -->
 <scenario>
     <looks>
@@ -18,7 +18,7 @@
         <world_transform xyz="0.0 0.0 4.0" rpy="0.0 0.0 0.0"/>
     </static>
 
-    <!-- Słupy co 1 m wzdłuż osi X (kierunek pływania), po obu stronach toru ryby. -->
+    <!-- Pillars every 1 m along the X axis (swimming direction), on both sides of the fish's path. -->
     <static name="PillarL0" type="cylinder"><dimensions radius="0.03" height="4.0"/><material name="Rock"/><look name="pillar"/><world_transform xyz="0.0 -0.8 2.0" rpy="0.0 0.0 0.0"/></static>
     <static name="PillarR0" type="cylinder"><dimensions radius="0.03" height="4.0"/><material name="Rock"/><look name="pillar"/><world_transform xyz="0.0 0.8 2.0" rpy="0.0 0.0 0.0"/></static>
     <static name="PillarL1" type="cylinder"><dimensions radius="0.03" height="4.0"/><material name="Rock"/><look name="pillar"/><world_transform xyz="1.0 -0.8 2.0" rpy="0.0 0.0 0.0"/></static>
@@ -28,12 +28,12 @@
     <static name="PillarL3" type="cylinder"><dimensions radius="0.03" height="4.0"/><material name="Rock"/><look name="pillar"/><world_transform xyz="3.0 -0.8 2.0" rpy="0.0 0.0 0.0"/></static>
     <static name="PillarR3" type="cylinder"><dimensions radius="0.03" height="4.0"/><material name="Rock"/><look name="pillar"/><world_transform xyz="3.0 0.8 2.0" rpy="0.0 0.0 0.0"/></static>
 
-    <!-- Kilka skał na dnie. -->
+    <!-- A few rocks on the bottom. -->
     <static name="Rock1" type="sphere"><dimensions radius="0.3"/><material name="Rock"/><look name="rock"/><world_transform xyz="1.5 -1.5 4.0" rpy="0.0 0.0 0.0"/></static>
     <static name="Rock2" type="sphere"><dimensions radius="0.5"/><material name="Rock"/><look name="rock"/><world_transform xyz="3.5 1.8 4.1" rpy="0.0 0.0 0.0"/></static>
     <static name="Rock3" type="box"><dimensions xyz="0.6 0.4 0.3"/><material name="Rock"/><look name="rock"/><world_transform xyz="-1.0 1.2 3.85" rpy="0.0 0.0 0.5"/></static>
 
-    <!-- Znaczniki głębokości 1, 2 i 3 m (scenariusz 4) – czerwone kule przy słupie L0. -->
+    <!-- Depth markers at 1, 2 and 3 m (scenario 4) – red spheres next to pillar L0. -->
     <static name="Depth1m" type="sphere"><dimensions radius="0.05"/><material name="Rock"/><look name="buoy"/><world_transform xyz="0.0 -0.8 1.0" rpy="0.0 0.0 0.0"/></static>
     <static name="Depth2m" type="sphere"><dimensions radius="0.05"/><material name="Rock"/><look name="buoy"/><world_transform xyz="0.0 -0.8 2.0" rpy="0.0 0.0 0.0"/></static>
     <static name="Depth3m" type="sphere"><dimensions radius="0.05"/><material name="Rock"/><look name="buoy"/><world_transform xyz="0.0 -0.8 3.0" rpy="0.0 0.0 0.0"/></static>

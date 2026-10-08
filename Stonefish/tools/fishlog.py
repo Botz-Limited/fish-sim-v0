@@ -1,10 +1,10 @@
-"""Wczytywanie logów CSV z aplikacji konsolowej (linie '#' to komentarze)."""
+"""Loading CSV logs from the console application ('#' lines are comments)."""
 
 import numpy as np
 
 
 class Log(dict):
-    """Słownik kolumna -> tablica numpy, plus dostęp atrybutem: log.t, log.x ..."""
+    """Dict column -> numpy array, plus attribute access: log.t, log.x ..."""
 
     def __getattr__(self, k):
         try:
@@ -22,5 +22,5 @@ def read_log(path) -> Log:
 
 
 def at(log, t):
-    """Indeks próbki najbliższej czasowi t."""
+    """Index of the sample closest to time t."""
     return int(np.argmin(np.abs(log["t"] - t)))

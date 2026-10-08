@@ -1,19 +1,19 @@
-// Hydraulika ogona: pompa + dwie komory (L, R) w układzie zamkniętym.
-// Ten sam model co w demo MuJoCo (../MuJoCo/fishsim/hydraulics.py), przepisany 1:1 do C++,
-// żeby wyniki obu symulatorów dało się porównać.
+// Tail hydraulics: pump + two chambers (L, R) in a closed circuit.
+// The same model as in the MuJoCo demo (../MuJoCo/fishsim/hydraulics.py), ported 1:1 to C++,
+// so that the results of both simulators can be compared.
 //
-// Stany:
-//   Q        – przepływ pompy z R do L [m³/s] (człon inercyjny I rzędu, stała τ_pump),
-//   V_L, V_R – objętości cieczy w komorach [m³]; V_L + V_R = const (układ zamknięty).
+// States:
+//   Q        – pump flow from R to L [m³/s] (first-order lag, time constant τ_pump),
+//   V_L, V_R – fluid volumes in the chambers [m³]; V_L + V_R = const (closed circuit).
 //
-// "Sprężyna hydrauliczna": pompa przetłoczyła V_p = (V_L − V_R)/2, a ogon zgięty o
-// L = Σ w_i·θ_i "zrobił miejsce" na A_eff·r_eff·L. Nadmiar ściska ciecz i rozpycha
-// podatne ścianki (podatność C_h):
-//   Δp = p_L − p_R = (V_p − A_eff·r_eff·L) / C_h,   ograniczone zaworem do ±p_max,
-//   moment na "tendonie" F = A_eff·r_eff·Δp  [N·m] (rozkładany na przeguby wagami w_i).
+// "Hydraulic spring": the pump has transferred V_p = (V_L − V_R)/2, and the tail bent by
+// L = Σ w_i·θ_i has "made room" for A_eff·r_eff·L. The excess compresses the fluid and pushes
+// the compliant walls outward (compliance C_h):
+//   Δp = p_L − p_R = (V_p − A_eff·r_eff·L) / C_h,   limited by the valve to ±p_max,
+//   torque on the "tendon" F = A_eff·r_eff·Δp  [N·m] (distributed over the joints with weights w_i).
 //
-// Całkowanie: jawny Euler z krokiem fizyki. Moment liczony ze stanu NA POCZĄTKU kroku.
-// Stabilne, bo dt ≪ τ_pump i ω_n·dt ≪ 2 dla sprężyny hydraulicznej (README).
+// Integration: explicit Euler with the physics step. Torque computed from the state AT THE START of the step.
+// Stable because dt ≪ τ_pump and ω_n·dt ≪ 2 for the hydraulic spring (README).
 #pragma once
 
 namespace fish
@@ -34,13 +34,13 @@ namespace fish
     public:
         explicit TailHydraulics(const HydraulicsParams& p);
 
-        // Jeden krok: komenda pompy u ∈ [−1, 1], aktualna "długość tendonu" L [rad].
-        // Zwraca moment F [N·m] do przyłożenia w TYM kroku (ze stanu przed aktualizacją).
+        // One step: pump command u ∈ [−1, 1], current "tendon length" L [rad].
+        // Returns the torque F [N·m] to apply in THIS step (from the state before the update).
         double Step(double u, double L, double dt);
 
         double DeltaP(double L) const;   // p_L − p_R [Pa]
         double ForceOnTendon(double L) const { return Ar_ * DeltaP(L); }
-        double pL(double L) const { return 0.5 * DeltaP(L); }   // względem ciśnienia wstępnego
+        double pL(double L) const { return 0.5 * DeltaP(L); }   // relative to the pre-charge pressure
         double pR(double L) const { return -0.5 * DeltaP(L); }
         double Vp() const { return 0.5 * (VL_ - VR_); }
 
@@ -49,15 +49,15 @@ namespace fish
         double VR() const { return VR_; }
         double Qvalve() const { return Qvalve_; }
         double Ar() const { return Ar_; }
-        // Sztywność sprężyny hydraulicznej widziana przez tendon k_h = (A_eff·r_eff)²/C_h.
+        // Stiffness of the hydraulic spring as seen by the tendon k_h = (A_eff·r_eff)²/C_h.
         double StiffnessHydraulic() const { return Ar_ * Ar_ / p_.C_h; }
         const HydraulicsParams& params() const { return p_; }
 
     private:
         HydraulicsParams p_;
-        double Ar_;      // A_eff·r_eff [m³/rad] – objętość "zajęta" przez ogon na radian L
+        double Ar_;      // A_eff·r_eff [m³/rad] – volume "taken up" by the tail per radian of L
         double Q_;
         double VL_, VR_;
-        double Qvalve_;  // przepływ przez zawór przelewowy [m³/s], >0 = z L do R
+        double Qvalve_;  // flow through the relief valve [m³/s], >0 = from L to R
     };
 }

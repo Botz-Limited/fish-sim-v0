@@ -15,12 +15,12 @@ namespace fish
         const double u2 = ux * ux + uy * uy;
         if(u2 < 1e-12)
             return;
-        // Płytka jest symetryczna: przepływ od tyłu traktujemy jak od przodu -> α ∈ [0, π/2].
+        // The plate is symmetric: flow from behind is treated like flow from the front -> α ∈ [0, π/2].
         const double alpha = std::atan2(std::fabs(uy), std::fabs(ux));
         const double CL = 0.5 * clAlpha * std::sin(2.0 * alpha);
         const double L = 0.5 * rho * area * CL * u2;
-        // kierunek prostopadły do u; wybieramy ten, którego składowa Y jest PRZECIWNA do uy
-        // (siła ciśnienia hamuje ruch płetwy w kierunku jej normalnej)
+        // direction perpendicular to u; we pick the one whose Y component is OPPOSITE to uy
+        // (the pressure force resists the fin motion along its normal)
         const double n = std::sqrt(u2);
         double px = -uy / n, py = ux / n;
         if(py * uy > 0.0) { px = -px; py = -py; }
@@ -42,13 +42,13 @@ namespace fish
         if(attach == nullptr || ocn == nullptr)
             return;
 
-        // Układ płetwy (actuator frame) w świecie i punkt przyłożenia względem środka masy ogniwa.
+        // Fin frame (actuator frame) in the world and the point of application relative to the link's center of mass.
         const sf::Transform T = attach->getOTransform() * o2a;
         if(!ocn->IsInsideFluid(T.getOrigin()))
             return;
         const sf::Vector3 rel = T.getOrigin() - attach->getCGTransform().getOrigin();
         const sf::Vector3 v = attach->getLinearVelocityInLocalPoint(rel) - ocn->GetFluidVelocity(T.getOrigin());
-        const sf::Vector3 u = T.getBasis().transpose() * v;     // w układzie płetwy
+        const sf::Vector3 u = T.getBasis().transpose() * v;     // in the fin frame
 
         double Lx, Ly;
         const double rho = ocn->getLiquid().density;

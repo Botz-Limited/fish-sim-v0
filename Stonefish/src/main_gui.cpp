@@ -1,15 +1,15 @@
-// Aplikacja GRAFICZNA: podgląd w czasie rzeczywistym (sf::GraphicalSimulationApp, OpenGL 4.3+).
+// GRAPHICAL application: real-time view (sf::GraphicalSimulationApp, OpenGL 4.3+).
 //
-// Klawisze (dodane):  Spacja – start/stop ogona,  ←/→ – skręt (V_bias ∓0.5 ml),
-//   ↑/↓ – częstotliwość ±0.25 Hz,  PgUp/PgDn – głębokość zadana −/+0.25 m (włącza regulator).
-// Klawisze biblioteki (zachowane): W/S/A/D/Q/Z – kamera, mysz – obrót/przesuwanie widoku,
-//   H – panel, C – konsola komunikatów, K – lista klawiszy, Esc – wyjście.
-// Kamera jest "przyklejona" do głowy ryby (OpenGLTrackball::GlueToMoving).
+// Keys (added):  Space – start/stop tail,  ←/→ – turn (V_bias ∓0.5 ml),
+//   ↑/↓ – frequency ±0.25 Hz,  PgUp/PgDn – reference depth −/+0.25 m (enables the controller).
+// Library keys (kept): W/S/A/D/Q/Z – camera, mouse – rotate/pan the view,
+//   H – panel, C – message console, K – key list, Esc – quit.
+// The camera is "glued" to the fish head (OpenGLTrackball::GlueToMoving).
 //
-// Rozmiar okna: Stonefish 1.5 nie obsługuje zmiany rozmiaru okna – bufory renderingu
-// (OpenGLPipeline) mają rozmiar ustalony przy starcie, więc po rozciągnięciu albo
-// maksymalizacji obraz zostaje w starym rozmiarze lub się rozjeżdża. Dlatego rozmiar
-// wybieramy przy starcie (--window SZERxWYS, domyślnie 90% ekranu) i blokujemy zmianę.
+// Window size: Stonefish 1.5 does not support window resizing – the render buffers
+// (OpenGLPipeline) have a size fixed at startup, so after stretching or
+// maximizing the image stays at the old size or gets distorted. That is why the size
+// is chosen at startup (--window WxH, default 90% of the screen) and resizing is locked.
 
 #include <Stonefish/core/GraphicalSimulationApp.h>
 #include <Stonefish/graphics/IMGUI.h>
@@ -40,25 +40,25 @@ namespace
                 case SDLK_RIGHT: fm_->ChangeBias(+0.5e-6); break;
                 case SDLK_UP: fm_->ChangeFreq(+0.25); break;
                 case SDLK_DOWN: fm_->ChangeFreq(-0.25); break;
-                case SDLK_PAGEUP: fm_->ChangeDepthRef(-0.25); break;    // płycej (NED: z maleje)
-                case SDLK_PAGEDOWN: fm_->ChangeDepthRef(+0.25); break;  // głębiej
-                default: sf::GraphicalSimulationApp::KeyDown(event);    // klawisze biblioteki
+                case SDLK_PAGEUP: fm_->ChangeDepthRef(-0.25); break;    // shallower (NED: z decreases)
+                case SDLK_PAGEDOWN: fm_->ChangeDepthRef(+0.25); break;  // deeper
+                default: sf::GraphicalSimulationApp::KeyDown(event);    // library keys
             }
         }
 
         void DoHUD() override
         {
-            sf::GraphicalSimulationApp::DoHUD();   // standardowy panel biblioteki (klawisz H)
+            sf::GraphicalSimulationApp::DoHUD();   // standard library panel (key H)
             if(!glued_ && fm_->Head() != nullptr && fm_->getTrackball() != nullptr)
             {
                 fm_->getTrackball()->GlueToMoving(fm_->Head());
-                // Kamera domyślnie krąży 5 m od środka – dla ryby 0.5 m za daleko.
-                // MouseScroll zmienia promień: r += s·r/15, więc s = 15·(r_nowy/r − 1).
+                // By default the camera orbits 5 m from the center – too far for a 0.5 m fish.
+                // MouseScroll changes the radius: r += s·r/15, so s = 15·(r_new/r − 1).
                 fm_->getTrackball()->MouseScroll(15.f * (1.2f / 5.f - 1.f));
                 glued_ = true;
                 LockWindowSize();
             }
-            // Nakładka z ASCII (czcionka GUI nie musi mieć polskich znaków).
+            // ASCII-only overlay (the GUI font need not have non-ASCII characters).
             const fish::FishStatus s = fm_->Status();
             const float x = (float)getWindowWidth() - 270.f;
             float y = 10.f;
@@ -82,8 +82,8 @@ namespace
         }
 
     private:
-        // Okno tworzy biblioteka (wskaźnik jest prywatny), ale DoHUD działa w wątku z jego
-        // kontekstem OpenGL, więc znajdujemy je przez SDL_GL_GetCurrentWindow().
+        // The window is created by the library (the pointer is private), but DoHUD runs in the thread with its
+        // OpenGL context, so we find it via SDL_GL_GetCurrentWindow().
         void LockWindowSize()
         {
             SDL_Window* w = SDL_GL_GetCurrentWindow();
@@ -105,7 +105,7 @@ int main(int argc, char** argv)
     AppArgs args = AppArgs::Parse(argc, argv);
     Config cfg;
     try { cfg = Config::Load(args.rootDir, args.configFile, args.overrides); }
-    catch(const std::exception& e) { std::cerr << "BŁĄD konfiguracji: " << e.what() << "\n"; return 2; }
+    catch(const std::exception& e) { std::cerr << "ERROR (config): " << e.what() << "\n"; return 2; }
 
     sf::RenderSettings r;
     if(args.windowW > 0)
@@ -115,13 +115,13 @@ int main(int argc, char** argv)
     }
     else
     {
-        // 90% obszaru roboczego ekranu, na którym otworzy się okno (ekran główny),
-        // w pikselach logicznych (przy skalowaniu ekranu 125% to mniej niż rozdzielczość fizyczna).
+        // 90% of the usable area of the screen on which the window opens (the primary screen),
+        // in logical pixels (at 125% display scaling this is less than the physical resolution).
         r.windowW = 1280;
         r.windowH = 800;
-        // Uwaga: na Waylandzie SDL podaje rozdzielczość FIZYCZNĄ ekranu, a kompozytor traktuje
-        // rozmiar okna jako LOGICZNY. Przy skalowaniu 125% okno "90% ekranu" wychodziło poza
-        // ekran i było dodatkowo rozciągane. Skalę ekranu bierzemy z DPI (96 DPI = 100%).
+        // Note: on Wayland SDL reports the PHYSICAL screen resolution, while the compositor treats
+        // the window size as LOGICAL. At 125% scaling a "90% of the screen" window extended beyond
+        // the screen and was additionally stretched. We take the display scale from the DPI (96 DPI = 100%).
         SDL_Rect b;
         if(SDL_InitSubSystem(SDL_INIT_VIDEO) == 0 && SDL_GetDisplayUsableBounds(0, &b) == 0)
         {
@@ -131,7 +131,7 @@ int main(int argc, char** argv)
             r.windowH = (int)(0.9 * b.h / scale);
         }
     }
-    std::cout << "Okno " << r.windowW << "x" << r.windowH << " (zmiana: --window SZERxWYS; rozciąganie okna jest zablokowane)\n";
+    std::cout << "Window " << r.windowW << "x" << r.windowH << " (change: --window WxH; window resizing is locked)\n";
     r.aa = sf::RenderQuality::HIGH;
     sf::HelperSettings h;
     h.showCoordSys = false;
@@ -144,6 +144,6 @@ int main(int argc, char** argv)
         mgr.SetLogPath(args.outFile);
     FishGuiApp app(args.rootDir + "/data/", r, h, &mgr);
     try { app.Run(); }
-    catch(const std::exception& e) { std::cerr << "BŁĄD: " << e.what() << "\n"; return 1; }
+    catch(const std::exception& e) { std::cerr << "ERROR: " << e.what() << "\n"; return 1; }
     return 0;
 }

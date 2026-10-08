@@ -1,4 +1,4 @@
-// Scenariusz 1b – ten sam zawis, start z przechyłem 30° (XML): powrót do pionu.
+// Scenario 1b – the same hover, start with a 30° roll (XML): return to upright.
 {
   "sim": { "scenario": "s1_righting.scn", "duration": 20.0 }
 }

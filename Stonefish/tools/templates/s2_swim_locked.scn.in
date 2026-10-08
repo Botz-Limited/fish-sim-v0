@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <!--
-  Scenariusz 2, wariant: OGON ZABLOKOWANY. Przeguby ogona są typu "fixed" (sztywno spawane),
-  więc momenty z hydrauliki nie mają na co działać. Pokazuje, że ciąg pochodzi z ruchu ogona.
+  Scenario 2, variant: TAIL LOCKED. The tail joints are of type "fixed" (rigidly welded),
+  so the hydraulic torques have nothing to act on. Shows that the thrust comes from the tail motion.
 -->
 <scenario>
-    <!-- Środowisko: ocean bez fal (fale wymagają GPU – nie działają w trybie konsolowym). -->
+    <!-- Environment: ocean without waves (waves require a GPU – they do not work in console mode). -->
     <environment>
         <ned latitude="41.77" longitude="3.03"/>
         <ocean>
@@ -16,7 +16,7 @@
         </atmosphere>
     </environment>
 
-    <!-- Materiały fizyczne: Stonefish pozwala je definiować TYLKO w pliku głównym. -->
+    <!-- Physical materials: Stonefish allows defining them ONLY in the main file. -->
     <materials>
         <material name="Hull" density="@RHO_HULL@" restitution="0.3"/>
         <material name="Silicone" density="@RHO_TAIL@" restitution="0.2"/>
@@ -42,7 +42,7 @@
         <arg name="xyz" value="0.0 0.0 1.5"/>
         <arg name="rpy" value="0.0 0.0 0.0"/>
         <arg name="physics" value="submerged"/>
-        <arg name="tail_joint" value="fixed"/>   <!-- ogon zablokowany -->
+        <arg name="tail_joint" value="fixed"/>   <!-- tail locked -->
         <arg name="vbs_initial" value="@VBS_NEUTRAL@"/>
     </include>
 </scenario>

@@ -9,8 +9,8 @@ namespace fish
     {
         std::ifstream f(path);
         if(!f)
-            throw std::runtime_error("Nie mogę otworzyć pliku konfiguracji: " + path);
-        // parse(wejście, callback, wyjątki, ignore_comments=true) – komentarze // są dozwolone
+            throw std::runtime_error("Cannot open configuration file: " + path);
+        // parse(input, callback, exceptions, ignore_comments=true) – // comments are allowed
         return json::parse(f, nullptr, true, true);
     }
 
@@ -26,15 +26,15 @@ namespace fish
 
         for(const std::string& ov : overrides)
         {
-            // "sekcja.klucz=wartość" -> {"sekcja": {"klucz": wartość}}
+            // "section.key=value" -> {"section": {"key": value}}
             size_t eq = ov.find('=');
             if(eq == std::string::npos)
-                throw std::runtime_error("--set wymaga postaci sekcja.klucz=wartość, jest: " + ov);
+                throw std::runtime_error("--set requires the form section.key=value, got: " + ov);
             std::string path = ov.substr(0, eq);
             std::string val = ov.substr(eq + 1);
             json v;
             try { v = json::parse(val); }
-            catch(const json::parse_error&) { v = val; } // nie-JSON -> napis (np. nazwa pliku)
+            catch(const json::parse_error&) { v = val; } // non-JSON -> string (e.g. a file name)
 
             json patch = v;
             size_t end = path.size();
@@ -55,7 +55,7 @@ namespace fish
     const json& Config::at(const std::string& section) const
     {
         if(!j.contains(section))
-            throw std::runtime_error("Brak sekcji konfiguracji: " + section);
+            throw std::runtime_error("Missing configuration section: " + section);
         return j.at(section);
     }
 
@@ -63,7 +63,7 @@ namespace fish
     {
         const json& s = at(section);
         if(!s.contains(key))
-            throw std::runtime_error("Brak parametru: " + section + "." + key);
+            throw std::runtime_error("Missing parameter: " + section + "." + key);
         return s.at(key).get<double>();
     }
 
@@ -71,7 +71,7 @@ namespace fish
     {
         const json& s = at(section);
         if(!s.contains(key))
-            throw std::runtime_error("Brak parametru: " + section + "." + key);
+            throw std::runtime_error("Missing parameter: " + section + "." + key);
         return s.at(key).get<bool>();
     }
 
@@ -79,7 +79,7 @@ namespace fish
     {
         const json& s = at(section);
         if(!s.contains(key))
-            throw std::runtime_error("Brak parametru: " + section + "." + key);
+            throw std::runtime_error("Missing parameter: " + section + "." + key);
         return s.at(key).get<std::string>();
     }
 }

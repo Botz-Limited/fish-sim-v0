@@ -1,4 +1,4 @@
-// Scenariusz 2, wariant: płetwa BEZ siły nośnej – zostaje tylko hydrodynamika Stonefish z geometrii.
+// Scenario 2, variant: fin WITHOUT lift – only the Stonefish hydrodynamics from geometry remain.
 {
   "sim": { "scenario": "s2_swim.scn", "duration": 15.0 },
   "rhythm": { "enabled": true, "freq": 2.0 },

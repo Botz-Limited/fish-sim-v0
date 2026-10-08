@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
 <!--
-  Scenariusz 1 – zawis: bez napędu ogona, VBS w połowie zakresu (pływalność neutralna).
-  Start bez przechyłu -> sprawdzamy dryf pionowy i poziomy (bilans wyporu i ciężaru).
-  Prostowanie po przechyle: s1_righting.scn. Czas trwania: config/s1_hover.json.
+  Scenario 1 – hover: no tail propulsion, VBS at half range (neutral buoyancy).
+  Start without roll -> we check vertical and horizontal drift (buoyancy vs. weight balance).
+  Righting after a roll: s1_righting.scn. Duration: config/s1_hover.json.
 -->
 <scenario>
-    <!-- Środowisko: ocean bez fal (fale wymagają GPU – nie działają w trybie konsolowym). -->
+    <!-- Environment: ocean without waves (waves require a GPU – they do not work in console mode). -->
     <environment>
         <ned latitude="41.77" longitude="3.03"/>
         <ocean>
@@ -17,7 +17,7 @@
         </atmosphere>
     </environment>
 
-    <!-- Materiały fizyczne: Stonefish pozwala je definiować TYLKO w pliku głównym. -->
+    <!-- Physical materials: Stonefish allows defining them ONLY in the main file. -->
     <materials>
         <material name="Hull" density="@RHO_HULL@" restitution="0.3"/>
         <material name="Silicone" density="@RHO_TAIL@" restitution="0.2"/>

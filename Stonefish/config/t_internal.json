@@ -1,4 +1,4 @@
-// Test napędu wewnętrznego: brak sił wody (bryły "surface"), grawitacja 0, ogon machający.
+// Internal propulsion test: no water forces ("surface" bodies), gravity 0, flapping tail.
 {
   "sim": { "scenario": "t_internal.scn", "duration": 3.0, "gravity": 0.0 },
   "fin_lift": { "enabled": false },

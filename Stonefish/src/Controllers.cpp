@@ -14,7 +14,7 @@ namespace fish
 
     std::pair<double, double> TailRhythm::Vref(double t) const
     {
-        // miękki start a(t) i jego pochodna
+        // soft start a(t) and its derivative
         double a = 1.0, da = 0.0;
         if(ramp_ > 0.0 && t < ramp_)
         {
@@ -30,14 +30,14 @@ namespace fish
     double TailRhythm::Command(double t, double Vp) const
     {
         auto [v, dv] = Vref(t);
-        // feed-forward (przepływ, który "powinien" płynąć) + korekta błędu objętości
+        // feed-forward (the flow that "should" be flowing) + volume error correction
         const double u = (dv + Kv_ * (v - Vp)) / Qmax_;
         return std::clamp(u, -1.0, 1.0);
     }
 
     void TailRhythm::SetFreq(double f, double t)
     {
-        // faza φ(t) = 2πf·t + φ0 ma być ciągła w chwili t
+        // the phase φ(t) = 2πf·t + φ0 must be continuous at time t
         phase0_ += 2.0 * M_PI * (f_ - f) * t;
         f_ = f;
     }
@@ -65,15 +65,15 @@ namespace fish
 
     void DepthController::SetReference(double dRef)
     {
-        dRef_ = std::max(dRef, p_.zMin);   // regulator nie wyciąga ryby na powierzchnię
+        dRef_ = std::max(dRef, p_.zMin);   // the controller does not pull the fish up to the surface
     }
 
     double DepthController::Update(double depthMeasured, double dt)
     {
-        // 1) filtr dolnoprzepustowy na zaszumionym pomiarze
+        // 1) low-pass filter on the noisy measurement
         const double d = lpfDepth_.Update(depthMeasured, dt);
-        // 2) prędkość z różnicy filtrowanej głębokości, jeszcze raz filtrowana
-        //    (różniczkowanie wzmacnia szum: σ_v ≈ √2·σ_d/dt)
+        // 2) rate from the difference of the filtered depth, filtered once more
+        //    (differentiation amplifies noise: σ_v ≈ √2·σ_d/dt)
         if(!init_)
         {
             prevDepth_ = d;
@@ -83,16 +83,16 @@ namespace fish
         const double rate = lpfRate_.Update((d - prevDepth_) / dt, dt);
         prevDepth_ = d;
 
-        const double e = d - dRef_;     // > 0: za głęboko -> mniej wody
+        const double e = d - dRef_;     // > 0: too deep -> less water
         const double vPD = p_.Vn - p_.kp * e - p_.kd * rate;
         double vOut = vPD - p_.ki * integral_;
-        const bool satHi = vOut >= p_.Vmax;   // pełny zbiornik (najciężej)
-        const bool satLo = vOut <= p_.Vmin;   // pusty (najlżej)
-        // anti-windup: nie całkujemy, gdy całka pchałaby wyjście dalej w nasycenie
+        const bool satHi = vOut >= p_.Vmax;   // full tank (heaviest)
+        const bool satLo = vOut <= p_.Vmin;   // empty (lightest)
+        // anti-windup: do not integrate when the integral would push the output further into saturation
         if(std::fabs(e) < p_.iBand && !((satLo && e > 0) || (satHi && e < 0)))
         {
             integral_ += e * dt;
-            // całka sama nie może przesunąć wyjścia o więcej niż pół zakresu VBS
+            // the integral alone may not shift the output by more than half the VBS range
             const double iMax = 0.5 * (p_.Vmax - p_.Vmin) / std::max(p_.ki, 1e-30);
             integral_ = std::clamp(integral_, -iMax, iMax);
         }
@@ -122,8 +122,8 @@ namespace fish
     double HeadingController::Update(double yawMeasured, double yawRef, double dt)
     {
         const double e = WrapAngle(yawRef - yawMeasured);
-        const double out = kp_ * e + ki_ * integral_;      // "ile skrętu w prawo" [m³]
-        // anti-windup: całkujemy tylko poza nasyceniem (albo gdy uchyb z niego wyprowadza)
+        const double out = kp_ * e + ki_ * integral_;      // "how much right turn" [m³]
+        // anti-windup: integrate only outside saturation (or when the error drives out of it)
         if(std::fabs(out) < biasMax_ || out * e < 0.0)
             integral_ += e * dt;
         return -std::clamp(kp_ * e + ki_ * integral_, -biasMax_, biasMax_);

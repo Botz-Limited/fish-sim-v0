@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
 <!--
-  Scenariusz 3 – skręt: CPG z biasem objętości V_bias -> ogon ugięty stale w jedną stronę
-  -> trajektoria po łuku w płaszczyźnie XY. Start w x = −8 m: łuki o promieniu kilku metrów
-  nie zahaczają o słupy referencyjne (w pierwszej wersji ryba w nie uderzała). Bias ustawia config/s3_turn.json (albo --set).
+  Scenario 3 – turning: CPG with a volume bias V_bias -> tail permanently bent to one side
+  -> arc trajectory in the XY plane. Start at x = −8 m: arcs with a radius of a few metres
+  do not catch the reference pillars (in the first version the fish hit them). The bias is set by config/s3_turn.json (or --set).
 -->
 <scenario>
-    <!-- Środowisko: ocean bez fal (fale wymagają GPU – nie działają w trybie konsolowym). -->
+    <!-- Environment: ocean without waves (waves require a GPU – they do not work in console mode). -->
     <environment>
         <ned latitude="41.77" longitude="3.03"/>
         <ocean>
@@ -17,7 +17,7 @@
         </atmosphere>
     </environment>
 
-    <!-- Materiały fizyczne: Stonefish pozwala je definiować TYLKO w pliku głównym. -->
+    <!-- Physical materials: Stonefish allows defining them ONLY in the main file. -->
     <materials>
         <material name="Hull" density="@RHO_HULL@" restitution="0.3"/>
         <material name="Silicone" density="@RHO_TAIL@" restitution="0.2"/>
@@ -40,7 +40,7 @@
     <include file="scenarios/world_base.scn"/>
 
     <include file="scenarios/fish_base.scn">
-        <arg name="xyz" value="-8.0 0.0 1.5"/>   <!-- z dala od słupów (łuki nie mogą w nie uderzyć) -->
+        <arg name="xyz" value="-8.0 0.0 1.5"/>   <!-- away from the pillars (the arcs must not hit them) -->
         <arg name="rpy" value="0.0 0.0 0.0"/>
         <arg name="physics" value="submerged"/>
         <arg name="tail_joint" value="revolute"/>

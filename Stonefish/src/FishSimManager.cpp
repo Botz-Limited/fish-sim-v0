@@ -31,24 +31,24 @@ namespace fish
 
     FishSimManager::~FishSimManager() = default;
 
-    // ================================================================== budowa sceny
+    // ================================================================== scene construction
 
     void FishSimManager::BuildScenario()
     {
-        // Grawitację można wyłączyć (test napędu wewnętrznego) – domyślnie 9.81 m/s².
-        // Musi być TUTAJ, nie w konstruktorze: biblioteka ustawia g = 9.81 w InitializeSolver(),
-        // wywoływanym po konstruktorze, a przed BuildScenario(). Przed parserem, bo VBS
-        // zapamiętuje g w chwili tworzenia.
+        // Gravity can be disabled (internal actuation test) – default 9.81 m/s².
+        // Must be HERE, not in the constructor: the library sets g = 9.81 in InitializeSolver(),
+        // called after the constructor but before BuildScenario(). Before the parser, because the VBS
+        // stores g at creation time.
         if(cfg_.at("sim").contains("gravity"))
             setGravity(cfg_.d("sim", "gravity"));
 
-        // 1) Scenariusz z XML (ścieżki w XML są względne do katalogu data/)
+        // 1) Scenario from XML (paths in the XML are relative to the data/ directory)
         const std::string scn = sf::GetDataPath() + "scenarios/" + cfg_.s("sim", "scenario");
         sf::ScenarioParser parser(this);
         parsedOk_ = parser.Parse(scn);
         for(const auto& m : parser.getLog())
         {
-            // komunikaty parsera przekazujemy do konsoli Stonefish (widać je też w GUI, klawisz C)
+            // forward parser messages to the Stonefish console (also visible in the GUI, key C)
             switch(m.type)
             {
                 case sf::MessageType::INFO: cInfo("%s", m.text.c_str()); break;
@@ -59,17 +59,17 @@ namespace fish
         }
         if(!parsedOk_)
         {
-            cError("Błędy parsera w scenariuszu '%s'!", scn.c_str());
+            cError("Parser errors in scenario '%s'!", scn.c_str());
             return;
         }
 
-        // 2) Prądy morskie: parser dodaje <current> do oceanu, ale w Stonefish 1.5 są one
-        //    domyślnie WYŁĄCZONE (Ocean::currentsEnabled = false) i trzeba je włączyć w kodzie –
-        //    tak robią też przykłady biblioteki (Tests/UnderwaterTest). Bez prądów nic to nie zmienia.
+        // 2) Water currents: the parser adds <current> to the ocean, but in Stonefish 1.5 they are
+        //    DISABLED by default (Ocean::currentsEnabled = false) and must be enabled in code –
+        //    the library examples do the same (Tests/UnderwaterTest). Without currents this changes nothing.
         if(getOcean() != nullptr && getOcean()->getCurrent(0) != nullptr)
             getOcean()->EnableCurrents();
 
-        // 3) Hydrodynamika w każdym kroku (domyślnie Stonefish liczy ją z częstotliwością 50 Hz)
+        // 3) Hydrodynamics in every step (by default Stonefish computes it at 50 Hz)
         setFluidDynamicsPrescaler(cfg_.at("sim").at("fluid_prescaler").get<unsigned int>());
 
         FindRobotParts();
@@ -82,7 +82,7 @@ namespace fish
     {
         robot_ = dynamic_cast<sf::FeatherstoneRobot*>(getRobot(ROBOT));
         if(robot_ == nullptr)
-            throw std::runtime_error("W scenariuszu nie ma robota 'Fish'");
+            throw std::runtime_error("The scenario has no robot 'Fish'");
 
         const std::string p = std::string(ROBOT) + "/";
         links_.clear();
@@ -92,7 +92,7 @@ namespace fish
             links_.push_back(robot_->getLink(p + "Seg" + std::to_string(i)));
         links_.push_back(robot_->getLink(p + "Fin"));
         for(auto* l : links_)
-            if(l == nullptr) throw std::runtime_error("Brak ogniwa ryby w scenariuszu");
+            if(l == nullptr) throw std::runtime_error("Fish link missing in the scenario");
         allLinks_ = links_;
 
         motors_.clear();
@@ -102,7 +102,7 @@ namespace fish
             auto* m = dynamic_cast<sf::Motor*>(robot_->getActuator(p + "TailM" + std::to_string(i)));
             auto* e = dynamic_cast<sf::RotaryEncoder*>(robot_->getSensor(p + "Enc" + std::to_string(i)));
             if(m == nullptr || e == nullptr)
-                throw std::runtime_error("Brak aktuatora TailM" + std::to_string(i) + " albo enkodera Enc" + std::to_string(i));
+                throw std::runtime_error("Missing actuator TailM" + std::to_string(i) + " or encoder Enc" + std::to_string(i));
             motors_.push_back(m);
             encoders_.push_back(e);
         }
@@ -110,16 +110,16 @@ namespace fish
         pressure_ = dynamic_cast<sf::Pressure*>(robot_->getSensor(p + "Pressure"));
         imu_ = dynamic_cast<sf::IMU*>(robot_->getSensor(p + "IMU"));
         if(vbs_ == nullptr || pressure_ == nullptr || imu_ == nullptr)
-            throw std::runtime_error("Brak VBS, czujnika ciśnienia albo IMU w scenariuszu");
+            throw std::runtime_error("Missing VBS, pressure sensor or IMU in the scenario");
 
-        // Siła nośna płetwy – własny aktuator przyczepiony do ogniwa "Fin" (src/FinLift.h).
-        // Robot jest już w symulacji, więc dołączamy go ręcznie: AttachToSolid + AddActuator.
+        // Fin lift – a custom actuator attached to the "Fin" link (src/FinLift.h).
+        // The robot is already in the simulation, so we attach it manually: AttachToSolid + AddActuator.
         finLift_ = nullptr;
         if(cfg_.b("fin_lift", "enabled"))
         {
             const auto fin = cfg_.at("geometry").at("fin_semi_axes").get<std::vector<double>>();
-            const double area = M_PI * fin[0] * fin[2];                                   // rzut boczny (XZ)
-            const double xc = -fin[0] + cfg_.d("geometry", "segment_overlap");          // środek płetwy w jej układzie
+            const double area = M_PI * fin[0] * fin[2];                                   // side projection (XZ)
+            const double xc = -fin[0] + cfg_.d("geometry", "segment_overlap");          // fin center in its own frame
             finLift_ = new FinLift(p + "FinLift", area, cfg_.d("fin_lift", "cl_alpha"));
             finLift_->AttachToSolid(links_.back(), sf::Transform(sf::IQ(), sf::Vector3(xc, 0, 0)));
             AddActuator(finLift_);
@@ -132,22 +132,22 @@ namespace fish
         tau_.assign(nSeg, 0.0);
     }
 
-    // Bilans mas WYLICZONY PRZEZ STONEFISH z siatek i gęstości (porównaj z tools/make_meshes.py).
+    // Mass budget COMPUTED BY STONEFISH from meshes and densities (compare with tools/make_meshes.py).
     void FishSimManager::BuildMassReport()
     {
         const double rho = cfg_.d("materials", "rho_water");
         const double g = std::fabs(getGravity().getZ()) > 0 ? std::fabs(getGravity().getZ()) : 9.81;
         std::ostringstream os;
         char buf[256];
-        os << "Bilans mas (wartości policzone przez Stonefish z siatek):\n";
-        std::snprintf(buf, sizeof(buf), "  %-6s %9s %9s %26s %26s\n", "bryła", "masa[g]", "V[ml]",
-                      "masa doł. x,y,z [g]", "bezwł. doł. x,y,z [kg·cm²]");
+        os << "Mass budget (values computed by Stonefish from meshes):\n";
+        std::snprintf(buf, sizeof(buf), "  %-6s %9s %9s %26s %26s\n", "body", "mass[g]", "V[ml]",
+                      "added mass x,y,z [g]", "added inertia x,y,z [kg·cm²]");
         os << buf;
         double M = 0.0, V = 0.0;
         for(auto* l : allLinks_)
         {
             const std::string name = l->getName().substr(std::string(ROBOT).size() + 1);
-            // getVolume() – objętość wypierająca wodę (dla bryły złożonej: części z buoyant="true")
+            // getVolume() – water-displacing volume (for a compound body: parts with buoyant="true")
             const sf::Vector3 am = l->getAddedMass(), ai = l->getAddedInertia();
             std::snprintf(buf, sizeof(buf), "  %-6s %9.1f %9.1f %8.1f %8.1f %8.1f %8.2f %8.2f %8.2f\n", name.c_str(),
                           l->getMass() * 1e3, l->getVolume() * 1e6, am.x() * 1e3, am.y() * 1e3, am.z() * 1e3,
@@ -158,9 +158,9 @@ namespace fish
         }
         const double Vw = vbs_->getLiquidVolume();
         std::snprintf(buf, sizeof(buf),
-                      "  SUMA   %9.1f %9.1f   (+ woda w VBS: %.1f ml = %.1f g)\n"
-                      "  Wypadkowa pływalność (wypór − ciężar): %+.4f N  (bez wody w VBS: %+.4f N)\n"
-                      "  Hydraulika: k_h = %.2f N·m/rad, wagi przegubów:",
+                      "  TOTAL  %9.1f %9.1f   (+ water in VBS: %.1f ml = %.1f g)\n"
+                      "  Net buoyancy (buoyancy − weight): %+.4f N  (without water in VBS: %+.4f N)\n"
+                      "  Hydraulics: k_h = %.2f N·m/rad, joint weights:",
                       M * 1e3, V * 1e6, Vw * 1e6, rho * Vw * 1e3,
                       (rho * V - M - rho * Vw) * g, (rho * V - M) * g, hyd_->StiffnessHydraulic());
         os << buf;
@@ -169,7 +169,7 @@ namespace fish
         massReport_ = os.str();
     }
 
-    // Tworzy hydraulikę i regulatory od zera (start symulacji).
+    // Creates the hydraulics and controllers from scratch (simulation start).
     void FishSimManager::ResetControl()
     {
         const auto& h = cfg_.at("hydraulics");
@@ -195,7 +195,7 @@ namespace fish
         depthSchedule_ = d.at("schedule").get<std::vector<std::pair<double, double>>>();
         depthCtrl_->SetReference(depthSchedule_.front().second);
         depthOn_ = d.at("enabled").get<bool>();
-        // regulator pracuje z częstotliwością czujnika ciśnienia (nowa próbka = nowa decyzja)
+        // the controller runs at the pressure sensor rate (new sample = new decision)
         depthEvery_ = std::max(1, (int)std::lround(cfg_.d("sim", "steps_per_second") / cfg_.d("sensors", "pressure_rate")));
         vbsRef_ = vbs_->getLiquidVolume();
 
@@ -207,7 +207,7 @@ namespace fish
         rhoG_ = cfg_.d("materials", "rho_water") * 9.81;
     }
 
-    // Współczynnik tarcia Stonefish (liniowy: F = ρ·c·Σ A·v_t) – patrz config "hydro".
+    // Stonefish skin friction coefficient (linear: F = ρ·c·Σ A·v_t) – see config "hydro".
     void FishSimManager::ApplySkinFriction()
     {
         const std::string mode = cfg_.s("hydro", "skin_friction");
@@ -216,14 +216,14 @@ namespace fish
         {
             sf::Vector3 Cd, Cf;
             links_[0]->getHydrodynamicCoefficients(Cd, Cf);
-            std::snprintf(buf, sizeof(buf), "\n  Tarcie: współczynniki biblioteki (c = 0.1·Cd, głowa: %.3f %.3f %.3f m/s)", Cf.x(), Cf.y(), Cf.z());
+            std::snprintf(buf, sizeof(buf), "\n  Skin friction: library coefficients (c = 0.1·Cd, head: %.3f %.3f %.3f m/s)", Cf.x(), Cf.y(), Cf.z());
             frictionReport_ = buf;
             return;
         }
         if(mode != "blasius")
-            throw std::runtime_error("hydro.skin_friction musi być \"library\" albo \"blasius\"");
+            throw std::runtime_error("hydro.skin_friction must be \"library\" or \"blasius\"");
 
-        // długość ryby: od nosa kadłuba do końca płetwy (ogon prosty)
+        // fish length: from the hull nose to the end of the fin (tail straight)
         const auto& g = cfg_.at("geometry");
         const double nose = g.at("hull_semi_axes")[0].get<double>();
         const double finA = g.at("fin_semi_axes")[0].get<double>();
@@ -237,18 +237,18 @@ namespace fish
         for(auto* l : allLinks_)
         {
             sf::Vector3 Cd, Cf;
-            l->getHydrodynamicCoefficients(Cd, Cf);               // opór ciśnieniowy zostaje z biblioteki
+            l->getHydrodynamicCoefficients(Cd, Cf);               // pressure drag stays from the library
             l->SetHydrodynamicCoefficients(Cd, sf::Vector3(c, c, c));
         }
-        std::snprintf(buf, sizeof(buf), "\n  Tarcie (Blasius): L = %.3f m, Re = %.0f, C_f = %.4f -> c = %.2e m/s (biblioteka: ~0.1)",
+        std::snprintf(buf, sizeof(buf), "\n  Skin friction (Blasius): L = %.3f m, Re = %.0f, C_f = %.4f -> c = %.2e m/s (library: ~0.1)",
                       Lfish, Re, CfBlasius, c);
         frictionReport_ = buf;
     }
 
-    // Sztywność przegubów: napędzane – z konfiguracji, pasywne – z rezonansu f_res:
-    //   k_j = I_j·(2π·f_res)²,  I_j = Σ_{bryły za przegubem j} [I_aug,oś + M_aug·r²]
-    // gdzie M_aug, I_aug to masa i bezwładność RAZEM z masą dołączoną wody, policzone przez
-    // Stonefish, a r – odległość środka masy bryły od osi przegubu (ogon prosty, start).
+    // Joint stiffness: driven – from the config, passive – from the resonance f_res:
+    //   k_j = I_j·(2π·f_res)²,  I_j = Σ_{bodies behind joint j} [I_aug,axis + M_aug·r²]
+    // where M_aug, I_aug are the mass and inertia INCLUDING the water added mass, computed by
+    // Stonefish, and r – the distance of the body's center of mass from the joint axis (tail straight, start).
     std::vector<double> FishSimManager::JointStiffness()
     {
         const auto& t = cfg_.at("tail");
@@ -261,7 +261,7 @@ namespace fish
         const double L = cfg_.d("geometry", "segment_length");
         const double x0 = cfg_.d("geometry", "tail_attach_x");
         const sf::Transform head = links_[0]->getOTransform();
-        const sf::Vector3 axis = head.getBasis().getColumn(2);          // oś Z głowy = oś przegubów
+        const sf::Vector3 axis = head.getBasis().getColumn(2);          // head Z axis = joint axis
 
         std::vector<double> k(n, t.at("stiffness_actuated").get<double>());
         std::ostringstream os;
@@ -274,8 +274,8 @@ namespace fish
                 const sf::SolidEntity* l = links_[li];
                 const sf::Transform cg = l->getCGTransform();
                 sf::Vector3 r = cg.getOrigin() - pivot;
-                r -= axis * r.dot(axis);                                   // składowa prostopadła do osi
-                const sf::Vector3 Ip = l->getAugmentedInertia();          // w osiach głównych bryły
+                r -= axis * r.dot(axis);                                   // component perpendicular to the axis
+                const sf::Vector3 Ip = l->getAugmentedInertia();          // in the body's principal axes
                 const sf::Matrix3& R = cg.getBasis();
                 double Iaxis = 0.0;
                 for(int c = 0; c < 3; ++c)
@@ -287,7 +287,7 @@ namespace fish
             }
             k[j] = I * w * w;
             char buf[160];
-            std::snprintf(buf, sizeof(buf), "\n  Przegub pasywny %d: I = %.3f kg·cm² (z masą dołączoną) -> k = %.3f N·m/rad",
+            std::snprintf(buf, sizeof(buf), "\n  Passive joint %d: I = %.3f kg·cm² (with added mass) -> k = %.3f N·m/rad",
                           j + 1, I * 1e4, k[j]);
             os << buf;
         }
@@ -295,7 +295,7 @@ namespace fish
         return k;
     }
 
-    // ================================================================== krok symulacji
+    // ================================================================== simulation step
 
     void FishSimManager::SimulationStepCompleted(sf::Scalar dt)
     {
@@ -303,36 +303,36 @@ namespace fish
             return;
         const double t = getSimulationTime();
 
-        // ---- 1) Pomiary: kąty i prędkości przegubów z enkoderów
+        // ---- 1) Measurements: joint angles and velocities from the encoders
         for(size_t i = 0; i < encoders_.size(); ++i)
         {
             theta_[i] = encoders_[i]->getLastValue(0);
             omega_[i] = encoders_[i]->getLastValue(1);
         }
 
-        // ---- 2) Hydraulika ogona i momenty w przegubach
+        // ---- 2) Tail hydraulics and joint torques
         L_ = driver_->TendonLength(theta_);
         u_ = rhythmOn_ ? rhythm_->Command(t, hyd_->Vp()) : 0.0;
         if(!rhythmOn_)
         {
-            // CPG wyłączony: pompa trzyma objętość V_bias (ogon wraca do pozycji zadanej)
+            // CPG disabled: the pump holds the volume V_bias (the tail returns to the reference position)
             u_ = std::clamp(cfg_.d("rhythm", "K_v") * (rhythm_->bias - hyd_->Vp()) / hyd_->params().Q_max, -1.0, 1.0);
         }
         F_ = hyd_->Step(u_, L_, dt);
         tau_ = driver_->JointTorques(F_, theta_, locked_);
-        // Moment ustawiony teraz działa w NASTĘPNYM kroku fizyki (aktuatory są
-        // aktualizowane na początku kroku) – to jawne sprzężenie, jak w MuJoCo.
+        // The torque set now acts in the NEXT physics step (actuators are
+        // updated at the start of the step) – this is explicit coupling, as in MuJoCo.
         for(size_t i = 0; i < motors_.size(); ++i)
             motors_[i]->setIntensity(tau_[i]);
         double s = 0.0;
         for(double x : TailDriver::LinkTorques(tau_)) s += x;
         tauSum_ = s;
 
-        // ---- 3) Kurs (IMU) -> skręt ogona
+        // ---- 3) Heading (IMU) -> tail turn
         if(headingOn_)
             rhythm_->bias = headingCtrl_->Update(imu_->getLastValue(2), yawRef_, dt);
 
-        // ---- 4) Głębokość z czujnika ciśnienia -> VBS
+        // ---- 4) Depth from the pressure sensor -> VBS
         depthMeas_ = pressure_->getLastValue(0) / rhoG_;      // d = p / (ρ·g)
         if(depthOn_)
         {
@@ -351,7 +351,7 @@ namespace fish
             if(!log_.is_open())
             {
                 log_.open(logPath_);
-                if(!log_) throw std::runtime_error("Nie mogę zapisać logu: " + logPath_);
+                if(!log_) throw std::runtime_error("Cannot write log: " + logPath_);
                 WriteLogHeader();
             }
             WriteLogRow();
@@ -370,8 +370,8 @@ namespace fish
 
     void FishSimManager::WriteLogHeader()
     {
-        log_ << "# scenariusz: " << cfg_.s("sim", "scenario") << ", konfiguracja: " << cfg_.sourceFile << "\n";
-        log_ << "# uklad NED: x do przodu, y w prawo, z w dol (z = glebokosc). Katy w rad, cisnienia w Pa, objetosci w m3.\n";
+        log_ << "# scenario: " << cfg_.s("sim", "scenario") << ", config: " << cfg_.sourceFile << "\n";
+        log_ << "# NED frame: x forward, y right, z down (z = depth). Angles in rad, pressures in Pa, volumes in m3.\n";
         log_ << "t,x,y,z,roll,pitch,yaw,vx,vy,vz,v_fwd,com_x,com_y,com_z,Px,Py,Lz,"
                 "p_meas,depth_meas,depth_filt,depth_ref,imu_roll,imu_pitch,imu_yaw,imu_wz";
         for(size_t i = 1; i <= theta_.size(); ++i) log_ << ",theta" << i;
@@ -387,7 +387,7 @@ namespace fish
         sf::Scalar yaw, pitch, roll;
         T.getBasis().getEulerYPR(yaw, pitch, roll);
         const sf::Vector3 vel = links_[0]->getLinearVelocity();
-        const double vFwd = vel.dot(T.getBasis().getColumn(0));   // prędkość wzdłuż osi X głowy
+        const double vFwd = vel.dot(T.getBasis().getColumn(0));   // velocity along the head X axis
         sf::Vector3 com, P;
         double Lz;
         ComputeMomentum(com, P, Lz);
@@ -404,17 +404,17 @@ namespace fish
         for(double x : theta_) { std::snprintf(buf, sizeof(buf), ",%.6f", x); log_ << buf; }
         for(double x : omega_) { std::snprintf(buf, sizeof(buf), ",%.6f", x); log_ << buf; }
         for(double x : tau_) { std::snprintf(buf, sizeof(buf), ",%.6e", x); log_ << buf; }
-        // ciąg od siły nośnej = jej składowa wzdłuż osi X głowy
+        // thrust from lift = its component along the head X axis
         const double finThrust = finLift_ ? finLift_->lastForceWorld().dot(T.getBasis().getColumn(0)) : 0.0;
         std::snprintf(buf, sizeof(buf), ",%.3e,%.6f,%.5f,%.6e,%.9e,%.9e,%.6e,%.2f,%.2f,%.6e,%.6e,%.4f,%.6e,%.6e,%.6e,%.6e,%.5f,%.2f,%.5f\n",
                       tauSum_, L_, u_, hyd_->Q(), hyd_->VL(), hyd_->VR(), hyd_->Vp(), hyd_->pL(L_), hyd_->pR(L_), F_,
                       hyd_->Qvalve(), rhythm_->freq(), rhythm_->bias, vbs_->getLiquidVolume(), vbsRef_, vbsFlow_,
                       finLift_ ? finLift_->lastLift() : 0.0, finLift_ ? finLift_->lastAlphaDeg() : 0.0, finThrust);
         std::string row(buf);
-        row.pop_back();   // bez '\n' – dopisujemy jeszcze kolumny sił
+        row.pop_back();   // without '\n' – the force columns are appended next
         log_ << row;
-        // Siły wody policzone przez Stonefish, rzut na oś X głowy (+ = do przodu):
-        // opór "kwadratowy" (ciśnieniowy) głowy, segmentów ogona i płetwy oraz tarcie (wszystkie bryły).
+        // Water forces computed by Stonefish, projected onto the head X axis (+ = forward):
+        // "quadratic" (pressure) drag of the head, tail segments and fin, plus skin friction (all bodies).
         const sf::Vector3 ex = T.getBasis().getColumn(0);
         double dHead = 0, dTail = 0, dFin = 0, skin = 0;
         for(size_t i = 0; i < allLinks_.size(); ++i)
@@ -422,7 +422,7 @@ namespace fish
             sf::Vector3 Fb, Tb, Fd, Td, Ff, Tf;
             allLinks_[i]->getHydrodynamicForces(Fb, Tb, Fd, Td, Ff, Tf);
             const double fx = Fd.dot(ex);
-            // głowa razem z płetwą grzbietową; płetwa ogonowa = ostatnie ogniwo łańcucha ogona
+            // head together with the dorsal fin; caudal fin = last link of the tail chain
             (i == 0 || i >= links_.size() ? dHead : (i + 1 == links_.size() ? dFin : dTail)) += fx;
             skin += Ff.dot(ex);
         }
@@ -432,9 +432,9 @@ namespace fish
 
     void FishSimManager::ComputeMomentum(sf::Vector3& com, sf::Vector3& P, double& Lz) const
     {
-        // Środek masy i pęd: suma po bryłach. Moment pędu względem osi Z przechodzącej
-        // przez środek masy: Σ [m·(r − r_c) × v + R·I·Rᵀ·ω]_z, I – główne momenty bezwładności
-        // w układzie CG bryły (R = orientacja tego układu).
+        // Center of mass and momentum: sum over bodies. Angular momentum about the Z axis passing
+        // through the center of mass: Σ [m·(r − r_c) × v + R·I·Rᵀ·ω]_z, I – principal moments of inertia
+        // in the body's CG frame (R = orientation of that frame).
         double M = 0.0;
         com.setZero();
         P.setZero();
@@ -457,7 +457,7 @@ namespace fish
         }
     }
 
-    // ================================================================== sterowanie z klawiatury
+    // ================================================================== keyboard control
 
     void FishSimManager::ToggleRhythm() { rhythmOn_ = !rhythmOn_; }
 
@@ -469,7 +469,7 @@ namespace fish
 
     void FishSimManager::ChangeBias(double dV)
     {
-        headingOn_ = false;   // ręczny skręt wyłącza regulator kursu
+        headingOn_ = false;   // manual turning disables the heading controller
         rhythm_->bias = std::clamp(rhythm_->bias + dV, -4e-6, 4e-6);
     }
 

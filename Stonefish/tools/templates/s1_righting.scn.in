@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
 <!--
-  Scenariusz 1b – prostowanie: jak s1_hover, ale start z przechyłem 30° (roll).
-  Balast pod środkiem wyporu daje moment prostujący; tłumienie kołysania pochodzi tylko
-  z oporu płetw i tarcia (README). Czas trwania: config/s1_righting.json.
+  Scenario 1b – righting: like s1_hover, but starting with a 30° roll.
+  Ballast below the centre of buoyancy gives a righting moment; roll damping comes only
+  from fin drag and friction (README). Duration: config/s1_righting.json.
 -->
 <scenario>
-    <!-- Środowisko: ocean bez fal (fale wymagają GPU – nie działają w trybie konsolowym). -->
+    <!-- Environment: ocean without waves (waves require a GPU – they do not work in console mode). -->
     <environment>
         <ned latitude="41.77" longitude="3.03"/>
         <ocean>
@@ -17,7 +17,7 @@
         </atmosphere>
     </environment>
 
-    <!-- Materiały fizyczne: Stonefish pozwala je definiować TYLKO w pliku głównym. -->
+    <!-- Physical materials: Stonefish allows defining them ONLY in the main file. -->
     <materials>
         <material name="Hull" density="@RHO_HULL@" restitution="0.3"/>
         <material name="Silicone" density="@RHO_TAIL@" restitution="0.2"/>
@@ -41,7 +41,7 @@
 
     <include file="scenarios/fish_base.scn">
         <arg name="xyz" value="0.0 0.0 1.5"/>
-        <arg name="rpy" value="0.5235988 0.0 0.0"/>   <!-- przechył 30° -->
+        <arg name="rpy" value="0.5235988 0.0 0.0"/>   <!-- 30° roll -->
         <arg name="physics" value="submerged"/>
         <arg name="tail_joint" value="revolute"/>
         <arg name="vbs_initial" value="@VBS_NEUTRAL@"/>

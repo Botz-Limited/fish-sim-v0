@@ -11,28 +11,28 @@ namespace fish
 
     double TailHydraulics::DeltaP(double L) const
     {
-        // Ciśnienie ze ZNAKIEM: dodatnie = komora L ma wyższe ciśnienie.
+        // SIGNED pressure: positive = chamber L has the higher pressure.
         return (Vp() - Ar_ * L) / p_.C_h;
     }
 
     double TailHydraulics::Step(double u, double L, double dt)
     {
-        const double F = ForceOnTendon(L);   // jawnie: siła ze stanu na początku kroku
+        const double F = ForceOnTendon(L);   // explicit: force from the state at the start of the step
         u = std::clamp(u, -1.0, 1.0);
 
-        // Pompa rozpędza się do u·Q_max ze stałą czasową τ_pump (człon I rzędu).
+        // The pump spins up to u·Q_max with time constant τ_pump (first-order lag).
         Q_ += dt * (u * p_.Q_max - Q_) / p_.tau_pump;
 
-        // Pompa przetacza ciecz z R do L – suma objętości się nie zmienia.
+        // The pump moves fluid from R to L – the total volume does not change.
         VL_ += Q_ * dt;
         VR_ -= Q_ * dt;
 
-        // Zawór przelewowy łączy komory: gdy |Δp| przekroczyłoby p_max, przepuszcza
-        // nadmiar z komory o wyższym ciśnieniu do drugiej (też bez zmiany sumy).
+        // The relief valve connects the chambers: when |Δp| would exceed p_max, it passes
+        // the excess from the higher-pressure chamber to the other (also without changing the total).
         const double excess = Vp() - Ar_ * L;
-        const double limit = p_.p_max * p_.C_h;               // nadmiar objętości odpowiadający p_max
+        const double limit = p_.p_max * p_.C_h;               // excess volume corresponding to p_max
         const double vent = excess - std::clamp(excess, -limit, limit);
-        // Vp = (V_L − V_R)/2, więc przesunięcie "vent" z L do R zmienia Vp dokładnie o −vent.
+        // Vp = (V_L − V_R)/2, so moving "vent" from L to R changes Vp by exactly −vent.
         VL_ -= vent;
         VR_ += vent;
         Qvalve_ = vent / dt;

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Logi CSV (results/logs/) -> wykresy PNG + dane z wykresów (CSV) w results/.
+"""CSV logs (results/logs/) -> PNG plots + plotted data (CSV) in results/.
 
     .venv/bin/python tools/plot_logs.py
 
-Każdy wykres ma obok plik CSV z dokładnie tymi danymi, które są na nim narysowane
-(pełne logi są duże i nie trafiają do gita). Na końcu wypisuje podsumowanie liczbowe
-(te liczby są w README).
+Each plot has a CSV file next to it with exactly the data drawn on it
+(the full logs are large and do not go into git). At the end it prints a numerical summary
+(these numbers are in the README).
 
-Układ NED: z = głębokość (+ w dół), y = w prawo. Na wykresach XY oś X świata ("północ")
-jest pionowa, a Y ("wschód") pozioma – jak na mapie.
+NED frame: z = depth (+ down), y = to the right. On the XY plots the world X axis ("north")
+is vertical and Y ("east") horizontal – as on a map.
 """
 
 import csv
@@ -30,7 +30,7 @@ from fishlog import read_log  # noqa: E402
 LOGS = ROOT / "results" / "logs"
 OUT = ROOT / "results"
 
-# Paleta kategoryczna (stała kolejność, nie cyklowana) i kolory pomocnicze.
+# Categorical palette (fixed order, not cycled) and auxiliary colours.
 C = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
 INK, INK2, GRID, NEUTRAL = "#1f1f1e", "#5f5e58", "#e6e5df", "#8a8980"
 
@@ -61,13 +61,13 @@ def save(fig, name, rows, header):
 
 
 def cycle_mean(t, y, period):
-    """Średnia krocząca po jednym okresie machania – usuwa oscylację 2f z prędkości."""
+    """Moving average over one tail-beat period – removes the 2f oscillation from the speed."""
     dt = t[1] - t[0]
     n = max(1, int(round(period / dt)))
     k = np.ones(n) / n
     out = np.convolve(y, k, mode="same")
     h = n // 2
-    out[:h] = np.nan            # na brzegach okno wychodzi poza dane – nie rysujemy
+    out[:h] = np.nan            # at the edges the window extends past the data – not drawn
     out[len(out) - h:] = np.nan
     return out
 
@@ -78,20 +78,20 @@ def mean_speed(d, last=5.0):
 
 
 def mean_fwd(d, last=10.0):
-    """Średnia prędkość WZDŁUŻ osi głowy ze znakiem (ujemna = ryba płynie do tyłu)."""
+    """Signed mean speed ALONG the head axis (negative = fish swims backwards)."""
     m = d.t > d.t[-1] - last
     return float(np.mean(d.v_fwd[m]))
 
 
 def harmonic_amp(t, y, f):
-    """Amplituda składowej o częstotliwości f (pierwsza harmoniczna)."""
+    """Amplitude of the component at frequency f (first harmonic)."""
     return float(abs(2 * np.mean((y - y.mean()) * np.exp(-2j * np.pi * f * t))))
 
 
 SUMMARY = {}
 
 
-# ------------------------------------------------------------------ scenariusz 1
+# ------------------------------------------------------------------ scenario 1
 def plot_s1():
     d = log("s1_hover")
     z0 = d.z[0]
@@ -102,15 +102,15 @@ def plot_s1():
     SUMMARY["s1_drift_xy_10s_mm"] = float(np.hypot(d.x[-1] - d.x[0], d.y[-1] - d.y[0]) * 1e3)
 
     fig, ax = plt.subplots(2, 1, figsize=(7.5, 5.2), sharex=True)
-    ax[0].plot(d.t, (d.depth_meas - z0) * 1e3, color=C[0], lw=0.7, alpha=0.45, label="czujnik ciśnienia (z szumem)")
-    ax[0].plot(d.t, (d.z - z0) * 1e3, color=C[0], lw=2, label="prawdziwa głębokość")
-    ax[0].set_ylabel("Δz [mm] (+ w dół)")
-    ax[0].set_title("Zawis bez napędu: ryba stoi w miejscu (VBS w połowie zakresu)")
+    ax[0].plot(d.t, (d.depth_meas - z0) * 1e3, color=C[0], lw=0.7, alpha=0.45, label="pressure sensor (noisy)")
+    ax[0].plot(d.t, (d.z - z0) * 1e3, color=C[0], lw=2, label="true depth")
+    ax[0].set_ylabel("Δz [mm] (+ down)")
+    ax[0].set_title("Hover without propulsion: the fish stays in place (VBS at half range)")
     ax[0].legend(loc="upper right")
-    ax[1].plot(d.t, (d.x - d.x[0]) * 1e3, color=C[1], label="x (do przodu)")
-    ax[1].plot(d.t, (d.y - d.y[0]) * 1e3, color=C[2], label="y (w prawo)")
-    ax[1].set_ylabel("dryf poziomy [mm]")
-    ax[1].set_xlabel("czas [s]")
+    ax[1].plot(d.t, (d.x - d.x[0]) * 1e3, color=C[1], label="x (forward)")
+    ax[1].plot(d.t, (d.y - d.y[0]) * 1e3, color=C[2], label="y (right)")
+    ax[1].set_ylabel("horizontal drift [mm]")
+    ax[1].set_xlabel("time [s]")
     ax[1].legend(loc="upper right")
     save(fig, "s1_hover_drift", zip(d.t, d.z, d.depth_meas, d.x, d.y), ["t_s", "z_true_m", "depth_meas_m", "x_m", "y_m"])
 
@@ -123,24 +123,24 @@ def plot_s1():
     env = [float(np.abs(roll[(d.t >= t) & (d.t < t + 1)]).max()) for t in range(int(d.t[-1]))]
     SUMMARY["s1_roll_envelope_deg_per_s"] = env
     fig, ax = plt.subplots(figsize=(8.5, 3.8))
-    ax.plot(d.t[m], np.degrees(d.imu_roll[m]), color=C[0], lw=0.8, alpha=0.5, label="IMU (z szumem)")
-    ax.plot(d.t[m], roll[m], color=C[0], lw=2, label="przechył prawdziwy")
-    ax.plot(d.t[m], np.degrees(d.pitch[m]), color=C[1], label="pochylenie prawdziwe")
+    ax.plot(d.t[m], np.degrees(d.imu_roll[m]), color=C[0], lw=0.8, alpha=0.5, label="IMU (noisy)")
+    ax.plot(d.t[m], roll[m], color=C[0], lw=2, label="true roll")
+    ax.plot(d.t[m], np.degrees(d.pitch[m]), color=C[1], label="true pitch")
     ax.axhline(0, color=NEUTRAL, lw=1)
-    ax.set_xlabel("czas [s]")
-    ax.set_ylabel("kąt [°]")
-    ax.set_title("Start z przechyłem 30°: moment prostujący od razu, ale słabe tłumienie kołysania")
+    ax.set_xlabel("time [s]")
+    ax.set_ylabel("angle [°]")
+    ax.set_title("Start with 30° roll: righting moment acts immediately, but roll damping is weak")
     ax.legend(loc="upper right")
     save(fig, "s1_righting", zip(d.t[m], roll[m], np.degrees(d.imu_roll[m]), np.degrees(d.pitch[m])),
          ["t_s", "roll_true_deg", "roll_imu_deg", "pitch_true_deg"])
 
 
-# ------------------------------------------------------------------ scenariusz 2
-S2 = [("s2_swim", "domyślnie: siła nośna płetwy + tarcie Blasiusa"),
-      ("s2_swim_nolift", "bez siły nośnej (tarcie Blasiusa)"),
-      ("s2_swim_libfriction", "siła nośna + tarcie z biblioteki"),
-      ("s2_swim_libfriction_nolift", "tylko Stonefish (bez nośnej, tarcie z biblioteki)"),
-      ("s2_swim_locked", "ogon zablokowany")]
+# ------------------------------------------------------------------ scenario 2
+S2 = [("s2_swim", "default: fin lift + Blasius friction"),
+      ("s2_swim_nolift", "no lift (Blasius friction)"),
+      ("s2_swim_libfriction", "lift + library friction"),
+      ("s2_swim_libfriction_nolift", "Stonefish only (no lift, library friction)"),
+      ("s2_swim_locked", "tail locked")]
 
 
 def plot_s2():
@@ -155,17 +155,17 @@ def plot_s2():
         rows += [(name, t, vv) for t, vv in zip(d.t[::10], v[::10]) if np.isfinite(vv)]
     SUMMARY["s2_speed_cm_s"] = {k: v * 100 for k, v in speeds.items()}
     ax[0].axhline(0, color=NEUTRAL, lw=1)
-    ax[0].set_xlabel("czas [s]")
-    ax[0].set_ylabel("prędkość do przodu [cm/s]\n(średnia z okresu machania)")
-    ax[0].set_title("CPG 2 Hz: skąd bierze się ciąg")
+    ax[0].set_xlabel("time [s]")
+    ax[0].set_ylabel("forward speed [cm/s]\n(tail-beat period average)")
+    ax[0].set_title("CPG 2 Hz: where the thrust comes from")
     ax[0].legend(loc="upper left", fontsize=8)
 
-    # bilans sił w ruchu ustalonym (wariant domyślny)
+    # force balance in steady motion (default variant)
     d = log("s2_swim")
     m = d.t > d.t[-1] - 5
-    comp = [("siła nośna płetwy", d.fin_thrust[m].mean()), ("opór ciśn. głowy", d.Fdrag_head[m].mean()),
-            ("opór ciśn. segmentów", d.Fdrag_tail[m].mean()), ("opór ciśn. płetwy", d.Fdrag_fin[m].mean()),
-            ("tarcie (wszystkie)", d.Fskin_all[m].mean())]
+    comp = [("fin lift", d.fin_thrust[m].mean()), ("head pressure drag", d.Fdrag_head[m].mean()),
+            ("segment pressure drag", d.Fdrag_tail[m].mean()), ("fin pressure drag", d.Fdrag_fin[m].mean()),
+            ("skin friction (all)", d.Fskin_all[m].mean())]
     SUMMARY["s2_force_balance_N"] = {k: float(v) for k, v in comp}
     names = [c[0] for c in comp][::-1]
     vals = [c[1] for c in comp][::-1]
@@ -174,24 +174,24 @@ def plot_s2():
         ax[1].text(max(v, 0) + 0.015, y, f"{v:+.3f} N", va="center", ha="left", color=INK2, fontsize=8.5)
     ax[1].axvline(0, color=INK2, lw=1)
     ax[1].set_xlim(-0.4, 0.75)
-    ax[1].set_xlabel("średnia siła wzdłuż osi ryby [N] (+ = do przodu)")
-    ax[1].set_title("Bilans sił, ruch ustalony (domyślnie)")
+    ax[1].set_xlabel("mean force along the fish axis [N] (+ = forward)")
+    ax[1].set_title("Force balance, steady motion (default)")
     ax[1].grid(axis="y", visible=False)
     save(fig, "s2_speed_vs_locked", rows, ["variant", "t_s", "v_fwd_cycle_mean_cm_s"])
 
 
-# ------------------------------------------------------------------ scenariusz 3
+# ------------------------------------------------------------------ scenario 3
 def plot_s3():
     from run_scenarios import TURN_BIASES_ML
     fig, ax = plt.subplots(figsize=(7, 6.4))
-    # rozbieżna: ujemny bias = niebieski, dodatni = pomarańczowy, 0 = szary; jasność ~ |bias|
+    # diverging: negative bias = blue, positive = orange, 0 = grey; lightness ~ |bias|
     blues = ["#86b6ef", "#3987e5", "#1c5cab"]
     oranges = ["#f4a37f", "#eb6834", "#b8461b"]
     rows, radii = [], {}
     for b in TURN_BIASES_ML:
         d = log(f"s3_turn_{b:+d}ml")
         col = NEUTRAL if b == 0 else (blues[abs(b) - 1] if b < 0 else oranges[abs(b) - 1])
-        d["x"], d["y"] = d.x - d.x[0], d.y - d.y[0]          # względem punktu startu
+        d["x"], d["y"] = d.x - d.x[0], d.y - d.y[0]          # relative to the start point
         ax.plot(d.y, d.x, color=col, lw=1.8)
         ax.annotate(f"{b:+d} ml", (d.y[-1], d.x[-1]), xytext=(4, 0), textcoords="offset points",
                     color=INK2, fontsize=8, va="center")
@@ -204,16 +204,16 @@ def plot_s3():
         rows += [(b, t, x, y) for t, x, y in zip(d.t[::20], d.x[::20], d.y[::20])]
     SUMMARY["s3_radius_m"] = radii
     ax.set_aspect("equal")
-    ax.set_xlabel("y – w prawo (wschód), od startu [m]")
-    ax.set_ylabel("x – do przodu (północ), od startu [m]")
-    ax.set_title("Skręt: V_bias ugina ogon, ryba płynie po łuku (30 s, CPG 2 Hz)")
-    ax.text(0.02, 0.02, "V_bias > 0: ogon ugięty w lewo -> skręt w lewo\npromienie (dopasowany okrąg): "
+    ax.set_xlabel("y – right (east), from start [m]")
+    ax.set_ylabel("x – forward (north), from start [m]")
+    ax.set_title("Turning: V_bias bends the tail, the fish swims along an arc (30 s, CPG 2 Hz)")
+    ax.text(0.02, 0.02, "V_bias > 0: tail bent left -> left turn\nradii (fitted circle): "
             + ", ".join(f"{b:+d} ml: {r:.1f} m" for b, r in sorted(radii.items())),
             transform=ax.transAxes, fontsize=8, color=INK2)
     save(fig, "s3_trajectory", rows, ["V_bias_ml", "t_s", "x_m", "y_m"])
 
 
-# ------------------------------------------------------------------ scenariusz 4
+# ------------------------------------------------------------------ scenario 4
 def plot_s4():
     d = log("s4_depth")
     cfg = load_config(ROOT / "config" / "s4_depth.json")
@@ -235,39 +235,39 @@ def plot_s4():
     SUMMARY["s4_vbs_range_ml"] = [float(d.vbs_V.min() * 1e6), float(d.vbs_V.max() * 1e6)]
 
     fig, ax = plt.subplots(3, 1, figsize=(8.5, 8), sharex=True, gridspec_kw={"height_ratios": [1.5, 0.9, 1]})
-    ax[0].plot(d.t, d.depth_meas, color=C[0], lw=0.6, alpha=0.35, label="czujnik ciśnienia (σ ≈ 5 mm)")
-    ax[0].plot(d.t, d.depth_filt, color=C[1], lw=1.4, label="po filtrze 1 Hz (wejście regulatora)")
-    ax[0].plot(d.t, d.z, color=C[0], lw=2, label="prawdziwa głębokość")
-    ax[0].step(d.t, d.depth_ref, where="post", color=INK, lw=1.2, ls="--", label="zadana")
+    ax[0].plot(d.t, d.depth_meas, color=C[0], lw=0.6, alpha=0.35, label="pressure sensor (σ ≈ 5 mm)")
+    ax[0].plot(d.t, d.depth_filt, color=C[1], lw=1.4, label="after 1 Hz filter (controller input)")
+    ax[0].plot(d.t, d.z, color=C[0], lw=2, label="true depth")
+    ax[0].step(d.t, d.depth_ref, where="post", color=INK, lw=1.2, ls="--", label="setpoint")
     ax[0].invert_yaxis()
-    ax[0].set_ylabel("głębokość [m]")
-    ax[0].set_title("Regulacja głębokości: PID na odczycie czujnika ciśnienia -> VBS")
+    ax[0].set_ylabel("depth [m]")
+    ax[0].set_title("Depth control: PID on the pressure sensor reading -> VBS")
     ax[0].legend(loc="upper right", fontsize=8)
-    ax[1].plot(d.t, (d.depth_meas - d.z) * 100, color=C[0], lw=0.6, alpha=0.5, label="czujnik − prawda")
-    ax[1].plot(d.t, (d.depth_filt - d.z) * 100, color=C[1], lw=1.4, label="po filtrze − prawda (szum mniejszy, ale opóźnienie)")
+    ax[1].plot(d.t, (d.depth_meas - d.z) * 100, color=C[0], lw=0.6, alpha=0.5, label="sensor − truth")
+    ax[1].plot(d.t, (d.depth_filt - d.z) * 100, color=C[1], lw=1.4, label="filtered − truth (less noise, but lag)")
     ax[1].axhline(0, color=NEUTRAL, lw=1)
-    ax[1].set_ylabel("błąd pomiaru\ngłębokości [cm]")
+    ax[1].set_ylabel("depth measurement\nerror [cm]")
     ax[1].legend(loc="upper right", fontsize=8, ncol=2)
-    ax[2].plot(d.t, d.vbs_Vref * 1e6, color=C[1], lw=1.2, label="V_ref (wyjście PID)")
-    ax[2].plot(d.t, d.vbs_V * 1e6, color=C[0], lw=2, label="woda w VBS")
+    ax[2].plot(d.t, d.vbs_Vref * 1e6, color=C[1], lw=1.2, label="V_ref (PID output)")
+    ax[2].plot(d.t, d.vbs_V * 1e6, color=C[0], lw=2, label="water in VBS")
     for v in (vmin, vmax):
         ax[2].axhline(v, color=NEUTRAL, lw=1, ls=":")
-    ax[2].text(d.t[-1], vmax, " pełny", va="center", color=INK2, fontsize=8)
-    ax[2].text(d.t[-1], vmin, " pusty", va="center", color=INK2, fontsize=8)
-    ax[2].set_ylabel("objętość [ml]\n(więcej = ciężej)")
-    ax[2].set_xlabel("czas [s]")
+    ax[2].text(d.t[-1], vmax, " full", va="center", color=INK2, fontsize=8)
+    ax[2].text(d.t[-1], vmin, " empty", va="center", color=INK2, fontsize=8)
+    ax[2].set_ylabel("volume [ml]\n(more = heavier)")
+    ax[2].set_xlabel("time [s]")
     ax[2].legend(loc="upper right", fontsize=8, ncol=2)
     save(fig, "s4_depth_true_vs_measured", zip(d.t[::5], d.depth_ref[::5], d.z[::5], d.depth_meas[::5], d.depth_filt[::5],
                                                 d.vbs_V[::5] * 1e6, d.vbs_Vref[::5] * 1e6),
          ["t_s", "depth_ref_m", "depth_true_m", "depth_meas_m", "depth_filt_m", "vbs_V_ml", "vbs_Vref_ml"])
 
 
-# ------------------------------------------------------------------ scenariusz 5
+# ------------------------------------------------------------------ scenario 5
 def plot_s5():
     fig, ax = plt.subplots(1, 2, figsize=(11, 4.6), gridspec_kw={"width_ratios": [1, 1.4]})
     rows = []
-    for i, (name, label) in enumerate([("s5_current", "bez regulatora kursu"),
-                                       ("s5_current_heading", "regulator kursu (IMU -> V_bias)")]):
+    for i, (name, label) in enumerate([("s5_current", "no heading controller"),
+                                       ("s5_current_heading", "heading controller (IMU -> V_bias)")]):
         d = log(name)
         ax[0].plot(d.y, d.x, color=C[i], lw=2, label=label)
         yaw = cycle_mean(d.t, np.degrees(np.unwrap(d.yaw)), 0.5)
@@ -278,21 +278,21 @@ def plot_s5():
         rows += [(name, t, x, y, w) for t, x, y, w in zip(d.t[::10], d.x[::10], d.y[::10], yaw[::10]) if np.isfinite(w)]
     ax[0].annotate("", xy=(0.95, 0.12), xytext=(0.75, 0.12), xycoords="axes fraction",
                    arrowprops=dict(arrowstyle="->", color=INK2, lw=1.5))
-    ax[0].text(0.85, 0.15, "prąd 5 cm/s", transform=ax[0].transAxes, ha="center", color=INK2, fontsize=8)
+    ax[0].text(0.85, 0.15, "current 5 cm/s", transform=ax[0].transAxes, ha="center", color=INK2, fontsize=8)
     ax[0].set_aspect("equal", adjustable="datalim")
-    ax[0].set_xlabel("y – w prawo [m]")
-    ax[0].set_ylabel("x – do przodu [m]")
-    ax[0].set_title("Prąd boczny: trajektoria XY (30 s)")
+    ax[0].set_xlabel("y – right [m]")
+    ax[0].set_ylabel("x – forward [m]")
+    ax[0].set_title("Cross current: XY trajectory (30 s)")
     ax[0].legend(loc="upper left", fontsize=8)
     ax[1].axhline(0, color=NEUTRAL, lw=1)
-    ax[1].set_xlabel("czas [s]")
-    ax[1].set_ylabel("kurs (yaw) [°], średnia z okresu")
-    ax[1].set_title("Kurs: bez regulatora ryba ustawia się pod prąd")
+    ax[1].set_xlabel("time [s]")
+    ax[1].set_ylabel("heading (yaw) [°], period average")
+    ax[1].set_title("Heading: without the controller the fish turns into the current")
     ax[1].legend(loc="lower left", fontsize=8)
     save(fig, "s5_current_drift", rows, ["variant", "t_s", "x_m", "y_m", "yaw_cycle_mean_deg"])
 
 
-# ------------------------------------------------------------------ scenariusz 6
+# ------------------------------------------------------------------ scenario 6
 def plot_s6():
     from run_scenarios import SWEEP_FREQS
     cfg = load_config()
@@ -303,7 +303,7 @@ def plot_s6():
         d = log(f"s6_sweep_{f:.2f}Hz")
         m = d.t > d.t[-1] - 10
         t = d.t[m]
-        fin = d.theta1 + d.theta2 + d.theta3 + d.theta4 + d.theta5     # kąt płetwy względem głowy
+        fin = d.theta1 + d.theta2 + d.theta3 + d.theta4 + d.theta5     # fin angle relative to the head
         early = (d.t >= 5) & (d.t < 15)
         yaw = np.degrees(np.unwrap(d.yaw))
         rows.append((f, mean_fwd(d) * 100, float(np.mean(d.v_fwd[early]) * 100), float(abs(yaw[m].mean())), math.degrees(harmonic_amp(t, fin[m], f)),
@@ -315,28 +315,28 @@ def plot_s6():
     SUMMARY["s6_f_sat_Hz"] = f_sat
     fig, ax = plt.subplots(1, 3, figsize=(12, 3.8))
     ax[0].plot(rows[:, 0], rows[:, 2], "o--", color=C[1], ms=5, lw=1.2, label="start (5–15 s)")
-    ax[0].plot(rows[:, 0], rows[:, 1], "o-", color=C[0], ms=5, label="ustalona (50–60 s)")
+    ax[0].plot(rows[:, 0], rows[:, 1], "o-", color=C[0], ms=5, label="steady (50–60 s)")
     for r_ in rows:
         if r_[3] > 30:
-            ax[0].annotate("zawróciła" if r_[3] > 150 else "zawraca", (r_[0], r_[1]), xytext=(0, 8), textcoords="offset points",
+            ax[0].annotate("turned back" if r_[3] > 150 else "turning back", (r_[0], r_[1]), xytext=(0, 8), textcoords="offset points",
                            ha="center", fontsize=7.5, color=INK2)
     ax[0].axhline(0, color=INK2, lw=1)
-    ax[0].set_ylabel("prędkość wzdłuż osi głowy [cm/s]\n(< 0 = ryba płynie do tyłu)")
-    ax[0].set_title("Prędkość")
+    ax[0].set_ylabel("speed along the head axis [cm/s]\n(< 0 = fish swims backwards)")
+    ax[0].set_title("Speed")
     ax[0].legend(fontsize=8, loc="lower center")
-    ax[1].plot(rows[:, 0], rows[:, 4], "o-", color=C[2], ms=5, label="płetwa względem głowy (Σθ)")
+    ax[1].plot(rows[:, 0], rows[:, 4], "o-", color=C[2], ms=5, label="fin relative to head (Σθ)")
     ax[1].plot(rows[:, 0], rows[:, 5], "o-", color=C[3], ms=5, label="\"tendon\" L = Σ w·θ")
-    ax[1].set_ylabel("amplituda [°]")
-    ax[1].set_title("Amplituda ogona")
+    ax[1].set_ylabel("amplitude [°]")
+    ax[1].set_title("Tail amplitude")
     ax[1].legend(fontsize=8)
     ax[2].plot(rows[:, 0], rows[:, 6], "o-", color=C[4], ms=5)
-    ax[2].set_ylabel("czas z |u| = 1 [%]")
-    ax[2].set_title("Nasycenie pompy ogona")
+    ax[2].set_ylabel("time with |u| = 1 [%]")
+    ax[2].set_title("Tail pump saturation")
     for a in ax:
         a.axvline(f_sat, color=NEUTRAL, lw=1.2, ls="--")
-        a.set_xlabel("częstotliwość CPG [Hz]")
+        a.set_xlabel("CPG frequency [Hz]")
     ax[0].text(f_sat, ax[0].get_ylim()[1], f" Q_max/(2π·A_V) = {f_sat:.2f} Hz", va="top", color=INK2, fontsize=8)
-    fig.suptitle("Przegląd częstotliwości 0.5–3 Hz, 60 s na punkt (ta sama amplituda zadana A_V = 8 ml)", x=0.01, ha="left",
+    fig.suptitle("Frequency sweep 0.5–3 Hz, 60 s per point (same commanded amplitude A_V = 8 ml)", x=0.01, ha="left",
                  fontweight="bold", color=INK)
     save(fig, "s6_freq_sweep", rows.tolist(), ["freq_Hz", "speed_50_60s_cm_s", "speed_5_15s_cm_s", "heading_change_deg", "fin_amp_deg", "L_amp_deg",
           "pump_saturated_pct"])
@@ -350,11 +350,11 @@ def summary_internal():
 
 
 def main():
-    print("Wykresy:")
+    print("Plots:")
     for fn in (plot_s1, plot_s2, plot_s3, plot_s4, plot_s5, plot_s6, summary_internal):
         fn()
     (OUT / "summary.json").write_text(json.dumps(SUMMARY, indent=2, ensure_ascii=False), encoding="utf-8")
-    print("Podsumowanie: results/summary.json")
+    print("Summary: results/summary.json")
     print(json.dumps(SUMMARY, indent=1, ensure_ascii=False))
 
 

@@ -1,17 +1,17 @@
 <?xml version="1.0"?>
 <!--
-  Scenariusz 5 – stały prąd boczny (w osi +Y, "ze wschodu"): ryba pływa na wprost i jest
-  znoszona. W wariancie z regulatorem kursu (config/s5_current_heading.json) IMU -> V_bias.
-  Prędkość prądu: PLACEHOLDER (tu 5 cm/s, ~1/4 prędkości pływania).
+  Scenario 5 – constant cross current (along the +Y axis, "from the east"): the fish swims straight and is
+  carried sideways. In the variant with the heading controller (config/s5_current_heading.json) IMU -> V_bias.
+  Current speed: PLACEHOLDER (here 5 cm/s, ~1/4 of the swimming speed).
 -->
 <scenario>
-    <!-- Środowisko: ocean bez fal (fale wymagają GPU – nie działają w trybie konsolowym). -->
+    <!-- Environment: ocean without waves (waves require a GPU – they do not work in console mode). -->
     <environment>
         <ned latitude="41.77" longitude="3.03"/>
         <ocean>
             <water density="@RHO_WATER@" jerlov="0.2"/>
             <waves height="0.0"/>
-            <!-- Prąd jednorodny w całym oceanie [m/s] (NED: +Y = w prawo względem osi X). -->
+            <!-- Uniform current in the whole ocean [m/s] (NED: +Y = to the right of the X axis). -->
             <current type="uniform">
                 <velocity xyz="0.0 0.05 0.0"/>
             </current>
@@ -21,7 +21,7 @@
         </atmosphere>
     </environment>
 
-    <!-- Materiały fizyczne: Stonefish pozwala je definiować TYLKO w pliku głównym. -->
+    <!-- Physical materials: Stonefish allows defining them ONLY in the main file. -->
     <materials>
         <material name="Hull" density="@RHO_HULL@" restitution="0.3"/>
         <material name="Silicone" density="@RHO_TAIL@" restitution="0.2"/>

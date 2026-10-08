@@ -1,13 +1,13 @@
 <?xml version="1.0"?>
 <!--
-  Test napędu wewnętrznego (tests/run_tests.sh): bryły w trybie "surface" (BEZ sił wody,
-  bez wyporu), grawitacja i siła nośna płetwy wyłączone w config/t_internal.json.
-  Jedyne siły: momenty hydrauliki w przegubach. Skoro działają między ogniwami (akcja =
-  reakcja), środek masy ryby nie może się przesunąć, a moment pędu musi zostać zerowy.
-  Ocean jest zdefiniowany (jak w innych scenariuszach), ale na bryły "surface" nie działa.
+  Internal propulsion test (tests/run_tests.sh): bodies in "surface" mode (NO water forces,
+  no buoyancy), gravity and fin lift disabled in config/t_internal.json.
+  The only forces: hydraulic torques in the joints. Since they act between links (action =
+  reaction), the fish's centre of mass cannot move, and the angular momentum must stay zero.
+  The ocean is defined (as in the other scenarios), but it does not act on "surface" bodies.
 -->
 <scenario>
-    <!-- Środowisko: ocean bez fal (fale wymagają GPU – nie działają w trybie konsolowym). -->
+    <!-- Environment: ocean without waves (waves require a GPU – they do not work in console mode). -->
     <environment>
         <ned latitude="41.77" longitude="3.03"/>
         <ocean>
@@ -19,7 +19,7 @@
         </atmosphere>
     </environment>
 
-    <!-- Materiały fizyczne: Stonefish pozwala je definiować TYLKO w pliku głównym. -->
+    <!-- Physical materials: Stonefish allows defining them ONLY in the main file. -->
     <materials>
         <material name="Hull" density="@RHO_HULL@" restitution="0.3"/>
         <material name="Silicone" density="@RHO_TAIL@" restitution="0.2"/>

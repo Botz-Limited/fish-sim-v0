@@ -1,19 +1,19 @@
-// TailDriver – zamiana siły hydrauliki na momenty w przegubach ogona.
+// TailDriver – converts the hydraulic force into torques in the tail joints.
 //
-// Hydraulika daje jeden moment F na "tendonie" (wirtualnym cięgnie) o długości
-// L = Σ w_i·θ_i. Z zasady prac przygotowanych moment w przegubie i to τ_i = w_i·F
-// (przeguby bliżej nasady mają większe komory -> większe wagi).
-// Do tego sprężystość silikonu, której Stonefish nie ma w przegubach: −k_i·θ_i.
+// The hydraulics give a single torque F on the "tendon" (a virtual cable) of length
+// L = Σ w_i·θ_i. By the principle of virtual work, the torque in joint i is τ_i = w_i·F
+// (joints closer to the root have larger chambers -> larger weights).
+// Plus the silicone elasticity, which Stonefish does not have in its joints: −k_i·θ_i.
 //
 //   τ_i = w_i·F − k_i·θ_i
 //
-// Gdzie trafiają momenty: aktuator "motor" wywołuje FeatherstoneEntity::DriveJoint,
-// czyli btMultiBody::addJointTorque – uogólnioną siłę przegubu. W algorytmie
-// Featherstone'a taki moment działa na DZIECKO (+τ·oś) i na RODZICA (−τ·oś) jednocześnie,
-// więc wypadkowy moment od napędu na całego robota = 0 (napęd wewnętrzny).
-// LinkTorques() liczy ten rozkład jawnie – do testu i do logu.
+// Where the torques go: the "motor" actuator calls FeatherstoneEntity::DriveJoint,
+// i.e. btMultiBody::addJointTorque – the generalized joint force. In Featherstone's
+// algorithm such a torque acts on the CHILD (+τ·axis) and on the PARENT (−τ·axis) simultaneously,
+// so the net drive torque on the whole robot = 0 (internal actuation).
+// LinkTorques() computes this distribution explicitly – for the test and the log.
 //
-// Klasa nie zależy od Stonefish (da się ją testować bez symulatora).
+// The class does not depend on Stonefish (it can be tested without the simulator).
 #pragma once
 
 #include <vector>
@@ -23,21 +23,21 @@ namespace fish
     class TailDriver
     {
     public:
-        // nJoints – liczba przegubów ogona, nActuated – ile pierwszych napędza hydraulika,
-        // weightLast – waga ostatniego napędzanego (pierwszy = 1, liniowo),
-        // stiffness – k_i dla każdego przegubu [N·m/rad].
+        // nJoints – number of tail joints, nActuated – how many of the first ones the hydraulics drive,
+        // weightLast – weight of the last driven joint (first = 1, linear),
+        // stiffness – k_i for each joint [N·m/rad].
         TailDriver(int nJoints, int nActuated, double weightLast, const std::vector<double>& stiffness);
 
         // L = Σ w_i·θ_i [rad]
         double TendonLength(const std::vector<double>& theta) const;
 
-        // τ_i = w_i·F − k_i·θ_i. Gdy locked = true – zera (ogon bez napędu).
+        // τ_i = w_i·F − k_i·θ_i. When locked = true – zeros (tail not driven).
         std::vector<double> JointTorques(double F, const std::vector<double>& theta, bool locked = false) const;
 
-        // Momenty (składowa wzdłuż osi przegubów, wszystkie osie równoległe = Z) działające
-        // na kolejne bryły: [głowa, seg1, ..., segN]. Bryła k dostaje +τ_k od swojego
-        // przegubu (jest dzieckiem) i −τ_{k+1} od przegubu następnego (jest rodzicem).
-        // Suma zawsze = 0 – to jest sprawdzane w testach.
+        // Torques (component along the joint axes, all axes parallel = Z) acting
+        // on successive bodies: [head, seg1, ..., segN]. Body k gets +τ_k from its own
+        // joint (it is the child) and −τ_{k+1} from the next joint (it is the parent).
+        // The sum is always = 0 – this is checked in the tests.
         static std::vector<double> LinkTorques(const std::vector<double>& jointTorques);
 
         const std::vector<double>& weights() const { return w_; }

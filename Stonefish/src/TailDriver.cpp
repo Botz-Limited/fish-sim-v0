@@ -8,11 +8,11 @@ namespace fish
         : w_(nJoints, 0.0), k_(stiffness)
     {
         if(nActuated < 1 || nActuated > nJoints)
-            throw std::runtime_error("tail.n_actuated musi być w zakresie 1..liczba przegubów");
+            throw std::runtime_error("tail.n_actuated must be in the range 1..number of joints");
         if((int)k_.size() != nJoints)
-            throw std::runtime_error("tail.stiffness musi mieć tyle elementów, ile jest przegubów ogona");
-        // Wagi malejące liniowo od 1 (nasada) do weightLast (ostatni napędzany),
-        // przeguby pasywne mają wagę 0 – hydraulika ich nie "widzi".
+            throw std::runtime_error("tail.stiffness must have as many elements as there are tail joints");
+        // Weights decreasing linearly from 1 (root) to weightLast (last driven joint),
+        // passive joints have weight 0 – the hydraulics do not "see" them.
         for(int i = 0; i < nActuated; ++i)
             w_[i] = nActuated == 1 ? 1.0 : 1.0 + (weightLast - 1.0) * i / (nActuated - 1);
     }
@@ -38,11 +38,11 @@ namespace fish
     std::vector<double> TailDriver::LinkTorques(const std::vector<double>& jointTorques)
     {
         const size_t n = jointTorques.size();
-        std::vector<double> link(n + 1, 0.0);     // [głowa, seg1..segN]
+        std::vector<double> link(n + 1, 0.0);     // [head, seg1..segN]
         for(size_t i = 0; i < n; ++i)
         {
-            link[i] -= jointTorques[i];           // rodzic przegubu i (głowa dla i = 0)
-            link[i + 1] += jointTorques[i];       // dziecko przegubu i
+            link[i] -= jointTorques[i];           // parent of joint i (head for i = 0)
+            link[i + 1] += jointTorques[i];       // child of joint i
         }
         return link;
     }

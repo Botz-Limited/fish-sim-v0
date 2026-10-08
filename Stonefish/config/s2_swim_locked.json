@@ -1,4 +1,4 @@
-// Scenariusz 2, wariant: ogon zablokowany (przeguby "fixed" w XML), ten sam CPG i hydraulika.
+// Scenario 2, variant: locked tail ("fixed" joints in XML), same CPG and hydraulics.
 {
   "sim": { "scenario": "s2_swim_locked.scn", "duration": 15.0 },
   "rhythm": { "enabled": true, "freq": 2.0 }

@@ -34,11 +34,11 @@
     "s2_swim_locked": 0.0
   },
   "s2_force_balance_N": {
-    "siła nośna płetwy": 0.5143819999999999,
-    "opór ciśn. głowy": -0.1103426,
-    "opór ciśn. segmentów": -0.3000158,
-    "opór ciśn. płetwy": -0.10499332,
-    "tarcie (wszystkie)": -0.0153573
+    "fin lift": 0.5143819999999999,
+    "head pressure drag": -0.1103426,
+    "segment pressure drag": -0.3000158,
+    "fin pressure drag": -0.10499332,
+    "skin friction (all)": -0.0153573
   },
   "s3_radius_m": {
     "-3": 6.557256283406745,
