@@ -5,7 +5,7 @@ Branch `pyelastica`: an educational, **uncalibrated** robotic-fish demo in PyEla
 - Specification: [`SPEC_fish_pyelastica_demo.md`](SPEC_fish_pyelastica_demo.md)
 - Code, results and full documentation: [`fish_elastica_demo/README.md`](fish_elastica_demo/README.md)
 
-The other demos live on separate branches: `main` (MuJoCo), `openmodelica`, `sofa`, `openfoam`.
+The other demos live on separate branches: `main` (MuJoCo), `sofa`, `stonefish`, `openfoam`, `openmodelica`.
 
 ## Quick start
 
