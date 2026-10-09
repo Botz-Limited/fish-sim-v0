@@ -2,6 +2,12 @@
 
   .venv/bin/python scripts/run_viewer.py             # okno viewera
   .venv/bin/python scripts/run_viewer.py --selftest  # bez okna: skrypt klawiszy, wydruk stanu
+  .venv/bin/python scripts/run_viewer.py --speed 0.5 --font 200   # zwolnione 2×, większy tekst (ekran 2K)
+
+Nakładka: lewy górny róg – stan (czas, prędkość, głębokość, ciśnienia), napęd (moment
+hydrauliki, pompa, kąty ogona) i siły wody (na całą rybę, ogon+płetwę, kadłub; mN, w układzie
+ryby: fwd = naprzód, side = w bok). Strzałki w scenie: magenta = siła wody na każde ciało,
+cyan = wypór − ciężar przy środku masy (fishsim/readouts.py).
 
 Klawisze:
   ← / →        skręt (V_bias −/+ 0.5 ml; → = skręt w prawo)
@@ -25,6 +31,7 @@ import numpy as np
 
 from fishsim.config import FishConfig
 from fishsim.controllers import DepthController, TailRhythm
+from fishsim.readouts import FluidForces, draw_arrows, drive_rows, force_arrows, force_rows
 from fishsim.sim import FishSim
 
 # Kody klawiszy przekazywane do key_callback (te same liczby co w GLFW)
@@ -97,8 +104,12 @@ class SpeedMeter:
 
 # Teksty nakładki są PO ANGIELSKU i tylko ASCII: wbudowana czcionka bitmapowa MuJoCo
 # ma znaki 32–126, więc polskie litery i strzałki (←, ↑) renderują się źle.
-HELP_TEXT = ("Left/Right\nUp/Down\nPgUp/PgDn\nSpace\nBackspace",
-             "turn\ntail frequency\ndepth\nstop/start tail\nreset")
+HELP_TEXT = ("Left/Right\nUp/Down\nPgUp/PgDn\nSpace\nBackspace\n\narrows\n",
+             "turn\ntail frequency\ndepth\nstop/start tail\nreset\n\n"
+             "magenta = water force per body (1 N = 15 cm)\ncyan = buoyancy - weight (10 mN = 2 cm)")
+FONTS = {100: mujoco.mjtFontScale.mjFONTSCALE_100, 150: mujoco.mjtFontScale.mjFONTSCALE_150,
+         200: mujoco.mjtFontScale.mjFONTSCALE_200, 250: mujoco.mjtFontScale.mjFONTSCALE_250,
+         300: mujoco.mjtFontScale.mjFONTSCALE_300}
 
 
 def status_lines(sim: FishSim, controls: ViewerControls, speed: float):
@@ -116,14 +127,30 @@ def status_lines(sim: FishSim, controls: ViewerControls, speed: float):
     return rows
 
 
+def show_overlay(viewer, sim: FishSim, controls: ViewerControls, speed: float, fluid: FluidForces,
+                 font: int = 150):
+    """Tekst stanu, napędu i sił + strzałki sił. Woła się pod viewer.lock() (liczy siły na data)."""
+    forces = fluid.compute(sim.data)
+    draw_arrows(viewer.user_scn, force_arrows(sim, forces))
+    rows = status_lines(sim, controls, speed) + [("", "")] + drive_rows(sim) + [("", "")] + force_rows(sim, forces, fluid.total)
+    small = FONTS[max(100, font - 50)]
+    viewer.set_texts([
+        (FONTS[font], mujoco.mjtGridPos.mjGRID_TOPLEFT,
+         "\n".join(r[0] for r in rows), "\n".join(r[1] for r in rows)),
+        (small, mujoco.mjtGridPos.mjGRID_BOTTOMLEFT, *HELP_TEXT),
+    ])
+    return rows
+
+
 def make_sim(cfg: FishConfig) -> FishSim:
     return FishSim(cfg, rhythm=TailRhythm(cfg), depth=DepthController(cfg, cfg.start_depth))
 
 
-def run_window(cfg: FishConfig):
+def run_window(cfg: FishConfig, speed_factor: float = 1.0, font: int = 150):
     sim = make_sim(cfg)
     controls = ViewerControls(cfg)
     meter = SpeedMeter()
+    fluid = FluidForces(sim.model)
     dt = sim.model.opt.timestep
     fps = 60
     steps_per_frame = max(1, round(1.0 / fps / dt))
@@ -134,6 +161,7 @@ def run_window(cfg: FishConfig):
         viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
         viewer.cam.trackbodyid = sim.hull
         viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 1.4, 135.0, -20.0
+        viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_TRANSPARENT] = True   # strzałki sił widać przez ciała
         while viewer.is_running():
             frame_start = time.perf_counter()
             with viewer.lock():
@@ -146,18 +174,14 @@ def run_window(cfg: FishConfig):
                     sim.step()
                 speed = meter.update(sim, steps_per_frame * dt)
                 last_time = sim.time
-            rows = status_lines(sim, controls, speed)
-            viewer.set_texts([
-                (mujoco.mjtFontScale.mjFONTSCALE_150, mujoco.mjtGridPos.mjGRID_TOPLEFT,
-                 "\n".join(r[0] for r in rows), "\n".join(r[1] for r in rows)),
-                (mujoco.mjtFontScale.mjFONTSCALE_100, mujoco.mjtGridPos.mjGRID_BOTTOMLEFT, *HELP_TEXT),
-            ])
+                rows = show_overlay(viewer, sim, controls, speed, fluid, font)
             viewer.sync()
             if sim.time - last_print >= 1.0:       # zapas: stan w konsoli co 1 s
-                print(" | ".join(f"{k}: {v}" for k, v in rows))
+                print(" | ".join(f"{k}: {v}" for k, v in rows if k))
                 last_print = sim.time
-            # czas rzeczywisty: śpij resztę klatki
-            time.sleep(max(0.0, steps_per_frame * dt - (time.perf_counter() - frame_start)))
+            # czas rzeczywisty (× speed_factor): śpij resztę klatki
+            frame = steps_per_frame * dt / speed_factor
+            time.sleep(max(0.0, frame - (time.perf_counter() - frame_start)))
 
 
 def run_selftest(cfg: FishConfig):
@@ -188,12 +212,14 @@ def run_selftest(cfg: FishConfig):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--selftest", action="store_true", help="bez okna, skrypt klawiszy")
+    ap.add_argument("--speed", type=float, default=1.0, help="tempo względem czasu rzeczywistego (0.5 = 2× wolniej)")
+    ap.add_argument("--font", type=int, default=150, choices=sorted(FONTS), help="skala tekstu nakładki [%%]")
     args = ap.parse_args()
     cfg = FishConfig()
     if args.selftest:
         run_selftest(cfg)
     else:
-        run_window(cfg)
+        run_window(cfg, args.speed, args.font)
 
 
 if __name__ == "__main__":

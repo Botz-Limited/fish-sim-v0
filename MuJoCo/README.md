@@ -28,6 +28,14 @@ python3 -m venv .venv
 
 Nakładka w lewym górnym rogu (czas, prędkość, głębokość/zadana, f, V_bias, p_L/p_R, objętość pęcherza) jest **po angielsku**: wbudowana czcionka MuJoCo ma tylko znaki ASCII 32–126, więc polskie litery i strzałki wyświetlały się błędnie. Test `test_viewer_overlay_text_is_ascii` pilnuje, żeby tak zostało. Ten sam stan co 1 s w konsoli.
 
+**Odczyty sił i napędu** (`fishsim/readouts.py`), pod stanem w tej samej nakładce:
+- napęd: moment z hydrauliki na ogonie [mN·m], sterowanie pompy u i przepływ Q, kąty 5 przegubów ogona;
+- siły wody [mN] na całą rybę, na ogon+płetwę i na kadłub, w układzie ryby (`fwd` = naprzód, `side` = w bok), oraz wypór − ciężar;
+- strzałki w scenie: magenta = siła wody na każde ciało (1 N = 15 cm), cyan = wypór − ciężar przy środku masy (10 mN = 2 cm).
+
+MuJoCo podaje siłę płynu tylko łącznie (`qfrc_fluid`), więc siła na każde ciało jest liczona ponownie na kopii `data`, z „mokrym” tylko jednym ciałem naraz. Symulacja nie widzi tych obliczeń (test `test_fluid_forces_per_body_add_up_and_leave_sim_untouched`).
+Opcje: `--speed 0.5` (2× wolniej niż czas rzeczywisty), `--font 200` (większy tekst, np. na ekranie 2K).
+
 - **PageUp** ma wbudowaną funkcję viewera (wybór rodzica zaznaczonego ciała), ale tylko gdy jakieś ciało jest zaznaczone (podwójny klik). Nie zaznaczaj ciał podczas sterowania.
 - **macOS:** passive viewer wymaga `mjpython scripts/run_viewer.py`.
 - **Linux/Wayland:** komunikat `Failed to load plugin 'libdecor-gtk.so'` to tylko ostrzeżenie o dekoracjach okna – viewer działa. Jeśli okno się nie otwiera, spróbuj wymusić XWayland (GLFW wybiera X11, gdy nie widzi Waylanda): `env -u WAYLAND_DISPLAY .venv/bin/python scripts/run_viewer.py`.

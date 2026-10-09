@@ -9,6 +9,7 @@ from fishsim.buoyancy import (body_volumes, center_of_buoyancy, ellipsoid_volume
 from fishsim.config import FishConfig
 from fishsim.hydraulics import euler_stability_margin
 from fishsim.model_builder import build_model, tail_geoms
+from fishsim.readouts import FluidForces, drive_rows, force_rows
 
 
 @pytest.fixture(scope="module")
@@ -445,7 +446,29 @@ def test_viewer_overlay_text_is_ascii():
     rv = _viewer_module()
     cfg = FishConfig()
     sim = rv.make_sim(cfg)
-    texts = [t for row in rv.status_lines(sim, rv.ViewerControls(cfg), 0.1) for t in row]
-    texts += list(rv.HELP_TEXT)
+    rows = rv.status_lines(sim, rv.ViewerControls(cfg), 0.1) + drive_rows(sim)
+    rows += force_rows(sim, FluidForces(sim.model).compute(sim.data))
+    texts = [t for row in rows for t in row] + list(rv.HELP_TEXT)
     for t in texts:
         assert all(32 <= ord(ch) <= 126 or ch == "\n" for ch in t), repr(t)
+
+
+def test_fluid_forces_per_body_add_up_and_leave_sim_untouched():
+    # Siły na ciała sumują się do pełnej siły płynu na rybę (bez oporu lepkiego, ~1 mN),
+    # a liczenie ich (na kopii data) nie zmienia przebiegu symulacji.
+    rv = _viewer_module()
+    cfg = FishConfig()
+    a, b = rv.make_sim(cfg), rv.make_sim(cfg)
+    fluid = FluidForces(b.model)
+    worst, biggest = 0.0, 0.0
+    for i in range(int(4.0 / cfg.timestep)):
+        a.step()
+        b.step()
+        if i % 50 == 0:
+            f = fluid.compute(b.data)
+            assert set(f) == set(int(x) for x in fish_body_ids(b.model))
+            worst = max(worst, np.abs(sum(f.values()) - fluid.total).max())
+            biggest = max(biggest, np.abs(fluid.total).max())
+    assert biggest > 0.05                       # ogon naprawdę pcha wodę
+    assert worst < 3e-3
+    np.testing.assert_array_equal(a.data.qpos, b.data.qpos)
