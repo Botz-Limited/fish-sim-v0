@@ -155,7 +155,8 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
   main > * + * { margin-top: 22px; }
   section > * + * { margin-top: 10px; }
   section { display: block; }
-  section.tool, #compare, #glossary { break-before: page; }
+  section.tool, #cad, #compare, #glossary { break-before: page; }
+  #mujoco { break-before: auto; }
   h2, h3 { break-after: avoid; }
   table { font-size: 8.4pt; }
   th, td { padding: 4px 7px; }
@@ -167,6 +168,21 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
   dl.facts { grid-template-columns: repeat(3, 1fr); }
   .two { grid-template-columns: 1fr 1fr; }
   a { color: inherit; text-decoration: none; }
+}
+/* media: videos and GUI screenshots */
+.media { display: grid; gap: 16px; }
+@media (min-width: 860px) { .media .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } }
+.media .pair { display: grid; gap: 16px; }
+.media .pair > * { min-width: 0; }
+figure video { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #000; }
+.vtag { display: inline-block; font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
+.print-only { display: none; }
+@media print {
+  figure video { display: none; }
+  .print-only { display: block; }
+  span.print-only { display: inline; }
+  .media .pair { grid-template-columns: 1fr 1fr; }
+  .media figure img { max-height: 70mm; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
@@ -184,8 +200,9 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <li class="sub"><a href="#sofa"><span class="dot so"></span>SOFA</a></li>
     <li class="sub"><a href="#openfoam"><span class="dot of"></span>OpenFOAM FSI</a></li>
     <li class="sub"><a href="#openmodelica"><span class="dot om"></span>OpenModelica</a></li>
-    <li><a href="#compare">4 · Porównanie</a></li>
-    <li><a href="#glossary">5 · Słownik</a></li>
+    <li><a href="#cad">4 · CAD i parametry</a></li>
+    <li><a href="#compare">5 · Porównanie</a></li>
+    <li><a href="#glossary">6 · Słownik</a></li>
   </ol>
 </nav>
 
@@ -288,7 +305,7 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
 
 <section id="tools">
   <h2>3 · Sześć narzędzi</h2>
-  <p>Każdy rozdział narzędzia ma te same części: kartę faktów, zasadę działania, dane wejściowe (używane w demie i możliwe w narzędziu), dane wyjściowe z przykładowymi wartościami z repo, etapy dema i ograniczenia.</p>
+  <p>Każdy rozdział narzędzia ma te same części: kartę faktów, zasadę działania, dane wejściowe (używane w demie i możliwe w narzędziu), dane wyjściowe z przykładowymi wartościami z repo, etapy dema i ograniczenia. Zrzuty ekranu i filmy pochodzą z samych programów, nagranych na potrzeby raportu 9 października 2026; gdy narzędzie nie ma GUI, pokazana jest animacja z dema.</p>
 </section>
 
 <!-- ============================ MuJoCo ============================ -->
@@ -306,6 +323,21 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <div><dt>Szybkość</dt><dd>Na żywo w interaktywnym podglądzie; scenariusze 10–130 s bez GUI</dd></div>
     <div><dt>Licencja*</dt><dd>Apache-2.0</dd></div>
   </dl>
+
+  <h3>W programie: GUI i film demonstracyjny</h3>
+  <div class="media">
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_mujoco_demo.jpg"><source src="media/mujoco_demo.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_mujoco_demo.jpg" alt="">
+      <figcaption><span class="vtag">Film</span>Podgląd MuJoCo nagrany na żywo (44 s). Nakładka pokazuje czas, prędkość, głębokość, częstotliwość ogona, V_bias, ciśnienia w komorach i objętość pęcherza. Skrypt naciska te same klawisze co użytkownik: → w 8 s (skręt w prawo), ← w 17 s (w lewo), → w 26 s (prosto), PgDn w 28 s (zanurzenie o 0,5 m), spacja w 39 s (ogon staje). <span class="print-only">Plik filmu: <code>docs/media/mujoco_demo.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+    </figure>
+    <div>
+      <figure>
+        <img src="img/mujoco_gui.jpg" alt="Podgląd MuJoCo z otwartymi panelami bocznymi i płynącą rybą" loading="lazy">
+        <figcaption><span class="vtag">Ekran</span>Pełne okno podglądu MuJoCo: panele File, Option i Simulation po lewej, Joint, Control i Equality po prawej, nakładka stanu dema na scenie.</figcaption>
+      </figure>
+    </div>
+  </div>
 
   <h3>Zasada działania</h3>
   <ul>
@@ -384,6 +416,21 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <div><dt>Licencja*</dt><dd>GPL-3.0</dd></div>
   </dl>
 
+  <h3>W programie: GUI i film demonstracyjny</h3>
+  <div class="media">
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_stonefish_demo.jpg"><source src="media/stonefish_demo.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_stonefish_demo.jpg" alt="">
+      <figcaption><span class="vtag">Film</span>GUI Stonefish nagrane na żywo (30 s): scenariusz s2 (pływanie prosto obok słupków odniesienia), a od 14 s scenariusz s3 (skręt z V_bias = +2 ml). Od 18 s do 24 s w lewym panelu włączony jest widok debugowania „Hydrodynamics”. <span class="print-only">Plik filmu: <code>docs/media/stonefish_demo.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+    </figure>
+    <div>
+      <figure>
+        <img src="img/stonefish_hydro.jpg" alt="GUI Stonefish z widokiem Hydrodynamics: ryba narysowana niebieskimi siatkami hydrodynamicznymi" loading="lazy">
+        <figcaption><span class="vtag">Ekran</span>Widok debugowania „Hydrodynamics”: kształty, z których Stonefish liczy wypór, opór i masę dodaną, narysowane na niebiesko. Panel stanu (prawy górny róg) jest częścią dema.</figcaption>
+      </figure>
+    </div>
+  </div>
+
   <h3>Zasada działania</h3>
   <ul>
     <li><b>Ciało.</b> Głowa i pięć ogniw ogona na przegubach obrotowych oraz płetwa. Siatki generuje <code>make_meshes.py</code> (320 trójkątów do fizyki, 5120 do wyświetlania), który też bilansuje masę i dobiera stalowy balast.</li>
@@ -461,6 +508,15 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <div><dt>Licencja*</dt><dd>MIT</dd></div>
   </dl>
 
+  <h3>W programie: GUI i film demonstracyjny</h3>
+  <div class="media">
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_pyelastica_free_swim.jpg"><source src="media/pyelastica_free_swim.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_pyelastica_free_swim.jpg" alt="">
+      <figcaption><span class="vtag">Film</span>Swobodne pływanie przy 2 Hz, widok z góry (15 s), z <code>scripts/animate.py</code> w gałęzi pyelastica. PyElastica nie ma GUI; animację rysuje matplotlib z zapisanych położeń pręta. <span class="print-only">Plik filmu: <code>docs/media/pyelastica_free_swim.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+    </figure>
+  </div>
+
   <h3>Zasada działania</h3>
   <ul>
     <li><b>Ciało.</b> Pręt 0,40 m z 50 elementami. Każdy element ma przekrój eliptyczny (z tabeli 7 stacji), więc ogon jest miękki na boki i sztywny w pionie. Głowa jest 20× sztywniejsza.</li>
@@ -536,6 +592,26 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <div><dt>Szybkość</dt><dd>100–800× wolniej niż czas rzeczywisty (siatka zgrubna, jeden rdzeń)</dd></div>
     <div><dt>Licencja*</dt><dd>LGPL-2.1+ (SOFA), LGPL-3.0 (SoftRobots)</dd></div>
   </dl>
+
+  <h3>W programie: GUI i film demonstracyjny</h3>
+  <div class="media">
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_sofa_gui_replay.jpg"><source src="media/sofa_gui_replay.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_sofa_gui_replay.jpg" alt="">
+      <figcaption><span class="vtag">Film</span>GUI SOFA (ImGui) odtwarza przebieg w wodzie w czasie rzeczywistym. Przebieg policzono offline (<code>scripts/record.py</code>, ≈30 min) i odtworzono trybem replay dema. Komory są pokolorowane ciśnieniem: niebieski niskie, czerwony wysokie. <span class="print-only">Plik filmu: <code>docs/media/sofa_gui_replay.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+    </figure>
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_sofa_flapping.jpg"><source src="media/sofa_flapping.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_sofa_flapping.jpg" alt="">
+      <figcaption><span class="vtag">Film</span>Film renderowany z gałęzi sofa (PyVista, 6,5 s): powietrze i woda obok siebie, pod spodem kąt końcówki, najpierw w czasie rzeczywistym, potem ostatni cykl 4× wolniej. <span class="print-only">Plik filmu: <code>docs/media/sofa_flapping.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+    </figure>
+    <div>
+      <figure>
+        <img src="img/sofa_gui.jpg" alt="Interfejs ImGui SOFA z grafem sceny po lewej i ogonem w oknie widoku" loading="lazy">
+        <figcaption><span class="vtag">Ekran</span>Interfejs ImGui SOFA: graf sceny (komponenty sceny ogona) po lewej, okno widoku po prawej.</figcaption>
+      </figure>
+    </div>
+  </div>
 
   <h3>Zasada działania</h3>
   <ul>
@@ -614,6 +690,21 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <div><dt>Szybkość</dt><dd>0,6–1 s na okno 2,5 ms; etapy 4–6 trwają 3 h 47 min</dd></div>
     <div><dt>Licencja*</dt><dd>GPL-3.0 (OpenFOAM), GPL-2.0+ (CalculiX), LGPL-3.0 (preCICE)</dd></div>
   </dl>
+
+  <h3>W programie: GUI i film demonstracyjny</h3>
+  <div class="media">
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_openfoam_paraview_demo.jpg"><source src="media/openfoam_paraview_demo.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_openfoam_paraview_demo.jpg" alt="">
+      <figcaption><span class="vtag">Film</span>ParaView odtwarza pole wirowości z etapu 2 (ciało sztywne, U = 0,2 m/s, 10 s przepływu). Przypadek policzono ponownie na potrzeby raportu w OpenFOAM v2512 w oficjalnym kontenerze: 20 665 komórek, 90 s na 4 rdzeniach. <span class="print-only">Plik filmu: <code>docs/media/openfoam_paraview_demo.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+    </figure>
+    <div>
+      <figure>
+        <img src="img/paraview_gui.jpg" alt="Okno ParaView z przypadkiem OpenFOAM: przeglądarka potoku i właściwości po lewej, pole wirowości wokół ciała ryby po prawej" loading="lazy">
+        <figcaption><span class="vtag">Ekran</span>ParaView z wczytanym przypadkiem OpenFOAM: przeglądarka potoku i właściwości czytnika po lewej, pole wirowości w chwili t = 6 s po prawej.</figcaption>
+      </figure>
+    </div>
+  </div>
 
   <h3>Zasada działania</h3>
   <ul>
@@ -694,6 +785,25 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <div><dt>Licencja*</dt><dd>OSMC-PL / GPL-3 (OpenModelica), BSD-3 (MSL)</dd></div>
   </dl>
 
+  <h3>W programie: GUI i film demonstracyjny</h3>
+  <div class="media">
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_openmodelica_demo.jpg"><source src="media/openmodelica_demo.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_openmodelica_demo.jpg" alt="">
+      <figcaption><span class="vtag">Film</span>OMEdit (OpenModelica 1.27.1, oficjalny kontener): przykład SwimForward jest symulowany (kompilacja i obliczenia ≈5 s; oczekiwanie wycięte), wykreślana jest prędkość U, a potem dodawany ciąg T. <span class="print-only">Plik filmu: <code>docs/media/openmodelica_demo.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+    </figure>
+    <div class="pair">
+      <figure>
+        <img src="img/openmodelica_diagram.jpg" alt="Diagram podukładu TailDrive w OMEdit" loading="lazy">
+        <figcaption><span class="vtag">Ekran</span>Widok diagramu <code>FishRobot.Subsystems.TailDrive</code> w OMEdit: bateria, mostek H, silnik, pompa, przewody, dwie komory, zawory przelewowe i ogon.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/openmodelica_plot.jpg" alt="Widok wykresów OMEdit z krzywą prędkości ryby rosnącą do 63,7 mm/s" loading="lazy">
+        <figcaption><span class="vtag">Ekran</span>Widok wykresów OMEdit po symulacji SwimForward: prędkość ustala się na 63,7 mm/s, czyli 6,4 cm/s jak w README.</figcaption>
+      </figure>
+    </div>
+  </div>
+
   <h3>Zasada działania</h3>
   <ul>
     <li><b>Komponenty akauzalne.</b> Części łączy się złączami fizycznymi. Własny port hydrauliczny niesie ciśnienie p i przepływ V_flow, których iloczyn to moc. Kompilator sam porządkuje równania, więc nie ma okablowania wejście/wyjście.</li>
@@ -763,9 +873,114 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
   </ul>
 </section>
 
+<!-- ============================ CAD i parametry ============================ -->
+<section id="cad">
+  <h2>4 · Od CAD do symulacji oraz ustawianie parametrów</h2>
+  <p>Żadne z sześciu dem nie importuje dziś pliku CAD. MuJoCo, Stonefish i PyElastica budują rybę w kodzie z prostych brył albo z tabeli przekrojów; SOFA i OpenFOAM generują ogon parametrycznie w gmsh; OpenModelica w ogóle nie używa geometrii. Gdy powstanie model CAD prawdziwego robota, każde narzędzie potrzebuje z niego czegoś innego. Ten rozdział pokazuje czego, jak to tam przenieść oraz jak dobiera się i ustawia parametry fizyczne i numeryczne.</p>
+
+  <h3>Czego każde narzędzie potrzebuje z modelu CAD</h3>
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 800 330" role="img" aria-label="Z jednego modelu STEP powstają trzy rodzaje wejścia: siatki powierzchniowe dla MuJoCo, Stonefish i siatki płynu OpenFOAM; siatki objętościowe dla SOFA i CalculiX; zmierzone liczby dla PyElastica i OpenModelica.">
+        <defs>
+          <marker id="ah4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+        </defs>
+        <rect class="d-soft" x="16" y="135" width="140" height="60" rx="8"/>
+        <text class="d-b" x="86" y="160" text-anchor="middle">Model CAD</text>
+        <text class="d-m" x="86" y="178" text-anchor="middle">STEP, jednostki w m</text>
+        <rect class="d-box" x="270" y="30" width="190" height="54" rx="8"/>
+        <text class="d-b" x="365" y="53" text-anchor="middle">Siatka powierzchniowa</text>
+        <text class="d-m" x="365" y="71" text-anchor="middle">STL / OBJ, zamknięta, na część</text>
+        <rect class="d-box" x="270" y="138" width="190" height="54" rx="8"/>
+        <text class="d-b" x="365" y="161" text-anchor="middle">Siatka objętościowa</text>
+        <text class="d-m" x="365" y="179" text-anchor="middle">czworościany / sześciany, gmsh</text>
+        <rect class="d-box" x="270" y="246" width="190" height="54" rx="8"/>
+        <text class="d-b" x="365" y="269" text-anchor="middle">Liczby z CAD</text>
+        <text class="d-m" x="365" y="287" text-anchor="middle">masa, objętość, przekroje</text>
+        <line class="d-line" x1="156" y1="155" x2="268" y2="62" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="156" y1="165" x2="268" y2="165" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="156" y1="175" x2="268" y2="268" marker-end="url(#ah4)"/>
+        <text class="d-m" x="196" y="96" text-anchor="middle">eksport</text>
+        <text class="d-m" x="212" y="157" text-anchor="middle">import STEP</text>
+        <text class="d-m" x="196" y="246" text-anchor="middle">pomiar</text>
+        <rect class="d-box" x="540" y="12" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="34"><tspan font-weight="600">MuJoCo</tspan> · zasób mesh w MJCF</text>
+        <rect class="d-box" x="540" y="54" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="76"><tspan font-weight="600">Stonefish</tspan> · OBJ fizyczny + wizualny</text>
+        <rect class="d-box" x="540" y="96" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="118"><tspan font-weight="600">OpenFOAM</tspan> · snappyHexMesh / gmsh</text>
+        <rect class="d-box" x="540" y="146" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="168"><tspan font-weight="600">SOFA</tspan> · czworościany + wnęka</text>
+        <rect class="d-box" x="540" y="188" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="210"><tspan font-weight="600">CalculiX</tspan> · .inp z zestawami węzłów</text>
+        <rect class="d-box" x="540" y="240" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="262"><tspan font-weight="600">PyElastica</tspan> · tabela przekrojów</text>
+        <rect class="d-box" x="540" y="282" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="304"><tspan font-weight="600">OpenModelica</tspan> · wartości parametrów</text>
+        <line class="d-line" x1="460" y1="50" x2="538" y2="29" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="460" y1="57" x2="538" y2="71" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="460" y1="64" x2="538" y2="113" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="460" y1="160" x2="538" y2="163" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="460" y1="170" x2="538" y2="205" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="460" y1="268" x2="538" y2="257" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="460" y1="278" x2="538" y2="299" marker-end="url(#ah4)"/>
+      </svg>
+    </div>
+    <figcaption>Jeden model STEP daje trzy rodzaje wejścia. Narzędzia brył sztywnych biorą siatki powierzchniowe poszczególnych części; solvery MES biorą siatkę objętościową silikonu z wnękami komór; PyElastica i OpenModelica biorą tylko liczby zmierzone na modelu CAD. Siatkę płynu OpenFOAM buduje się wokół siatki powierzchni ciała.</figcaption>
+  </figure>
+
+  <h3>Import CAD w poszczególnych narzędziach</h3>
+  <div class="tbl wide"><table class="io">
+    <thead><tr><th>Narzędzie</th><th>Czego potrzebuje</th><th>Formaty</th><th>Droga z CAD</th><th>Na co uważać</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dot mj"></span> MuJoCo</td><td>jedna bryła sztywna na część (kadłub, każdy segment ogona, płetwa), z masą i bezwładnością</td><td>STL, OBJ jako zasoby <code>&lt;mesh&gt;</code> w MJCF; URDF</td><td>Podzielić ogon na segmenty w CAD, wyeksportować każdą część do STL/OBJ w metrach, dodać jako geometrię mesh. Masa i bezwładność wynikają z siatki i gęstości albo wpisuje się je z właściwości masowych CAD. URDF wyeksportowany z CAD można wczytać i zapisać jako MJCF.</td><td>Kolizje używają otoczki wypukłej siatki. Model płynu widzi tylko równoważną elipsoidę dla każdej geometrii, a nie kształt siatki. Wypór nadal trzeba dodać samemu (jak w demie).</td></tr>
+      <tr><td><span class="dot sf"></span> Stonefish</td><td>zamknięta siatka fizyczna o małej liczbie trójkątów i gładka siatka wizualna dla każdego ogniwa</td><td>OBJ (użyty tutaj), wskazywany w XML <code>.scn</code></td><td>Wyeksportować każde ogniwo do OBJ, kopię fizyczną zdecymować do kilkuset trójkątów (demo: 320), wizualną zostawić dokładną. <code>tools/make_meshes.py</code> pokazuje cały proces z trimesh + manifold3d: test szczelności, objętości, bilans masy, dobór balastu, wypełnienie XML z szablonów.</td><td>Wypór, opór i masa dodana liczone są na każdym trójkącie, więc siatka musi być zamknięta, z normalnymi na zewnątrz. Więcej trójkątów spowalnia każdy krok. Materiały można definiować tylko w głównym pliku scenariusza.</td></tr>
+      <tr><td><span class="dot pe"></span> PyElastica</td><td>bez siatki: linia środkowa i jeden przekrój na element</td><td>brak (liczby w <code>fishrod/config.py</code>)</td><td>Pociąć ciało z CAD w stacjach wzdłuż długości (np. <code>trimesh.section</code>), odczytać półszerokość a(s) i półwysokość b(s) albo od razu policzyć pole i momenty bezwładności przekroju, i wypełnić tabelę profilu.</td><td>Pręt nie ma wnęk. Komory wchodzą tylko przez A_r (zgięcie na ciśnienie) i C_h (podatność), które lepiej zmierzyć niż liczyć.</td></tr>
+      <tr><td><span class="dot so"></span> SOFA</td><td>czworościenna siatka objętościowa silikonu i zamknięta powierzchnia z trójkątów dla każdej wnęki komory</td><td><code>.msh</code> (Gmsh), <code>.vtk</code> (legacy 4.2), powierzchnie STL/OBJ</td><td>W gmsh zastąpić parametryczną geometrię z <code>fishsofa/mesh_gen.py</code> (już zbudowaną jądrem OCC) wywołaniem <code>gmsh.model.occ.importShapes("tail.step")</code>. Zdefiniować grupy fizyczne dla utwierdzonej nasady i ścian wnęk, potem siatkować.</td><td>Przez każdą cienką ściankę co najmniej 2–3 elementy: przy 1–2 liniowych czworościanach ciśnienie wychodzi o 15–25 % za wysokie. VTK 5.1 wywraca <code>MeshVTKLoader</code>. Powierzchnia każdej wnęki musi być zamknięta.</td></tr>
+      <tr><td><span class="dot of"></span> OpenFOAM + CalculiX</td><td>płyn: siatka wody wokół ciała z nazwanymi fragmentami brzegu; ciało stałe: siatka MES ogona z zestawami węzłów</td><td>płyn: STL dla snappyHexMesh albo <code>.msh</code> przez <code>gmshToFoam</code> (użyte tutaj); ciało stałe: <code>.inp</code> CalculiX</td><td>Płyn: wyeksportować powierzchnię ciała do STL i siatkować blockMesh + snappyHexMesh (3D) albo zaimportować STEP do gmsh jak w <code>tools/make_geometry.py</code>. Ciało stałe: siatkować w gmsh lub FreeCAD FEM i zapisać <code>.inp</code> z zestawami dla utwierdzonej nasady, powierzchni zwilżonej (sprzężenie) i ścian komór (obciążenie ciśnieniem).</td><td>Nazwy fragmentów brzegu i zestawów muszą zgadzać się z <code>preciceDict</code> i <code>config.yml</code>. Siatka płynu odkształca się z ogonem, co ogranicza amplitudę końca do ≈15 % L. Przypadek 2D wymaga wyciągnięcia na grubość jednej komórki.</td></tr>
+      <tr><td><span class="dot om"></span> OpenModelica</td><td>bez geometrii; tylko wartości skupione</td><td>brak dla fizyki; MultiBody może pokazać kształty STL jako wizualizację</td><td>Odczytać liczby z modelu CAD: masy, bezwładności, środek wyporu, objętość komory i jej zmianę na radian zgięcia (D_tail = dV/dθ), długości i średnice przewodów, średnicę i skok strzykawki.</td><td>Krzywa p–V komory zależy od silikonu, nie tylko od kształtu: wziąć ją z SOFA albo z próby strzykawką (model już czyta ją z CSV).</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Jak dobiera się parametry</h3>
+  <p>Każda wartość w demach jest zastępcza. Prawdziwe wartości pochodzą z pięciu źródeł, w tej kolejności:</p>
+  <ol>
+    <li><b>Karty katalogowe:</b> R, L, k i bezwładność wirnika silnika, wydajność pompy na obrót, napięcie i pojemność baterii, częstotliwość i szum czujników.</li>
+    <li><b>Właściwości masowe z CAD:</b> masy, objętości, środki ciężkości i wyporu, bezwładności, objętość komory.</li>
+    <li><b>Badania materiału:</b> gęstość i moduł Younga silikonu (próba rozciągania lub wciskania odlanej próbki).</li>
+    <li><b>Identyfikacja na stanowiskach, zgodnie z przepływem energii:</b> silnik → pompa → przewód → komora → zawór → statyka ogona → dynamika ogona → ciąg → kadłub → balast. Każdy krok ustala kilka parametrów, gdy poprzednie są już znane. To 11-krokowa procedura z dema OpenModelica (<code>calibrate.py</code>); te same pomiary służą pozostałym narzędziom.</li>
+    <li><b>Dokładne modele jako odniesienie dla prostych:</b> krzywa p–V z SOFA wypełnia tablicę komory w OpenModelica; amplituda końca, masa dodana i ciąg z OpenFOAM sprawdzają współczynniki wody w MuJoCo, Stonefish i PyElastica.</li>
+  </ol>
+  <p>Parametry numeryczne (krok czasu, rozmiar siatki, liczba elementów) nie są fizyką. Dobiera się je z warunku stabilności i sprawdza testem zbieżności, nigdy nie stroi pod wynik. Demo Stonefish mówi to wprost: gdy pierwsza wersja płynęła 0,3 cm/s, zdiagnozowano przyczynę zamiast stroić współczynniki, aż ryba ruszy.</p>
+  <div class="tbl wide"><table class="io">
+    <thead><tr><th>Narzędzie</th><th>Krok czasu</th><th>Siatka lub dyskretyzacja</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dot mj"></span> MuJoCo</td><td>2 ms, <code>implicitfast</code>; najsztywniejszy mod ω_n·dt ≈ 0,05 (warunek: &lt; 0,5)</td><td>5 segmentów ogona (z konstrukcji, nie z testu zbieżności)</td></tr>
+      <tr><td><span class="dot sf"></span> Stonefish</td><td>0,5 ms: jawne sprężyny przegubów wymagają ω·dt &lt; 2, a 2 ms eksplodowało; 4000 Hz daje tę samą prędkość</td><td>siatka fizyczna 320 trójkątów na bryłę</td></tr>
+      <tr><td><span class="dot pe"></span> PyElastica</td><td>dt &lt; min(Δl/c, Δl²/(r·c)) ≈ 19 µs, liczony automatycznie</td><td>n = 50 elementów: błąd ≈1 % względem teorii belek</td></tr>
+      <tr><td><span class="dot so"></span> SOFA</td><td>2 ms w powietrzu; 0,5 ms w wodzie, z warunku jawnego oporu c·dt/m &lt; 0,5</td><td>coarse/medium/fine; zgrubna zawyża ciśnienie o 20–27 % względem dokładnej</td></tr>
+      <tr><td><span class="dot of"></span> OpenFOAM FSI</td><td>2,5 ms, ten sam w OpenFOAM, CalculiX i oknie preCICE</td><td>trzy siatki: 1,0 % zmiany oporu między dwiema najgęstszymi; domena 1,5× zmienia opór o 3,8 %</td></tr>
+      <tr><td><span class="dot om"></span> OpenModelica</td><td>zmienny krok (DASSL), tolerancja 10⁻⁶</td><td>brak; atrybuty <code>nominal</code> skalują zmienne</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Gdzie ustawia się parametry i który pomiar je identyfikuje</h3>
+  <div class="tbl wide"><table class="io">
+    <thead><tr><th>Narzędzie</th><th>Gdzie są</th><th>Jak je zmienić</th><th>Liczone automatycznie</th><th>Identyfikowane przez (plan z README)</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dot mj"></span> MuJoCo</td><td>dataclass <code>FishConfig</code>, <code>fishsim/config.py</code></td><td>edycja pliku albo <code>FishConfig(tail_freq=1.5)</code> w Pythonie; model MJCF generuje się na nowo</td><td>masa kadłuba (neutralna przy połowie pęcherza), położenie środka wyporu wzdłuż (trym), sztywność przegubów pasywnych (z rezonansu 3 Hz)</td><td>ogon na stole (ciśnienie vs kąt → A·r, k przegubów, C_h); ogon w wodzie (rezonans, tłumienie); ciąg na uwięzi; nagranie w basenie (prędkość → C_blunt, C_slender; skręt → C_Kutta); ważenie pęcherza pod wodą</td></tr>
+      <tr><td><span class="dot sf"></span> Stonefish</td><td><code>config/default.json</code> + łatki scenariuszy <code>config/sN_*.json</code></td><td>edycja JSON albo <code>--set rhythm.freq=1.5</code>; bez rekompilacji</td><td>masa i położenie stalowego balastu, neutralna objętość VBS, objętości siatek (<code>make_meshes.py</code>)</td><td>procedura MuJoCo bez zmian, plus tłumienie kołysania i promień skrętu</td></tr>
+      <tr><td><span class="dot pe"></span> PyElastica</td><td>dataclassy w <code>fishrod/config.py</code> (Rod, Fish, Hydraulics, Water, Buoyancy, etapy)</td><td>edycja albo <code>HydraulicsConfig(tail_freq=1.5)</code> w skrypcie</td><td>stabilny krok czasu, położenie pęcherza, macierze sztywności przekrojów</td><td>zgięcie vs ciśnienie i objętość (A_r, C_h, E); częstotliwość własna i tłumienie w powietrzu i wodzie; ciąg na uwięzi i prędkość w basenie (C_n, C_t, współczynnik reakcyjny); skok głębokości (pompa pęcherza, PID)</td></tr>
+      <tr><td><span class="dot so"></span> SOFA</td><td><code>TailConfig</code> w <code>fishsofa/config.py</code>; zmienne środowiskowe <code>FISHSOFA_*</code></td><td>edycja, np. <code>young_modulus</code>, <code>tail_freq</code>; siatka generuje się na nowo i jest buforowana według skrótu geometrii</td><td>siatki, objętości wnęk, masa wody w komorach</td><td>strzykawka do jednej komory co 5 ml z manometrem i zdjęciem z góry: dopasować E do krzywej p–V, potem współczynnik kręgosłupa i sztywność włókien do krzywej kąt–objętość; ciąg na wadze w wannie</td></tr>
+      <tr><td><span class="dot of"></span> OpenFOAM FSI</td><td><code>tools/params.py</code> (geometria, materiały); <code>system/caseParams</code>; słowniki; <code>fsi.inp</code>; <code>precice-config.xml</code></td><td><code>new-fsi-case.sh --u 0.1 --p0 15000 --freq 1.5 --coupling implicit</code> tworzy nowy przypadek</td><td>siatki (gmsh), tablice ciśnienia napędu (<code>make_actuation.py</code>)</td><td>głowa na jednoosiowym czujniku siły w zbiorniku, kamera z góry: średnia siła osiowa, amplituda końca na sucho i w wodzie, prędkość napływu przy zerowej średniej sile → E i tłumienie</td></tr>
+      <tr><td><span class="dot om"></span> OpenModelica</td><td>deklaracje <code>parameter</code> w plikach <code>.mo</code></td><td>okno parametrów OMEdit, modyfikatory typu <code>cpg(f=1.5)</code> albo <code>-override cpg.f=1.5</code> przy uruchomieniu (OMPython w skryptach)</td><td>krzywa p–V komory z pliku CSV, składniki bilansu energii</td><td><code>calibrate.py</code> z 10 modelami stanowisk (silnik, pompa, przewód, komora, zawór, ogon statycznie i dynamicznie, ciąg, holowanie i wybieg kadłuba, balast): najmniejsze kwadraty z niepewnością 1σ i macierzą korelacji</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
 <!-- ============================ Comparison ============================ -->
 <section id="compare">
-  <h2>4 · Porównanie</h2>
+  <h2>5 · Porównanie</h2>
 
   <h3>Macierz możliwości</h3>
   <div class="legend"><span><span class="lv">●</span> zamodelowane w demie</span><span><span class="lv h">◐</span> uproszczone lub częściowe</span><span><span class="lv n">○</span> niezamodelowane</span></div>
@@ -902,25 +1117,28 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
 
 <!-- ============================ Glossary ============================ -->
 <section id="glossary">
-  <h2>5 · Słownik</h2>
+  <h2>6 · Słownik</h2>
   <div class="tbl"><table>
     <thead><tr><th>Polski</th><th>Angielski</th><th>Znaczenie w tym raporcie</th></tr></thead>
     <tbody>
-      <tr><th>masa dodana</th><td>added mass</td><td>woda, którą trzeba przyspieszyć razem z ciałem; w demie FSI obniża rezonans ogona z 3,39 Hz do ≈1 Hz</td></tr>
-      <tr><th>generator rytmu (CPG)</th><td>central pattern generator</td><td>regulator wytwarzający okresowe zadanie objętości dla ogona</td></tr>
-      <tr><th>pręt Cosseratów</th><td>Cosserat rod</td><td>kontinuum 1D, które się zgina, skręca, ścina i rozciąga (PyElastica)</td></tr>
-      <tr><th>MES korotacyjna</th><td>corotational FEM</td><td>sprężystość liniowa poprawnie obsługująca duże obroty (SOFA)</td></tr>
       <tr><th>FMU</th><td>Functional Mock-up Unit</td><td>spakowany model, który mogą uruchamiać inne narzędzia (eksport z OpenModelica)</td></tr>
+      <tr><th>generator rytmu (CPG)</th><td>central pattern generator</td><td>regulator wytwarzający okresowe zadanie objętości dla ogona</td></tr>
+      <tr><th>identyfikacja parametrów</th><td>identification</td><td>dopasowanie parametrów modelu do pomiarów ze stanowisk (OpenModelica <code>calibrate.py</code>)</td></tr>
       <tr><th>interakcja płyn–struktura</th><td>FSI</td><td>sprzężona symulacja przepływu wody i odkształcającego się ciała (OpenFOAM + CalculiX)</td></tr>
       <tr><th>IQN-ILS</th><td>IQN-ILS (quasi-Newton)</td><td>metoda, którą preCICE doprowadza sprzężenie niejawne do zbieżności</td></tr>
-      <tr><th>siła reakcyjna Lighthilla</th><td>Lighthill reactive force</td><td>ciąg od wody odpychanej na boki przez krawędź spływu</td></tr>
       <tr><th>krzywa ciśnienie–objętość</th><td>p–V curve</td><td>ciśnienie w komorze w funkcji wpompowanej objętości wody</td></tr>
-      <tr><th>model pseudo-sztywny</th><td>PRBM</td><td>miękki ogon przybliżony sztywnymi segmentami i sprężynami (MuJoCo, Stonefish)</td></tr>
-      <tr><th>zawór przelewowy</th><td>relief valve</td><td>zawór otwierający się przy |Δp| = 50 kPa, chroni komory</td></tr>
       <tr><th>liczba Strouhala</th><td>Strouhal number</td><td>St = f·A/U; ryby pływają wydajnie przy St ≈ 0,2–0,4</td></tr>
+      <tr><th>masa dodana</th><td>added mass</td><td>woda, którą trzeba przyspieszyć razem z ciałem; w demie FSI obniża rezonans ogona z 3,39 Hz do ≈1 Hz</td></tr>
+      <tr><th>MES korotacyjna</th><td>corotational FEM</td><td>sprężystość liniowa poprawnie obsługująca duże obroty (SOFA)</td></tr>
+      <tr><th>model pseudo-sztywny</th><td>PRBM</td><td>miękki ogon przybliżony sztywnymi segmentami i sprężynami (MuJoCo, Stonefish)</td></tr>
       <tr><th>na uwięzi</th><td>tethered</td><td>ciało trzymane w miejscu podczas pomiaru ciągu (SOFA, OpenFOAM)</td></tr>
+      <tr><th>pręt Cosseratów</th><td>Cosserat rod</td><td>kontinuum 1D, które się zgina, skręca, ścina i rozciąga (PyElastica)</td></tr>
+      <tr><th>siatka szczelna (zamknięta)</th><td>watertight mesh</td><td>zamknięta powierzchnia bez dziur; potrzebna do wyporu w Stonefish i wnęk w SOFA</td></tr>
+      <tr><th>siła reakcyjna Lighthilla</th><td>Lighthill reactive force</td><td>ciąg od wody odpychanej na boki przez krawędź spływu</td></tr>
+      <tr><th>STEP</th><td>STEP</td><td>neutralny format wymiany CAD (ISO 10303); gmsh importuje go bezpośrednio</td></tr>
       <tr><th>układ zmiennej pływalności</th><td>VBS</td><td>zbiornik, którego objętość wody ustala głębokość (Stonefish)</td></tr>
-    </tbody>
+      <tr><th>zawór przelewowy</th><td>relief valve</td><td>zawór otwierający się przy |Δp| = 50 kPa, chroni komory</td></tr>
+</tbody>
   </table></div>
   <p style="font-size:13px;color:var(--muted)">* Licencje nie są podane w repozytorium. Wymienione licencje dotyczą samych narzędzi, według ich publicznych dystrybucji.</p>
 </section>

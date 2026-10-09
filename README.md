@@ -15,7 +15,7 @@ Each branch holds only its own demo. This branch holds `MuJoCo/`; details and in
 
 ## Documentation
 
-A report comparing all six tools covers inputs, outputs, working principle and a capability matrix:
+A report comparing all six tools covers inputs, outputs, working principle, GUI screenshots and demo videos (`docs/media/`), CAD import, choosing and setting parameters, and a capability matrix:
 
 - English: [`docs/research_EN.pdf`](docs/research_EN.pdf) · [`docs/research_EN.html`](docs/research_EN.html)
 - Polski: [`docs/research_PL.pdf`](docs/research_PL.pdf) · [`docs/research_PL.html`](docs/research_PL.html)

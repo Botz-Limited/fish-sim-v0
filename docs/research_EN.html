@@ -155,7 +155,8 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
   main > * + * { margin-top: 22px; }
   section > * + * { margin-top: 10px; }
   section { display: block; }
-  section.tool, #compare, #glossary { break-before: page; }
+  section.tool, #cad, #compare, #glossary { break-before: page; }
+  #mujoco { break-before: auto; }
   h2, h3 { break-after: avoid; }
   table { font-size: 8.4pt; }
   th, td { padding: 4px 7px; }
@@ -167,6 +168,21 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
   dl.facts { grid-template-columns: repeat(3, 1fr); }
   .two { grid-template-columns: 1fr 1fr; }
   a { color: inherit; text-decoration: none; }
+}
+/* media: videos and GUI screenshots */
+.media { display: grid; gap: 16px; }
+@media (min-width: 860px) { .media .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } }
+.media .pair { display: grid; gap: 16px; }
+.media .pair > * { min-width: 0; }
+figure video { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #000; }
+.vtag { display: inline-block; font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
+.print-only { display: none; }
+@media print {
+  figure video { display: none; }
+  .print-only { display: block; }
+  span.print-only { display: inline; }
+  .media .pair { grid-template-columns: 1fr 1fr; }
+  .media figure img { max-height: 70mm; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
@@ -184,8 +200,9 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <li class="sub"><a href="#sofa"><span class="dot so"></span>SOFA</a></li>
     <li class="sub"><a href="#openfoam"><span class="dot of"></span>OpenFOAM FSI</a></li>
     <li class="sub"><a href="#openmodelica"><span class="dot om"></span>OpenModelica</a></li>
-    <li><a href="#compare">4 · Comparison</a></li>
-    <li><a href="#glossary">5 · Glossary</a></li>
+    <li><a href="#cad">4 · CAD and parameters</a></li>
+    <li><a href="#compare">5 · Comparison</a></li>
+    <li><a href="#glossary">6 · Glossary</a></li>
   </ol>
 </nav>
 
@@ -288,7 +305,7 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
 
 <section id="tools">
   <h2>3 · The six tools</h2>
-  <p>Each tool section has the same parts: a fact sheet, the working principle, the inputs (what the demo uses and what the tool could also take), the outputs with example values from the repo, the demo stages, and the limitations.</p>
+  <p>Each tool section has the same parts: a fact sheet, the working principle, the inputs (what the demo uses and what the tool could also take), the outputs with example values from the repo, the demo stages, and the limitations. Screenshots and videos come from the programs themselves, recorded for this report on 9 Oct 2026; where a tool has no GUI, the demo's own animation is shown.</p>
 </section>
 
 <!-- ============================ MuJoCo ============================ -->
@@ -306,6 +323,21 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <div><dt>Speed</dt><dd>Live in the interactive viewer; scenarios of 10–130 s run headless</dd></div>
     <div><dt>Licence*</dt><dd>Apache-2.0</dd></div>
   </dl>
+
+  <h3>In the program: GUI and demo video</h3>
+  <div class="media">
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_mujoco_demo.jpg"><source src="media/mujoco_demo.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_mujoco_demo.jpg" alt="">
+      <figcaption><span class="vtag">Video</span>MuJoCo viewer recorded live (44 s). The overlay shows time, speed, depth, tail frequency, V_bias, chamber pressures and bladder volume. A script presses the keys a user would: → at 8 s (turn right), ← at 17 s (turn left), → at 26 s (straight), PgDn at 28 s (dive 0.5 m), Space at 39 s (tail stops). <span class="print-only">Video file: <code>docs/media/mujoco_demo.mp4</code> (plays in the HTML version).</span></figcaption>
+    </figure>
+    <div>
+      <figure>
+        <img src="img/mujoco_gui.jpg" alt="MuJoCo viewer with its side panels open and the fish swimming" loading="lazy">
+        <figcaption><span class="vtag">Screen</span>The full MuJoCo viewer: File, Option and Simulation panels on the left, Joint, Control and Equality on the right, the demo's status overlay in the scene.</figcaption>
+      </figure>
+    </div>
+  </div>
 
   <h3>How it works</h3>
   <ul>
@@ -384,6 +416,21 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <div><dt>Licence*</dt><dd>GPL-3.0</dd></div>
   </dl>
 
+  <h3>In the program: GUI and demo video</h3>
+  <div class="media">
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_stonefish_demo.jpg"><source src="media/stonefish_demo.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_stonefish_demo.jpg" alt="">
+      <figcaption><span class="vtag">Video</span>Stonefish GUI recorded live (30 s): scenario s2 (straight swim past the reference posts), then from 14 s scenario s3 (turn with V_bias = +2 ml). From 18 s to 24 s the “Hydrodynamics” debug view is switched on in the left panel. <span class="print-only">Video file: <code>docs/media/stonefish_demo.mp4</code> (plays in the HTML version).</span></figcaption>
+    </figure>
+    <div>
+      <figure>
+        <img src="img/stonefish_hydro.jpg" alt="Stonefish GUI with the Hydrodynamics debug view: the fish drawn as blue hydrodynamic meshes" loading="lazy">
+        <figcaption><span class="vtag">Screen</span>Debug view “Hydrodynamics”: the shapes Stonefish uses for buoyancy, drag and added mass, drawn in blue. The status panel (top right) is part of the demo.</figcaption>
+      </figure>
+    </div>
+  </div>
+
   <h3>How it works</h3>
   <ul>
     <li><b>Body.</b> Head plus five tail links on revolute joints and a fin. The meshes are generated by <code>make_meshes.py</code> (320 triangles for physics, 5120 for display), which also balances the mass and sizes the steel ballast.</li>
@@ -461,6 +508,15 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <div><dt>Licence*</dt><dd>MIT</dd></div>
   </dl>
 
+  <h3>In the program: GUI and demo video</h3>
+  <div class="media">
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_pyelastica_free_swim.jpg"><source src="media/pyelastica_free_swim.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_pyelastica_free_swim.jpg" alt="">
+      <figcaption><span class="vtag">Video</span>Free swimming at 2 Hz, top view (15 s), from <code>scripts/animate.py</code> on the pyelastica branch. PyElastica has no GUI; the animation is drawn with matplotlib from the saved rod positions. <span class="print-only">Video file: <code>docs/media/pyelastica_free_swim.mp4</code> (plays in the HTML version).</span></figcaption>
+    </figure>
+  </div>
+
   <h3>How it works</h3>
   <ul>
     <li><b>Body.</b> A 0.40 m rod with 50 elements. Each element has an elliptical section (from a table of 7 stations), so the tail is soft sideways and stiff vertically. The head is 20× stiffer.</li>
@@ -536,6 +592,26 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <div><dt>Speed</dt><dd>100–800× slower than real time (coarse mesh, one core)</dd></div>
     <div><dt>Licence*</dt><dd>LGPL-2.1+ (SOFA), LGPL-3.0 (SoftRobots)</dd></div>
   </dl>
+
+  <h3>In the program: GUI and demo video</h3>
+  <div class="media">
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_sofa_gui_replay.jpg"><source src="media/sofa_gui_replay.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_sofa_gui_replay.jpg" alt="">
+      <figcaption><span class="vtag">Video</span>SOFA GUI (ImGui) playing back the water run at real speed. The run was computed offline (<code>scripts/record.py</code>, ≈30 min) and replayed with the demo's replay mode. Chambers are coloured by pressure: blue low, red high. <span class="print-only">Video file: <code>docs/media/sofa_gui_replay.mp4</code> (plays in the HTML version).</span></figcaption>
+    </figure>
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_sofa_flapping.jpg"><source src="media/sofa_flapping.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_sofa_flapping.jpg" alt="">
+      <figcaption><span class="vtag">Video</span>Rendered video from the sofa branch (PyVista, 6.5 s): air and water side by side with the tip angle below, first in real time, then the last cycle 4× slower. Labels are in Polish. <span class="print-only">Video file: <code>docs/media/sofa_flapping.mp4</code> (plays in the HTML version).</span></figcaption>
+    </figure>
+    <div>
+      <figure>
+        <img src="img/sofa_gui.jpg" alt="SOFA ImGui interface with the scene graph on the left and the tail in the viewport" loading="lazy">
+        <figcaption><span class="vtag">Screen</span>SOFA's ImGui interface: scene graph (components of the tail scene) on the left, viewport on the right.</figcaption>
+      </figure>
+    </div>
+  </div>
 
   <h3>How it works</h3>
   <ul>
@@ -614,6 +690,21 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <div><dt>Speed</dt><dd>0.6–1 s per 2.5 ms window; stages 4–6 take 3 h 47 min</dd></div>
     <div><dt>Licence*</dt><dd>GPL-3.0 (OpenFOAM), GPL-2.0+ (CalculiX), LGPL-3.0 (preCICE)</dd></div>
   </dl>
+
+  <h3>In the program: GUI and demo video</h3>
+  <div class="media">
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_openfoam_paraview_demo.jpg"><source src="media/openfoam_paraview_demo.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_openfoam_paraview_demo.jpg" alt="">
+      <figcaption><span class="vtag">Video</span>ParaView playing the vorticity field of stage 2 (rigid body, U = 0.2 m/s, 10 s of flow). The case was re-run for this report with OpenFOAM v2512 in the official container: 20 665 cells, 90 s on 4 cores. <span class="print-only">Video file: <code>docs/media/openfoam_paraview_demo.mp4</code> (plays in the HTML version).</span></figcaption>
+    </figure>
+    <div>
+      <figure>
+        <img src="img/paraview_gui.jpg" alt="ParaView window with the OpenFOAM case: pipeline browser and properties on the left, vorticity field around the fish body on the right" loading="lazy">
+        <figcaption><span class="vtag">Screen</span>ParaView with the OpenFOAM case loaded: pipeline browser and reader properties on the left, the vorticity field at t = 6 s on the right.</figcaption>
+      </figure>
+    </div>
+  </div>
 
   <h3>How it works</h3>
   <ul>
@@ -694,6 +785,25 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
     <div><dt>Licence*</dt><dd>OSMC-PL / GPL-3 (OpenModelica), BSD-3 (MSL)</dd></div>
   </dl>
 
+  <h3>In the program: GUI and demo video</h3>
+  <div class="media">
+    <figure>
+      <video controls muted playsinline preload="metadata" poster="img/poster_openmodelica_demo.jpg"><source src="media/openmodelica_demo.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_openmodelica_demo.jpg" alt="">
+      <figcaption><span class="vtag">Video</span>OMEdit (OpenModelica 1.27.1, official container): the SwimForward example is simulated (compile and run take ≈5 s; the wait is cut) and the speed U is plotted, then the thrust T is added. <span class="print-only">Video file: <code>docs/media/openmodelica_demo.mp4</code> (plays in the HTML version).</span></figcaption>
+    </figure>
+    <div class="pair">
+      <figure>
+        <img src="img/openmodelica_diagram.jpg" alt="OMEdit diagram of the TailDrive subsystem" loading="lazy">
+        <figcaption><span class="vtag">Screen</span>OMEdit diagram view of <code>FishRobot.Subsystems.TailDrive</code>: battery, H-bridge, motor, pump, pipes, two chambers, relief valves and the tail.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/openmodelica_plot.jpg" alt="OMEdit plotting view with the fish speed curve rising to 63.7 mm/s" loading="lazy">
+        <figcaption><span class="vtag">Screen</span>OMEdit plotting view after simulating SwimForward: the speed settles at 63.7 mm/s, the same 6.4 cm/s as in the README.</figcaption>
+      </figure>
+    </div>
+  </div>
+
   <h3>How it works</h3>
   <ul>
     <li><b>Acausal components.</b> Parts are joined by physical connectors. The custom hydraulic port carries pressure p and flow V_flow, whose product is power. The compiler sorts the equations itself, so there is no input/output wiring.</li>
@@ -763,9 +873,114 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
   </ul>
 </section>
 
+<!-- ============================ CAD and parameters ============================ -->
+<section id="cad">
+  <h2>4 · From CAD to simulation, and setting parameters</h2>
+  <p>None of the six demos imports a CAD file today. MuJoCo, Stonefish and PyElastica build the fish from simple shapes or a table of sections in code; SOFA and OpenFOAM generate the tail parametrically in gmsh; OpenModelica uses no geometry at all. Once a CAD model of the real robot exists, each tool needs something different from it. This section shows what, how to get it there, and how the physical and numerical parameters are chosen and set.</p>
+
+  <h3>What each tool needs from the CAD model</h3>
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 800 330" role="img" aria-label="From one STEP model three kinds of input are produced: surface meshes for MuJoCo, Stonefish and the OpenFOAM fluid mesh; volume meshes for SOFA and CalculiX; measured numbers for PyElastica and OpenModelica.">
+        <defs>
+          <marker id="ah4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+        </defs>
+        <rect class="d-soft" x="16" y="135" width="140" height="60" rx="8"/>
+        <text class="d-b" x="86" y="160" text-anchor="middle">CAD model</text>
+        <text class="d-m" x="86" y="178" text-anchor="middle">STEP, units in m</text>
+        <rect class="d-box" x="270" y="30" width="190" height="54" rx="8"/>
+        <text class="d-b" x="365" y="53" text-anchor="middle">Surface mesh</text>
+        <text class="d-m" x="365" y="71" text-anchor="middle">STL / OBJ, closed, per part</text>
+        <rect class="d-box" x="270" y="138" width="190" height="54" rx="8"/>
+        <text class="d-b" x="365" y="161" text-anchor="middle">Volume mesh</text>
+        <text class="d-m" x="365" y="179" text-anchor="middle">tetra / hexa, from gmsh</text>
+        <rect class="d-box" x="270" y="246" width="190" height="54" rx="8"/>
+        <text class="d-b" x="365" y="269" text-anchor="middle">Numbers from CAD</text>
+        <text class="d-m" x="365" y="287" text-anchor="middle">mass, volume, sections</text>
+        <line class="d-line" x1="156" y1="155" x2="268" y2="62" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="156" y1="165" x2="268" y2="165" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="156" y1="175" x2="268" y2="268" marker-end="url(#ah4)"/>
+        <text class="d-m" x="196" y="96" text-anchor="middle">export</text>
+        <text class="d-m" x="212" y="157" text-anchor="middle">import STEP</text>
+        <text class="d-m" x="196" y="246" text-anchor="middle">measure</text>
+        <rect class="d-box" x="540" y="12" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="34"><tspan font-weight="600">MuJoCo</tspan> · mesh asset in MJCF</text>
+        <rect class="d-box" x="540" y="54" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="76"><tspan font-weight="600">Stonefish</tspan> · physics + visual OBJ</text>
+        <rect class="d-box" x="540" y="96" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="118"><tspan font-weight="600">OpenFOAM</tspan> · snappyHexMesh / gmsh</text>
+        <rect class="d-box" x="540" y="146" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="168"><tspan font-weight="600">SOFA</tspan> · tetra .vtk/.msh + cavity</text>
+        <rect class="d-box" x="540" y="188" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="210"><tspan font-weight="600">CalculiX</tspan> · .inp with node sets</text>
+        <rect class="d-box" x="540" y="240" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="262"><tspan font-weight="600">PyElastica</tspan> · table of sections</text>
+        <rect class="d-box" x="540" y="282" width="250" height="34" rx="6"/>
+        <text class="d-t" x="552" y="304"><tspan font-weight="600">OpenModelica</tspan> · parameter values</text>
+        <line class="d-line" x1="460" y1="50" x2="538" y2="29" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="460" y1="57" x2="538" y2="71" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="460" y1="64" x2="538" y2="113" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="460" y1="160" x2="538" y2="163" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="460" y1="170" x2="538" y2="205" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="460" y1="268" x2="538" y2="257" marker-end="url(#ah4)"/>
+        <line class="d-line" x1="460" y1="278" x2="538" y2="299" marker-end="url(#ah4)"/>
+      </svg>
+    </div>
+    <figcaption>One STEP model feeds three kinds of input. Rigid-body tools take surface meshes of each part; the FEM solvers take a volume mesh of the silicone with the chamber cavities; PyElastica and OpenModelica take only numbers measured on the CAD model. The OpenFOAM fluid mesh is built around the body's surface mesh.</figcaption>
+  </figure>
+
+  <h3>CAD import, tool by tool</h3>
+  <div class="tbl wide"><table class="io">
+    <thead><tr><th>Tool</th><th>What it needs</th><th>Formats</th><th>Path from CAD</th><th>Watch out for</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dot mj"></span> MuJoCo</td><td>one rigid body per part (hull, each tail segment, fin), with mass and inertia</td><td>STL, OBJ as <code>&lt;mesh&gt;</code> assets in MJCF; URDF</td><td>Split the tail into segments in CAD, export each part to STL/OBJ in metres, add it as a mesh geom. Mass and inertia come from the mesh and a density, or are typed in from CAD mass properties. A URDF exported from CAD can be loaded and saved as MJCF.</td><td>Collisions use the convex hull of each mesh. The fluid model sees only an equivalent ellipsoid per geom, not the mesh shape. Buoyancy still has to be added by the user (as the demo does).</td></tr>
+      <tr><td><span class="dot sf"></span> Stonefish</td><td>a closed, low-poly physics mesh and a smooth visual mesh per link</td><td>OBJ (used here), referenced from the <code>.scn</code> XML</td><td>Export each link to OBJ, decimate the physics copy to a few hundred triangles (the demo uses 320), keep a fine visual copy. <code>tools/make_meshes.py</code> shows the workflow with trimesh + manifold3d: watertight check, volumes, mass balance, ballast sizing, XML filled from templates.</td><td>Buoyancy, drag and added mass are computed per triangle, so the mesh must be closed with outward normals. More triangles make every step slower. Materials may be defined only in the main scenario file.</td></tr>
+      <tr><td><span class="dot pe"></span> PyElastica</td><td>no mesh: a centreline and one cross-section per element</td><td>none (numbers in <code>fishrod/config.py</code>)</td><td>Slice the CAD body at stations along its length (for example <code>trimesh.section</code>), read the half-width a(s) and half-height b(s), or compute area and second moments directly, and fill the profile table.</td><td>The rod cannot contain cavities. The chambers enter only through A_r (bend per pressure) and C_h (compliance), which are better measured than computed.</td></tr>
+      <tr><td><span class="dot so"></span> SOFA</td><td>a tetrahedral volume mesh of the silicone and a closed triangle surface for each chamber cavity</td><td><code>.msh</code> (Gmsh), <code>.vtk</code> (legacy 4.2), STL/OBJ surfaces</td><td>In gmsh replace the parametric geometry of <code>fishsofa/mesh_gen.py</code> (already built with the OCC kernel) by <code>gmsh.model.occ.importShapes("tail.step")</code>. Define physical groups for the clamped root face and the cavity walls, then mesh.</td><td>Use at least 2–3 elements through each thin wall: with 1–2 linear tetrahedra the pressure comes out 15–25 % too high. VTK 5.1 crashes <code>MeshVTKLoader</code>. Each cavity surface must be closed.</td></tr>
+      <tr><td><span class="dot of"></span> OpenFOAM + CalculiX</td><td>fluid: a mesh of the water around the body with named patches; solid: a FEM mesh of the tail with node sets</td><td>fluid: STL for snappyHexMesh, or <code>.msh</code> via <code>gmshToFoam</code> (used here); solid: CalculiX <code>.inp</code></td><td>Fluid: export the body surface to STL and mesh with blockMesh + snappyHexMesh (3D), or import STEP into gmsh as in <code>tools/make_geometry.py</code>. Solid: mesh in gmsh or FreeCAD FEM and write <code>.inp</code> with sets for the clamped root, the wet surface (coupling) and the chamber faces (pressure load).</td><td>Patch and set names must match <code>preciceDict</code> and <code>config.yml</code>. The fluid mesh deforms with the tail, which limits the tip amplitude to ≈15 % of L. A 2D case needs a one-cell-thick extrusion.</td></tr>
+      <tr><td><span class="dot om"></span> OpenModelica</td><td>no geometry; lumped values only</td><td>none for physics; MultiBody can show STL shapes for visualisation</td><td>Read numbers off the CAD model: masses, inertias, centre of buoyancy, chamber volume and its change per radian of bend (D_tail = dV/dθ), pipe lengths and bores, syringe bore and stroke.</td><td>The chamber p–V curve depends on the silicone, not only on the shape: take it from SOFA or from a syringe test (the model already reads it from CSV).</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>How the parameters are chosen</h3>
+  <p>Every value in the demos is a placeholder. Real values come from five sources, used in this order:</p>
+  <ol>
+    <li><b>Datasheets:</b> motor R, L, k and rotor inertia, pump displacement, battery voltage and capacity, sensor rates and noise.</li>
+    <li><b>CAD mass properties:</b> masses, volumes, centres of gravity and buoyancy, inertias, chamber volume.</li>
+    <li><b>Material tests:</b> silicone density and Young's modulus (tensile or indentation test of a cast sample).</li>
+    <li><b>Bench identification, following the energy flow:</b> motor → pump → pipe → chamber → valve → tail statics → tail dynamics → thrust → hull → ballast. Each step fixes a few parameters with the previous ones already known. This is the 11-step procedure of the OpenModelica demo (<code>calibrate.py</code>), and the same experiments serve the other tools.</li>
+    <li><b>Detailed models as references for simple ones:</b> the SOFA p–V curve fills the OpenModelica chamber table; OpenFOAM tip amplitude, added mass and thrust check the water coefficients of MuJoCo, Stonefish and PyElastica.</li>
+  </ol>
+  <p>Numerical parameters (time step, mesh size, number of elements) are not physics. They are chosen by a stability rule and checked by a convergence test, never tuned to match a result. The Stonefish demo states the rule plainly: when the first version swam at 0.3 cm/s, the cause was diagnosed instead of tuning coefficients until the fish moved.</p>
+  <div class="tbl wide"><table class="io">
+    <thead><tr><th>Tool</th><th>Time step</th><th>Mesh or discretisation</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dot mj"></span> MuJoCo</td><td>2 ms, <code>implicitfast</code>; stiffest mode ω_n·dt ≈ 0.05 (rule: &lt; 0.5)</td><td>5 tail segments (from the design, not from convergence)</td></tr>
+      <tr><td><span class="dot sf"></span> Stonefish</td><td>0.5 ms: explicit joint springs need ω·dt &lt; 2, and 2 ms exploded; 4000 Hz gives the same speed</td><td>physics mesh of 320 triangles per body</td></tr>
+      <tr><td><span class="dot pe"></span> PyElastica</td><td>dt &lt; min(Δl/c, Δl²/(r·c)) ≈ 19 µs, computed automatically</td><td>n = 50 elements: ≈1 % error against beam theory</td></tr>
+      <tr><td><span class="dot so"></span> SOFA</td><td>2 ms in air; 0.5 ms in water, from the explicit drag rule c·dt/m &lt; 0.5</td><td>coarse/medium/fine; coarse overestimates pressure by 20–27 % against fine</td></tr>
+      <tr><td><span class="dot of"></span> OpenFOAM FSI</td><td>2.5 ms, identical in OpenFOAM, CalculiX and the preCICE window</td><td>three meshes: 1.0 % drag change between the two finest; 1.5× domain changes drag by 3.8 %</td></tr>
+      <tr><td><span class="dot om"></span> OpenModelica</td><td>variable step (DASSL), tolerance 10⁻⁶</td><td>none; <code>nominal</code> attributes scale the variables</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>How the parameters are set, and which experiment identifies them</h3>
+  <div class="tbl wide"><table class="io">
+    <thead><tr><th>Tool</th><th>Where they live</th><th>How to change them</th><th>Computed automatically</th><th>Identified by (plan in the README)</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dot mj"></span> MuJoCo</td><td><code>FishConfig</code> dataclass, <code>fishsim/config.py</code></td><td>edit the file, or <code>FishConfig(tail_freq=1.5)</code> in Python; the MJCF model is regenerated</td><td>hull mass (neutral at half bladder), fore-aft centre of buoyancy (trim), passive joint stiffness (from a 3 Hz resonance)</td><td>tail on a bench (pressure vs angle → A·r, joint k, C_h); tail in water (resonance, damping); tethered thrust; pool video (speed → C_blunt, C_slender; turning → C_Kutta); underwater weighing of the bladder</td></tr>
+      <tr><td><span class="dot sf"></span> Stonefish</td><td><code>config/default.json</code> + scenario patches <code>config/sN_*.json</code></td><td>edit the JSON or pass <code>--set rhythm.freq=1.5</code>; no recompilation</td><td>steel ballast mass and position, neutral VBS volume, mesh volumes (<code>make_meshes.py</code>)</td><td>the MuJoCo procedure unchanged, plus roll damping and turning radius</td></tr>
+      <tr><td><span class="dot pe"></span> PyElastica</td><td>dataclasses in <code>fishrod/config.py</code> (Rod, Fish, Hydraulics, Water, Buoyancy, stages)</td><td>edit, or <code>HydraulicsConfig(tail_freq=1.5)</code> in a script</td><td>stable time step, bladder position, section stiffness matrices</td><td>bend vs pressure and volume (A_r, C_h, E); natural frequency and damping in air and water; tethered thrust and pool speed (C_n, C_t, reactive coefficient); depth step (bladder pump, PID)</td></tr>
+      <tr><td><span class="dot so"></span> SOFA</td><td><code>TailConfig</code> in <code>fishsofa/config.py</code>; environment variables <code>FISHSOFA_*</code></td><td>edit, e.g. <code>young_modulus</code>, <code>tail_freq</code>; the mesh is regenerated and cached by a hash of the geometry</td><td>meshes, cavity volumes, mass of the water in the chambers</td><td>syringe into one chamber in 5 ml steps with a pressure gauge and a top-view photo: fit E to the p–V curve, then the spine factor and hoop stiffness to the angle–volume curve; thrust on a scale in a tub</td></tr>
+      <tr><td><span class="dot of"></span> OpenFOAM FSI</td><td><code>tools/params.py</code> (geometry, materials); <code>system/caseParams</code>; dictionaries; <code>fsi.inp</code>; <code>precice-config.xml</code></td><td><code>new-fsi-case.sh --u 0.1 --p0 15000 --freq 1.5 --coupling implicit</code> writes a new case</td><td>meshes (gmsh), actuation pressure tables (<code>make_actuation.py</code>)</td><td>head on a one-axis load cell in a tank, camera above: mean axial force, tip amplitude dry and in water, inflow speed of zero mean force → E and damping</td></tr>
+      <tr><td><span class="dot om"></span> OpenModelica</td><td><code>parameter</code> declarations in the <code>.mo</code> files</td><td>OMEdit parameter dialog, modifiers such as <code>cpg(f=1.5)</code>, or <code>-override cpg.f=1.5</code> at run time (OMPython for scripts)</td><td>chamber p–V curve from a CSV file, energy terms</td><td><code>calibrate.py</code> with 10 bench models (motor, pump, pipe, chamber, valve, tail static and dynamic, thrust, hull tow and coast-down, ballast): least squares with 1σ uncertainty and correlation matrix</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
 <!-- ============================ Comparison ============================ -->
 <section id="compare">
-  <h2>4 · Comparison</h2>
+  <h2>5 · Comparison</h2>
 
   <h3>Capability matrix</h3>
   <div class="legend"><span><span class="lv">●</span> modelled in the demo</span><span><span class="lv h">◐</span> simplified or partial</span><span><span class="lv n">○</span> not modelled</span></div>
@@ -902,25 +1117,28 @@ figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
 
 <!-- ============================ Glossary ============================ -->
 <section id="glossary">
-  <h2>5 · Glossary</h2>
+  <h2>6 · Glossary</h2>
   <div class="tbl"><table>
     <thead><tr><th>English</th><th>Polish</th><th>Meaning here</th></tr></thead>
     <tbody>
       <tr><th>added mass</th><td>masa dodana</td><td>water that has to be accelerated together with the body; in the FSI demo it lowers the tail resonance from 3.39 Hz to ≈1 Hz</td></tr>
-      <tr><th>CPG (rhythm generator)</th><td>generator rytmu</td><td>controller that produces the periodic volume command for the tail</td></tr>
-      <tr><th>Cosserat rod</th><td>pręt Cosseratów</td><td>1D continuum that bends, twists, shears and stretches (PyElastica)</td></tr>
       <tr><th>corotational FEM</th><td>MES korotacyjna</td><td>linear elasticity that handles large rotations (SOFA)</td></tr>
+      <tr><th>Cosserat rod</th><td>pręt Cosseratów</td><td>1D continuum that bends, twists, shears and stretches (PyElastica)</td></tr>
+      <tr><th>CPG (rhythm generator)</th><td>generator rytmu</td><td>controller that produces the periodic volume command for the tail</td></tr>
       <tr><th>FMU</th><td>FMU (Functional Mock-up Unit)</td><td>packaged model that other tools can run (OpenModelica export)</td></tr>
       <tr><th>FSI</th><td>interakcja płyn–struktura</td><td>coupled simulation of water flow and a deforming solid (OpenFOAM + CalculiX)</td></tr>
+      <tr><th>identification</th><td>identyfikacja parametrów</td><td>fitting model parameters to bench measurements (OpenModelica <code>calibrate.py</code>)</td></tr>
       <tr><th>IQN-ILS</th><td>IQN-ILS (quasi-Newton)</td><td>method preCICE uses to make implicit coupling converge</td></tr>
       <tr><th>Lighthill reactive force</th><td>siła reakcyjna Lighthilla</td><td>thrust from the water pushed sideways by the trailing edge</td></tr>
-      <tr><th>p–V curve</th><td>krzywa ciśnienie–objętość</td><td>chamber pressure as a function of the water volume pumped in</td></tr>
       <tr><th>PRBM</th><td>model pseudo-sztywny</td><td>soft tail approximated by rigid segments and springs (MuJoCo, Stonefish)</td></tr>
+      <tr><th>p–V curve</th><td>krzywa ciśnienie–objętość</td><td>chamber pressure as a function of the water volume pumped in</td></tr>
       <tr><th>relief valve</th><td>zawór przelewowy</td><td>valve that opens at |Δp| = 50 kPa to protect the chambers</td></tr>
+      <tr><th>STEP</th><td>STEP</td><td>neutral CAD exchange format (ISO 10303); gmsh imports it directly</td></tr>
       <tr><th>Strouhal number</th><td>liczba Strouhala</td><td>St = f·A/U; efficient fish swim at St ≈ 0.2–0.4</td></tr>
       <tr><th>tethered</th><td>na uwięzi</td><td>body held in place while thrust is measured (SOFA, OpenFOAM)</td></tr>
       <tr><th>VBS</th><td>układ zmiennej pływalności</td><td>variable buoyancy system: a tank whose water volume sets depth (Stonefish)</td></tr>
-    </tbody>
+      <tr><th>watertight mesh</th><td>siatka szczelna (zamknięta)</td><td>closed surface with no holes; needed for buoyancy in Stonefish and cavities in SOFA</td></tr>
+</tbody>
   </table></div>
   <p style="font-size:13px;color:var(--muted)">* Licences are not stated in the repository. The licences listed are those of the tools themselves, from their public distributions.</p>
 </section>
