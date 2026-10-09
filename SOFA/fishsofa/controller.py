@@ -11,16 +11,20 @@ volumes are the previous step's result (SOFA computes cavityVolume before solvin
 import numpy as np
 import Sofa.Core
 
-from fishsofa import geometry, hydraulics, water
+from fishsofa import geometry, hud, hydraulics, water
 
 LOG_KEYS = ("t", "V_ref", "V_p", "u", "Q", "Q_valve", "valve_open", "dV_L_cmd", "dV_R_cmd",
             "dV_L", "dV_R", "p_L", "p_R", "theta", "cs_iterations", "cs_error")
 
 
 class FlapController(Sofa.Core.Controller):
-    def __init__(self, *args, root, handles, cfg, **kwargs):
+    def __init__(self, *args, root, handles, cfg, readouts=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.root, self.cfg = root, cfg
+        self.water = handles.get("water")
+        self.hud = self.arrows = None
+        if readouts:
+            self._add_readouts(handles)
         self.spc_L, self.spc_R = handles["chambers"]["L"], handles["chambers"]["R"]
         self.dofs, self.mesh = handles["dofs"], handles["mesh"]
         self.cs = next((o for o in root.objects if "ConstraintSolver" in o.getClassName()), None)
@@ -53,6 +57,39 @@ class FlapController(Sofa.Core.Controller):
         lg["theta"].append(geometry.tip_angle(x, self.base, self.mesh.fin_nodes))
         lg["cs_iterations"].append(_data(self.cs, "currentIterations"))
         lg["cs_error"].append(_data(self.cs, "currentError"))
+        if self.hud is not None:
+            self._show(t, s, p_L, p_R, x)
+
+    def _add_readouts(self, handles):
+        """Text panel and water-force arrows in the GUI (scene.py, FISHSOFA_OVERLAY=1)."""
+        self.hud = hud.Hud(self.root, 6, size=20)
+        if self.water is not None:
+            mesh = handles["mesh"]
+            self.sections = hud.Sections(mesh.points, np.unique(mesh.tri_outer), n=8)
+            self.arrows = hud.add_arrows(self.root, len(self.sections.groups))
+            self.arrows[1].showArrowSize = 0.1          # [m/N]: 0.3 N on a slice -> 30 mm arrow
+
+    def _show(self, t, s, p_L, p_R, x):
+        x0 = self.mesh.points
+        theta = self.log["theta"][-1]
+        tip = geometry.tip_displacement(x, x0, self.mesh.fin_nodes) * 1e3
+        u_max = float(np.linalg.norm(x - x0, axis=1).max() * 1e3)
+        lines = [f"SOFA  soft tail (FEM) in {self.cfg.environment}    live simulation    t = {t:5.3f} s",
+                 f"HYDRAULICS  V_p {s.V_p * 1e6:+5.1f} ml (ref {s.V_ref * 1e6:+5.1f})   p_L {p_L / 1e3:4.1f} kPa"
+                 f"   p_R {p_R / 1e3:4.1f} kPa   dp {(p_L - p_R) / 1e3:+5.2f} kPa",
+                 f"TAIL        tip angle {np.degrees(theta):+5.1f} deg   tip disp. y {tip[1]:+5.1f} mm"
+                 f"   max |u| {u_max:4.1f} mm"]
+        if self.water is not None and self.water.last is not None:
+            d = self.water.last
+            F = self.sections.forces(d.node_forces)
+            self.arrows[0].position.value = self.sections.points(x)
+            self.arrows[1].forces.value = F
+            lines += [f"FORCES      water on tail: F_x {d.total[0] * 1e3:+6.1f} mN (+ = thrust)"
+                      f"   F_y {d.total[1] * 1e3:+6.0f} mN   drag power {d.power * 1e3:+6.1f} mW",
+                      "            F_y per slice, root -> tip [mN]: "
+                      + " ".join(f"{v:+5.0f}" for v in F[::-1, 1] * 1e3),
+                      "arrows: water force per slice"]
+        self.hud.show(lines)
 
 
 WATER_LOG_KEYS = ("t", "F_x", "F_y", "F_z", "drag_power", "stability")
@@ -79,12 +116,14 @@ class WaterDragController(Sofa.Core.Controller):
         self.skin = np.unique(mesh.tri_outer)
         self.node_mass = handles["masses"].node_mass
         self.log = {k: [] for k in WATER_LOG_KEYS}
+        self.last = None            # last DragResult (for the GUI readouts)
 
     def onAnimateBeginEvent(self, event):
         x = np.array(self.dofs.position.value)
         v = np.array(self.dofs.velocity.value)
         d = water.drag(x, v, self.tris, self.cfg.rho_water, self.cfg.drag_C_n, self.cfg.drag_C_t)
         self.ff.forces.value = d.node_forces[self.skin]
+        self.last = d
         lg = self.log
         lg["t"].append(self.root.time.value)
         lg["F_x"].append(float(d.total[0]))

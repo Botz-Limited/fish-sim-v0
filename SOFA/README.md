@@ -436,3 +436,23 @@ python SOFA/scripts/render_video.py         # video -> SOFA/results/flapping.mp4
 - **Recording** (`scripts/record.py`, `headless.run_flapping(record_fps=60)`): positions of all nodes every 1/60 s of simulation time, pressures and angle. ~25 MB per recording, the `recordings/` directory is outside the repo. Steps as in stages 4–5: air 1 ms, water 0.5 ms.
 - **Replay in the GUI** (`fishsofa/replay.py`, mode `FISHSOFA_MODE=replay`): a scene without physics, visual models only. The controller picks the frame by wall-clock time, so the speed does not depend on rendering speed. The skin is semi-transparent, and the chambers are colored by pressure (blue = lowest in the rhythm phase, red = highest; the scale excludes the prefill, because the motion is driven by the ±6 kPa difference against the common ~53 kPa). The camera is rotated with the mouse as usual.
 - **Video** (`scripts/render_video.py`, PyVista + ffmpeg): air and water side by side, top view, common pressure scale, θ(t) with a cursor underneath. First the whole 4.5 s run in real time, then the last cycle 4× slowed down.
+
+### Readouts in the GUI: values, forces, colored skin
+
+Both GUI modes show live values in the 3D view (on by default; `FISHSOFA_OVERLAY=0` turns them off):
+
+| What | Replay (`run_replay.sh`) | Live (`run_gui.sh`) |
+|---|---|---|
+| Text panel: time, pump volume V_p, p_L, p_R, Δp, tip angle, tip displacement, max \|u\| | ✓ | ✓ |
+| Net water force on the tail F_x (thrust), F_y, \|F\|; F_y on each of 8 slices | ✓ (water) | ✓ (water) |
+| Arrows: water force on each of 8 tail slices | ✓ (water) | ✓ (water) |
+| Skin colored with a legend, changing every loop: displacement \|u\| → water load [Pa] → von Mises stress [kPa] | ✓ | – |
+| Plain dark background (`BackgroundSetting`) instead of the logo pattern | ✓ | ✓ |
+
+- **Text** (`fishsofa/hud.py`): a column of `OglLabel`s. The overlay font is SOFA's built-in bitmap font (ASCII only, so "dp" and "deg"); it cannot be changed from the scene, hence the plain background.
+- **Data fields:** the replay controller also exposes every value as a Data field (groups *Hydraulics*, *Displacement*, *Forces on the tail*). Double-click `replay` in the Scene Graph to see them in the ImGui component window.
+- **Forces in replay:** the recording stores only node positions and a log, so the per-node water forces are recomputed with the simulation's drag model (`water.drag`) from velocities obtained by differentiating the positions.
+- **Stress** (`fishsofa/fields.py`): von Mises stress per tetrahedron from the node positions, with the same corotational linear model as the FEM (rotation removed by polar decomposition, Hooke's law with the per-element E), averaged to the nodes by volume. It is the stress in the silicone only (hoop fibers excluded). Computed once per recording (~10 s) and cached as `recordings/<name>.stress.npz`. The color scale ends at the 95th percentile: the 20× stiffer spine carries the peak stress and saturates red.
+- **Camera:** `fishsofa/scene.py.view` (SOFA's camera file, read by the GUI next to the scene) gives a top view of the whole tail.
+- **Slower playback:** `SOFA/scripts/run_replay.sh SOFA/recordings/water.npz 0.5` (half speed, used for the report video).
+- Tests: `pytest -q tests/test_fields.py` (rotation gives no stress, uniaxial strain matches Hooke's law, slice forces sum to the total).

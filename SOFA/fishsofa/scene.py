@@ -3,7 +3,8 @@
 GUI:      scripts/run_gui.sh [coarse|medium|fine]    (runSofa calls createScene;
           FISHSOFA_MODE=flap – flapping, default; sag – sag under own weight;
           FISHSOFA_ENV=air – default, water – water drag and apparent weight;
-          FISHSOFA_MODE=replay – real-time playback of recording FISHSOFA_RECORDING)
+          FISHSOFA_MODE=replay – real-time playback of recording FISHSOFA_RECORDING;
+          FISHSOFA_OVERLAY=0 – without the readouts: text panel, force arrows, colored skin)
 Headless: fishsofa.headless (same build_tail function)
 
 Stage 1: material only, no actuation – the tail sags under its own weight.
@@ -299,11 +300,17 @@ def createScene(root):
         h = build_tail(root, cfg, level, gui=True, chambers={"L": "volume", "R": "volume"})
         for spc in h["chambers"].values():
             spc.drawPressure = True   # SoftRobots draws the pressure on the chamber surface
-        root.addObject(FlapController(name="flap", root=root, handles=h, cfg=cfg))
+        readouts = os.environ.get("FISHSOFA_OVERLAY", "1") != "0"
+        if readouts:   # plain background so the readouts stay legible
+            root.addObject("RequiredPlugin", pluginName=["Sofa.Component.Setting"])
+            root.addObject("BackgroundSetting", color=[0.11, 0.13, 0.16, 1.0])
+            root.VisualStyle.displayFlags = "showVisualModels showBehaviorModels showForceFields"
+        root.addObject(FlapController(name="flap", root=root, handles=h, cfg=cfg, readouts=readouts))
     elif mode == "replay":
         # Real-time playback of a recording from scripts/record.py (no physics).
         from fishsofa import replay
-        replay.build(root, os.environ["FISHSOFA_RECORDING"], float(os.environ.get("FISHSOFA_SPEED", "1")))
+        replay.build(root, os.environ["FISHSOFA_RECORDING"], float(os.environ.get("FISHSOFA_SPEED", "1")),
+                     overlay=os.environ.get("FISHSOFA_OVERLAY", "1") != "0")
     else:
         raise ValueError(f"FISHSOFA_MODE={mode!r}: allowed: flap, sag, replay")
     return root

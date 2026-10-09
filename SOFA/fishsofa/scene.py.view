@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Camera version="1.0">
+    <position value="-0.13 0.012 0.33"/>
+    <orientation value="0 0 0 1"/>
+    <fieldOfView value="45"/>
+    <distance value="0.33"/>
+    <zNear value="0.01"/>
+    <zFar value="10"/>
+    <type value="0"/>
+</Camera>
