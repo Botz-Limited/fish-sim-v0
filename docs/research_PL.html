@@ -329,7 +329,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_mujoco_demo.jpg"><source src="media/mujoco_demo.mp4" type="video/mp4"></video>
       <img class="print-only" src="img/poster_mujoco_demo.jpg" alt="">
-      <figcaption><span class="vtag">Film</span>Podgląd MuJoCo nagrany na żywo (44 s). Nakładka pokazuje czas, prędkość, głębokość, częstotliwość ogona, V_bias, ciśnienia w komorach i objętość pęcherza. Skrypt naciska te same klawisze co użytkownik: → w 8 s (skręt w prawo), ← w 17 s (w lewo), → w 26 s (prosto), PgDn w 28 s (zanurzenie o 0,5 m), spacja w 39 s (ogon staje). <span class="print-only">Plik filmu: <code>docs/media/mujoco_demo.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+      <figcaption><span class="vtag">Film</span>Podgląd MuJoCo nagrany na żywo w 2560×1440 i spowolniony do 0,5× (30 s symulacji w 61 s). Nakładka pokazuje stan (czas, prędkość, głębokość, częstotliwość ogona, V_bias, ciśnienia w komorach, objętość pęcherza), napęd (moment hydrauliki na ogonie, sterowanie i przepływ pompy, kąty przegubów ogona) oraz siły wody na całą rybę, na ogon z płetwą i na kadłub. Siły są rozłożone na składową naprzód i w bok, w mN. Strzałki magenta to siła wody na każde ciało, cyjanowa to wypór − ciężar. Ciała są przezroczyste, żeby strzałki było widać. MuJoCo podaje siłę płynu tylko łącznie, więc rozkład na ciała jest liczony ponownie na kopii stanu (<code>fishsim/readouts.py</code>). Skrypt naciska klawisze w tych chwilach symulacji: → w 8 s, ← w 17 s, → w 26 s, PgDn w 28 s (zanurzenie). <span class="print-only">Plik filmu: <code>docs/media/mujoco_demo.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
     </figure>
     <div>
       <figure>
@@ -421,7 +421,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_stonefish_demo.jpg"><source src="media/stonefish_demo.mp4" type="video/mp4"></video>
       <img class="print-only" src="img/poster_stonefish_demo.jpg" alt="">
-      <figcaption><span class="vtag">Film</span>GUI Stonefish nagrane na żywo (30 s): scenariusz s2 (pływanie prosto obok słupków odniesienia), a od 14 s scenariusz s3 (skręt z V_bias = +2 ml). Od 18 s do 24 s w lewym panelu włączony jest widok debugowania „Hydrodynamics”. <span class="print-only">Plik filmu: <code>docs/media/stonefish_demo.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+      <figcaption><span class="vtag">Film</span>GUI Stonefish nagrane na żywo w 2560×1440: scenariusz s3 (skręt z V_bias = +2 ml) spowolniony do 0,5×, więc 25 s symulacji trwa 50 s. Panel po prawej dodaje napęd (moment hydrauliki, pompa, kąty przegubów) oraz siły wody w układzie głowy: opór głowy, ogona i płetwy, siłę nośną płetwy z modelu FinLift dema, sumę i kąt natarcia płetwy. Włączone są linie „Fluid Forces” biblioteki (magenta = opór, niebieski = wypór). Od 30 s do 40 s filmu włączony jest też widok „Hydrodynamics”. <span class="print-only">Plik filmu: <code>docs/media/stonefish_demo.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
     </figure>
     <div>
       <figure>
@@ -513,7 +513,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_pyelastica_free_swim.jpg"><source src="media/pyelastica_free_swim.mp4" type="video/mp4"></video>
       <img class="print-only" src="img/poster_pyelastica_free_swim.jpg" alt="">
-      <figcaption><span class="vtag">Film</span>Swobodne pływanie przy 2 Hz, widok z góry (15 s), z <code>scripts/animate.py</code> w gałęzi pyelastica. PyElastica nie ma GUI; animację rysuje matplotlib z zapisanych położeń pręta. <span class="print-only">Plik filmu: <code>docs/media/pyelastica_free_swim.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+      <figcaption><span class="vtag">Film</span>Swobodne pływanie przy 2 Hz, widok z góry: 15 s symulacji w tempie 0,5× (30 s), wyrenderowane w 2560×1440 przez <code>scripts/animate.py</code> w gałęzi pyelastica. PyElastica nie ma GUI, więc matplotlib rysuje zapisane położenia pręta i odczyty zapisane w etapie 4. Są to prędkość, Δp, kąt zgięcia i kąt końcówki oraz siły wody w układzie ryby: opór całego ciała i tylnej połowy (ogona), siła reaktywna Lighthilla na końcówce i suma. Zielone strzałki to opór na każdym odcinku ciała, strzałka magenta to siła reaktywna na końcówce, we własnej skali. <span class="print-only">Plik filmu: <code>docs/media/pyelastica_free_swim.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
     </figure>
   </div>
 
@@ -598,7 +598,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_sofa_gui_replay.jpg"><source src="media/sofa_gui_replay.mp4" type="video/mp4"></video>
       <img class="print-only" src="img/poster_sofa_gui_replay.jpg" alt="">
-      <figcaption><span class="vtag">Film</span>GUI SOFA (ImGui) odtwarza przebieg w wodzie w czasie rzeczywistym. Przebieg policzono offline (<code>scripts/record.py</code>, ≈30 min) i odtworzono trybem replay dema. Komory są pokolorowane ciśnieniem: niebieski niskie, czerwony wysokie. <span class="print-only">Plik filmu: <code>docs/media/sofa_gui_replay.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+      <figcaption><span class="vtag">Film</span>GUI SOFA (ImGui) w 2560×1440 odtwarza przebieg w wodzie w tempie 0,5×; sam przebieg policzono offline (<code>scripts/record.py</code>, ≈30 min). Tekst pokazuje hydraulikę (V_p, p_L, p_R, Δp), ogon (kąt końcówki, przemieszczenie końcówki, max |u|) oraz siłę wody na ogon, łącznie i na odcinki. Zielone strzałki rysują siłę na każdym odcinku, a komory są pokolorowane ciśnieniem. Kolor skóry zmienia się w każdej pętli, każdy z własną legendą: przemieszczenie [mm], obciążenie wodą [Pa], potem naprężenie von Misesa [kPa]. Naprężenie jest liczone z zapisanych położeń węzłów tym samym modelem korotacyjnym co MES. <span class="print-only">Plik filmu: <code>docs/media/sofa_gui_replay.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
     </figure>
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_sofa_flapping.jpg"><source src="media/sofa_flapping.mp4" type="video/mp4"></video>
@@ -696,7 +696,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_openfoam_paraview_demo.jpg"><source src="media/openfoam_paraview_demo.mp4" type="video/mp4"></video>
       <img class="print-only" src="img/poster_openfoam_paraview_demo.jpg" alt="">
-      <figcaption><span class="vtag">Film</span>ParaView odtwarza pole wirowości z etapu 2 (ciało sztywne, U = 0,2 m/s, 10 s przepływu). Przypadek policzono ponownie na potrzeby raportu w OpenFOAM v2512 w oficjalnym kontenerze: 20 665 komórek, 90 s na 4 rdzeniach. <span class="print-only">Plik filmu: <code>docs/media/openfoam_paraview_demo.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+      <figcaption><span class="vtag">Film</span>ParaView 6.1 w 2560×1440 odtwarza etap 2 (ciało sztywne, U = 0,2 m/s, 10 s przepływu) w tempie ok. 0,5×. <code>tools/pv_gui.py</code> dodaje ramkę tekstu, która podąża za czasem animacji i jest czytana z obiektów funkcyjnych <code>forces</code>. Pokazuje siłę wody na ciało i na ogon (suma, część ciśnieniowa i lepka, w mN na metr rozpiętości) oraz moment na ogonie względem nasady. Strzałki pokazują siłę całkowitą w środkach ciała (czarna) i ogona (magenta). Przypadek policzono ponownie na potrzeby raportu w OpenFOAM v2512 w oficjalnym kontenerze: 20 665 komórek, 90 s na 4 rdzeniach. <span class="print-only">Plik filmu: <code>docs/media/openfoam_paraview_demo.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
     </figure>
     <div>
       <figure>
@@ -1025,6 +1025,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><th>Główna wielkość</th><td>prędkość, trajektoria, głębokość</td><td>prędkość, trajektoria, odczyty czujników</td><td>prędkość, kształt ciała, ciąg</td><td>ciśnienie, zgięcie, ciąg na uwięzi</td><td>pole przepływu, siły, ślad</td><td>prądy, ciśnienia, energia</td></tr>
       <tr><th>Format danych</th><td>CSV</td><td>CSV 100 Hz + JSON</td><td>CSV</td><td>CSV + NPZ</td><td>pola OpenFOAM, <code>.frd</code>, logi</td><td><code>.mat</code>, CSV</td></tr>
       <tr><th>Wizualizacja</th><td>podgląd, PNG</td><td>GUI 3D, PNG</td><td>PNG, GIF</td><td>GUI, MP4</td><td>ParaView, PNG</td><td>wykresy PNG</td></tr>
+      <tr><th>Odczyty na ekranie</th><td>nakładka: stan, napęd, siła wody na każde ciało; strzałki sił</td><td>panel: stan, napęd, opór części, siła nośna płetwy; linie sił biblioteki</td><td>panel animacji: prędkość, Δp, kąty, opór, siła reaktywna; strzałki</td><td>tekst: hydraulika, ogon, siła na odcinki; strzałki; skóra barwiona przemieszczeniem, obciążeniem lub naprężeniem von Misesa</td><td>tekst w ParaView: siła na ciało i ogon, moment na ogonie; strzałki</td><td>OMEdit: wykres dowolnej zmiennej po symulacji</td></tr>
     </tbody>
   </table></div>
 

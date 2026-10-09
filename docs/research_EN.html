@@ -329,7 +329,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_mujoco_demo.jpg"><source src="media/mujoco_demo.mp4" type="video/mp4"></video>
       <img class="print-only" src="img/poster_mujoco_demo.jpg" alt="">
-      <figcaption><span class="vtag">Video</span>MuJoCo viewer recorded live (44 s). The overlay shows time, speed, depth, tail frequency, V_bias, chamber pressures and bladder volume. A script presses the keys a user would: → at 8 s (turn right), ← at 17 s (turn left), → at 26 s (straight), PgDn at 28 s (dive 0.5 m), Space at 39 s (tail stops). <span class="print-only">Video file: <code>docs/media/mujoco_demo.mp4</code> (plays in the HTML version).</span></figcaption>
+      <figcaption><span class="vtag">Video</span>MuJoCo viewer recorded live at 2560×1440 and slowed to 0.5× (30 s of simulation in 61 s). The overlay shows the state (time, speed, depth, tail frequency, V_bias, chamber pressures, bladder volume), the drive (hydraulic torque on the tail, pump command and flow, tail joint angles) and the water forces on the whole fish, on the tail with the fin, and on the hull, split into forward and sideways parts in mN. Magenta arrows show the water force on each body and the cyan arrow shows buoyancy − weight; the bodies are drawn transparent so the arrows stay visible. MuJoCo reports the fluid force only as a total, so the split per body is recomputed on a copy of the state (<code>fishsim/readouts.py</code>). A script presses the keys at these simulation times: → at 8 s, ← at 17 s, → at 26 s, PgDn at 28 s (dive). <span class="print-only">Video file: <code>docs/media/mujoco_demo.mp4</code> (plays in the HTML version).</span></figcaption>
     </figure>
     <div>
       <figure>
@@ -421,7 +421,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_stonefish_demo.jpg"><source src="media/stonefish_demo.mp4" type="video/mp4"></video>
       <img class="print-only" src="img/poster_stonefish_demo.jpg" alt="">
-      <figcaption><span class="vtag">Video</span>Stonefish GUI recorded live (30 s): scenario s2 (straight swim past the reference posts), then from 14 s scenario s3 (turn with V_bias = +2 ml). From 18 s to 24 s the “Hydrodynamics” debug view is switched on in the left panel. <span class="print-only">Video file: <code>docs/media/stonefish_demo.mp4</code> (plays in the HTML version).</span></figcaption>
+      <figcaption><span class="vtag">Video</span>Stonefish GUI recorded live at 2560×1440: scenario s3 (turn with V_bias = +2 ml) slowed to 0.5×, so 25 s of simulation fill 50 s. The panel on the right adds the drive (hydraulic torque, pump, joint angles) and the water forces in the head frame: drag on the head, the tail and the fin, the fin lift from the demo's FinLift model, the total, and the fin angle of attack. The library's “Fluid Forces” lines are on (magenta = drag, blue = buoyancy). From 30 s to 40 s of the video the “Hydrodynamics” view is on as well. <span class="print-only">Video file: <code>docs/media/stonefish_demo.mp4</code> (plays in the HTML version).</span></figcaption>
     </figure>
     <div>
       <figure>
@@ -513,7 +513,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_pyelastica_free_swim.jpg"><source src="media/pyelastica_free_swim.mp4" type="video/mp4"></video>
       <img class="print-only" src="img/poster_pyelastica_free_swim.jpg" alt="">
-      <figcaption><span class="vtag">Video</span>Free swimming at 2 Hz, top view (15 s), from <code>scripts/animate.py</code> on the pyelastica branch. PyElastica has no GUI; the animation is drawn with matplotlib from the saved rod positions. <span class="print-only">Video file: <code>docs/media/pyelastica_free_swim.mp4</code> (plays in the HTML version).</span></figcaption>
+      <figcaption><span class="vtag">Video</span>Free swimming at 2 Hz, top view: 15 s of simulation at 0.5× (30 s), rendered at 2560×1440 by <code>scripts/animate.py</code> on the pyelastica branch. PyElastica has no GUI, so matplotlib draws the saved rod positions and the readouts saved in stage 4. These are the speed, Δp, the bend and tip angles, and the water forces in the fish frame: drag on the whole body and on the tail half, the Lighthill reactive force at the tip, and the total. Green arrows show the drag on each body slice; the magenta arrow shows the reactive force at the tip, on its own scale. <span class="print-only">Video file: <code>docs/media/pyelastica_free_swim.mp4</code> (plays in the HTML version).</span></figcaption>
     </figure>
   </div>
 
@@ -598,7 +598,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_sofa_gui_replay.jpg"><source src="media/sofa_gui_replay.mp4" type="video/mp4"></video>
       <img class="print-only" src="img/poster_sofa_gui_replay.jpg" alt="">
-      <figcaption><span class="vtag">Video</span>SOFA GUI (ImGui) playing back the water run at real speed. The run was computed offline (<code>scripts/record.py</code>, ≈30 min) and replayed with the demo's replay mode. Chambers are coloured by pressure: blue low, red high. <span class="print-only">Video file: <code>docs/media/sofa_gui_replay.mp4</code> (plays in the HTML version).</span></figcaption>
+      <figcaption><span class="vtag">Video</span>SOFA GUI (ImGui) at 2560×1440 replaying the water run at 0.5×; the run itself was computed offline (<code>scripts/record.py</code>, ≈30 min). The text shows the hydraulics (V_p, p_L, p_R, Δp), the tail (tip angle, tip displacement, max |u|) and the water force on the tail, in total and per slice. Green arrows draw the force on each slice, and the chambers are coloured by pressure. The skin colour changes every loop, each with its own legend: displacement [mm], water load [Pa], then von Mises stress [kPa]. The stress is computed from the recorded node positions with the same corotational model as the FEM. <span class="print-only">Video file: <code>docs/media/sofa_gui_replay.mp4</code> (plays in the HTML version).</span></figcaption>
     </figure>
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_sofa_flapping.jpg"><source src="media/sofa_flapping.mp4" type="video/mp4"></video>
@@ -696,7 +696,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_openfoam_paraview_demo.jpg"><source src="media/openfoam_paraview_demo.mp4" type="video/mp4"></video>
       <img class="print-only" src="img/poster_openfoam_paraview_demo.jpg" alt="">
-      <figcaption><span class="vtag">Video</span>ParaView playing the vorticity field of stage 2 (rigid body, U = 0.2 m/s, 10 s of flow). The case was re-run for this report with OpenFOAM v2512 in the official container: 20 665 cells, 90 s on 4 cores. <span class="print-only">Video file: <code>docs/media/openfoam_paraview_demo.mp4</code> (plays in the HTML version).</span></figcaption>
+      <figcaption><span class="vtag">Video</span>ParaView 6.1 at 2560×1440 playing stage 2 (rigid body, U = 0.2 m/s, 10 s of flow) at about 0.5×. <code>tools/pv_gui.py</code> adds a text box that follows the animation time, read from the <code>forces</code> function objects. It shows the water force on the body and on the tail (total, pressure and viscous parts, in mN per metre of span) and the moment on the tail about its root. Arrows show the total force at the centroids of the body (black) and the tail (magenta). The case was re-run for this report with OpenFOAM v2512 in the official container: 20 665 cells, 90 s on 4 cores. <span class="print-only">Video file: <code>docs/media/openfoam_paraview_demo.mp4</code> (plays in the HTML version).</span></figcaption>
     </figure>
     <div>
       <figure>
@@ -1025,6 +1025,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><th>Main quantity</th><td>speed, trajectory, depth</td><td>speed, trajectory, sensor readings</td><td>speed, body shape, thrust</td><td>pressure, bend, tethered thrust</td><td>flow field, forces, wake</td><td>currents, pressures, energy</td></tr>
       <tr><th>Data format</th><td>CSV</td><td>CSV 100 Hz + JSON</td><td>CSV</td><td>CSV + NPZ</td><td>OpenFOAM fields, <code>.frd</code>, logs</td><td><code>.mat</code>, CSV</td></tr>
       <tr><th>Visual</th><td>viewer, PNG</td><td>3D GUI, PNG</td><td>PNG, GIF</td><td>GUI, MP4</td><td>ParaView, PNG</td><td>PNG plots</td></tr>
+      <tr><th>Live readouts on screen</th><td>overlay: state, drive, water force per body; force arrows</td><td>panel: state, drive, drag per part, fin lift; library force lines</td><td>animation panel: speed, Δp, angles, drag, reactive force; arrows</td><td>text: hydraulics, tail, force per slice; arrows; skin coloured by displacement, load or von Mises stress</td><td>ParaView text: force on body and tail, tail moment; arrows</td><td>OMEdit: plot of any variable after the run</td></tr>
     </tbody>
   </table></div>
 
