@@ -41,6 +41,7 @@ cd fish_elastica_demo
 ../.venv/bin/python scripts/run_scenarios.py           # all stages -> results/*.png, *.csv
 ../.venv/bin/python scripts/run_scenarios.py --stage 4 # a single stage
 ../.venv/bin/python scripts/animate.py                 # results/free_swim.gif
+../.venv/bin/python scripts/animate.py --out results/free_swim.mp4 --size 2560x1440 --speed 0.5   # video, 2x slow motion
 ```
 
 The first run compiles ~90 numba kernels (~10 s); later runs load them from the cache in `.numba_cache/`.
@@ -243,7 +244,7 @@ The head yaws ±4° in all cases; this is recoil, not a drift. The single-moment
 
 ![Free swimming](results/free_swim.gif)
 
-**`free_swim.gif`** (`scripts/animate.py`): top view, the camera follows the fish, and the dotted line is the path of the nose.
+**`free_swim.gif`** (`scripts/animate.py`): top view, the camera follows the fish, and the dotted line is the path of the nose. The panel on the right shows live readouts: speed U, distance, the chamber pressure difference Δp, the bending angle of the chamber zone and the tail tip angle, and the water forces in the fish frame (fwd = forward, side = left) – quadratic drag on the whole body and on its rear half, the Lighthill reactive force at the tail tip, and their sum. Arrows: drag per body slice (green) and the reactive force at the tip (magenta, its own scale – it is ~10× larger than the drag of one slice). The forces come from `WaterForces.nodal_forces`, evaluated for each saved frame in stage 4 (`frame_*` arrays in `e4_free_swim_frames.npz`; an older file without them animates without readouts).
 
 ### Stage 5: frequency and stiffness sweep
 

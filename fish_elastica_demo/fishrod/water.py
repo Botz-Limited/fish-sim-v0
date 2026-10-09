@@ -108,6 +108,18 @@ class WaterForces(ea.NoForces):
         self.drag_total = np.zeros(4)
         self.reactive_total = np.zeros(4)
 
+    def nodal_forces(self, system) -> tuple[np.ndarray, np.ndarray]:
+        """Water force on each node (3, n+1) [N] for the current state, without touching
+        the rod or the logged totals – for drawing forces. Returns (drag, reactive)."""
+        drag = np.zeros_like(system.external_forces)
+        reac = np.zeros_like(system.external_forces)
+        tmp = np.zeros(4)
+        drag_kernel(system.velocity_collection, system.director_collection, system.lengths,
+                    self.half_w, self.half_h, self.rho, self.C_n, self.C_t, drag, tmp)
+        if self.reactive:
+            reactive_kernel(system.velocity_collection, system.director_collection, self.m_a, reac, tmp)
+        return drag, reac
+
     def apply_forces(self, system, time=np.float64(0.0)):
         drag_kernel(system.velocity_collection, system.director_collection, system.lengths,
                     self.half_w, self.half_h, self.rho, self.C_n, self.C_t,

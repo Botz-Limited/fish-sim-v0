@@ -414,6 +414,8 @@ def free_swim(cfg: Config, model: str, damper: str | None = None, verbose: bool 
     frame_every = max(1, int(round(s4.save_every_s / (every * dt))))
     log = {k: [] for k in ("t", "x_cm", "v_cm", "heading", "theta", "dp", "z_max")}
     frames, frame_t = [], []
+    # per frame, for the animation readouts: water force per node (drag, reactive), Δp, θ, U
+    frame_log = {k: [] for k in ("drag", "reactive", "dp", "theta", "U")}
     counter = [0]
 
     def hook(t, dt_h):
@@ -431,6 +433,13 @@ def free_swim(cfg: Config, model: str, damper: str | None = None, verbose: bool 
         if c % frame_every == 0:
             frames.append(rod.position_collection.copy())
             frame_t.append(t)
+            w = water.get("water") if water else None
+            drag, reac = w.nodal_forces(rod) if w else (np.zeros((3, rod.n_elems + 1)),) * 2
+            frame_log["drag"].append(drag)
+            frame_log["reactive"].append(reac)
+            frame_log["dp"].append(dp)
+            frame_log["theta"].append(act.theta())
+            frame_log["U"].append(float(rod.compute_velocity_center_of_mass() @ heading_vector(rod)))
         counter[0] += 1
 
     integrate(sim, [rod], dt, s4.t_end, hook=hook, hook_every=every,
@@ -467,6 +476,7 @@ def free_swim(cfg: Config, model: str, damper: str | None = None, verbose: bool 
                U_final=float(np.mean(U[tail])),
                distance=float(np.linalg.norm(disp[:2])),
                frames=np.array(frames), frame_t=np.array(frame_t),
+               **{"frame_" + k: np.array(v) for k, v in frame_log.items()},
                length=rc.length, mass=float(rod.mass.sum()),
                heading_change=float(np.degrees(np.angle(np.exp(1j * (
                    _yaw(out["heading"][-1]) - _yaw(out["heading"][0])))))),

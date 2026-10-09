@@ -326,7 +326,8 @@ def stage4(pool):
     R = {run: r for run, r in zip(SWIM_RUNS, pool.map(_swim, SWIM_RUNS))}
     main = R[("drag+reactive", "laplace")]
     np.savez_compressed(RESULTS / "e4_free_swim_frames.npz", frames=main["frames"],
-                        t=main["frame_t"], length=main["length"])
+                        t=main["frame_t"], length=main["length"],
+                        **{k[6:]: v for k, v in main.items() if k.startswith("frame_") and k != "frame_t"})
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 4.8), gridspec_kw={"width_ratios": [1.15, 1]})
     for (m, d), r in R.items():

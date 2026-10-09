@@ -152,6 +152,21 @@ def test_free_swim_moves_forward_in_water(swims):
     assert np.max(r["z_max"]) < 1e-9            # planar motion (no gravity)
 
 
+def test_free_swim_frame_readouts(swims):
+    # per-frame water forces for the animation: drag opposes the swimming direction on
+    # average, the reactive force at the tip pushes forward, nothing in vacuum
+    r = swims["drag+reactive"]
+    n = len(r["frames"])
+    assert r["frame_drag"].shape == (n, 3, r["frames"].shape[2])
+    assert all(len(r["frame_" + k]) == n for k in ("reactive", "dp", "theta", "U"))
+    late = r["frame_t"] > 2.0
+    head = np.array([p[:2, 0] - p[:2, 3] for p in r["frames"][late]])
+    head /= np.linalg.norm(head, axis=1)[:, None]
+    fwd = lambda F: np.mean(np.einsum("ij,ij->i", F[late][:, :2].sum(axis=2), head))
+    assert fwd(r["frame_drag"]) < 0 < fwd(r["frame_reactive"])
+    assert np.all(swims["none"]["frame_drag"] == 0)
+
+
 def test_free_swim_in_vacuum_does_not_move(swims):
     r = swims["none"]
     assert abs(r["U_final"]) < 1e-3
