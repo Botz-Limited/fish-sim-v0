@@ -119,6 +119,12 @@ build/fish_gui config/s1_hover.json --out /tmp/log.csv   # optionally with a log
 
 The overlay in the top right corner (time, speed, true and sensor depth, f, V_bias, p_L/p_R, water in VBS, heading) is in English and ASCII, because the interface font does not have to contain non-ASCII (e.g. Polish) characters.
 
+Below the state, the overlay shows the **drive and the forces** (`FishSimManager::Status()`):
+- DRIVE: torque from the hydraulics [mN·m], pump command u and flow Q, angles of the tail joints;
+- WATER FORCES [mN] in the head frame (`fwd` + = forward, `side` + = right): drag (pressure + skin friction, as Stonefish computed it in the last step) on the head, the tail segments and the fin, the fin lift from `FinLift`, the total, and the fin angle of attack.
+
+The library "Fluid Forces" view is on from the start: lines at each body for buoyancy (blue), quadratic drag (magenta) and linear drag (cyan). Text scales with the window height (×1.5 at 1440 px). `--speed 0.5` runs the GUI in slow motion (2× slower than real time).
+
 **Screenshots:** the library has no such function. In KDE: `spectacle -b -n -a -o file.png` (active window), in GNOME: `gnome-screenshot -w`. That is how `results/gui_s2_swim.png` was made.
 
 **Warnings at startup** `[ERROR] Failed to compile shader: hbaoBlur.frag, hbaoBlur2.frag, thermalVisualize.frag, sonarVisualize.frag` appear on the Mesa driver in the library examples too. They concern the ambient occlusion effect (HBAO) and the thermal and sonar cameras, which the demo does not use. Rendering works (~800 FPS on RX 7700 XT).

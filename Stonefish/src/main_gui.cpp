@@ -17,8 +17,10 @@
 
 #include <SDL2/SDL.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <iostream>
+#include <string>
 
 #include "AppArgs.h"
 #include "FishSimManager.h"
@@ -59,17 +61,33 @@ namespace
                 LockWindowSize();
             }
             // ASCII-only overlay (the GUI font need not have non-ASCII characters).
+            // Text scale follows the window height (1.0 at 960 px, 1.5 at 1440 px).
             const fish::FishStatus s = fm_->Status();
-            const float x = (float)getWindowWidth() - 270.f;
+            const float k = std::clamp((float)getWindowHeight() / 960.f, 1.f, 2.f);
+            const float dy = 18.f * k, w = 330.f * k;
+            const float x = (float)getWindowWidth() - w - 10.f;
             float y = 10.f;
-            getGUI()->DoPanel(x, y, 260.f, 205.f);
-            char buf[128];
+            getGUI()->DoPanel(x, y, w, 23.f * dy + 12.f);
+            char buf[160];
             auto line = [&](const char* fmt, auto... v) {
                 std::snprintf(buf, sizeof(buf), fmt, v...);
-                getGUI()->DoLabel(x + 8.f, y += 18.f, buf);
+                getGUI()->DoLabel(x + 8.f * k, y += dy, buf, glm::vec4(-1.f), k);
             };
-            y -= 10.f;
-            line("FISH  t = %.1f s", s.t);
+            // the GUI font is proportional, so the force table puts each column at its own x
+            auto cols = [&](const char* a, const char* b, const char* c) {
+                y += dy;
+                getGUI()->DoLabel(x + 8.f * k, y, a, glm::vec4(-1.f), k);
+                getGUI()->DoLabel(x + 150.f * k, y, b, glm::vec4(-1.f), k);
+                getGUI()->DoLabel(x + 240.f * k, y, c, glm::vec4(-1.f), k);
+            };
+            auto force = [&](const char* name, const fish::ForceFS& f) {
+                char a[32], b[32];
+                std::snprintf(a, sizeof(a), "%+.1f", 1e3 * f.fwd);
+                std::snprintf(b, sizeof(b), "%+.1f", 1e3 * f.side);
+                cols(name, a, b);
+            };
+            y -= 10.f * k;
+            line("FISH  t = %.1f s   pace x%.2f", s.t, fm_->getRealtimeFactor());
             line("speed       %+.3f m/s", s.speed);
             line("depth true  %.3f m", s.depth);
             line("depth meas  %.3f m  ref %.2f %s", s.depthMeas, s.depthRef, s.depthOn ? "" : "(off)");
@@ -78,6 +96,21 @@ namespace
             line("p_L / p_R   %+.1f / %+.1f kPa", s.pL / 1e3, s.pR / 1e3);
             line("VBS water   %.1f ml", s.vbsMl);
             line("yaw         %+.1f deg", s.yawDeg);
+            line("DRIVE");
+            line("tail torque %+.0f mN m (hydraulics)", 1e3 * s.tailTorque);
+            line("pump u %+.2f   Q %+.1f ml/s", s.u, s.Q * 1e6);
+            std::string th = "joints";
+            for(double a : s.thetaDeg) { std::snprintf(buf, sizeof(buf), " %+.0f", a); th += buf; }
+            line("%s deg", th.c_str());
+            cols("WATER FORCES [mN]", "fwd", "side");
+            force("head drag", s.dragHead);
+            force("tail drag", s.dragTail);
+            force("fin drag", s.dragFin);
+            force("fin lift", s.finLift);
+            force("total", s.water);
+            line("fin angle of attack %.0f deg", s.finAlphaDeg);
+            line("fwd + = forward, side + = right");
+            line("lines: magenta drag, blue buoyancy");
             line("SPACE tail, arrows turn/freq, PgUp/Dn depth");
         }
 
@@ -138,10 +171,12 @@ int main(int argc, char** argv)
     h.showJoints = false;
     h.showActuators = false;
     h.showSensors = false;
+    h.showForces = true;   // library force lines: buoyancy (blue), quadratic drag (magenta), linear drag (cyan)
 
     FishSimManager mgr(cfg);
     if(!args.outFile.empty())
         mgr.SetLogPath(args.outFile);
+    mgr.setRealtimeFactor(args.speed);
     FishGuiApp app(args.rootDir + "/data/", r, h, &mgr);
     try { app.Run(); }
     catch(const std::exception& e) { std::cerr << "ERROR: " << e.what() << "\n"; return 1; }

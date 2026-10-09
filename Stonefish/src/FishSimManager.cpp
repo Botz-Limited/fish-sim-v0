@@ -501,6 +501,28 @@ namespace fish
         s.rhythmOn = rhythmOn_;
         s.depthOn = depthOn_;
         s.headingOn = headingOn_;
+
+        s.tailTorque = F_;
+        s.u = u_;
+        s.Q = hyd_->Q();
+        for(double th : theta_) s.thetaDeg.push_back(th * 180.0 / M_PI);
+        // Water forces as Stonefish computed them in the last step (world frame) -> head frame.
+        const sf::Vector3 ex = T.getBasis().getColumn(0), ey = T.getBasis().getColumn(1);
+        auto add = [&](ForceFS& f, const sf::Vector3& v) { f.fwd += v.dot(ex); f.side += v.dot(ey); };
+        for(size_t i = 0; i < allLinks_.size(); ++i)
+        {
+            sf::Vector3 Fb, Tb, Fd, Td, Ff, Tf;
+            allLinks_[i]->getHydrodynamicForces(Fb, Tb, Fd, Td, Ff, Tf);
+            // head together with the dorsal fin; caudal fin = last link of the tail chain (as in the log)
+            add(i == 0 || i >= links_.size() ? s.dragHead : (i + 1 == links_.size() ? s.dragFin : s.dragTail), Fd + Ff);
+            add(s.water, Fd + Ff);
+        }
+        if(finLift_)
+        {
+            add(s.finLift, finLift_->lastForceWorld());
+            add(s.water, finLift_->lastForceWorld());
+            s.finAlphaDeg = finLift_->lastAlphaDeg();
+        }
         return s;
     }
 }

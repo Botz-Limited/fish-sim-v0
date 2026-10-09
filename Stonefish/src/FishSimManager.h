@@ -32,11 +32,20 @@ namespace sf
 namespace fish
 {
     // Current state – for the overlay in the graphical app and for console printouts.
+    // A force in the head frame: fwd = along the head X axis (+ = forward), side = along Y (+ = right).
+    struct ForceFS { double fwd = 0, side = 0; };
+
     struct FishStatus
     {
         double t = 0, speed = 0, depth = 0, depthMeas = 0, depthRef = 0;
         double freq = 0, biasMl = 0, pL = 0, pR = 0, vbsMl = 0, yawDeg = 0;
         bool rhythmOn = false, depthOn = false, headingOn = false;
+        // drive: torque from the hydraulics [N·m], pump command u, pump flow Q [m³/s], joint angles [deg]
+        double tailTorque = 0, u = 0, Q = 0;
+        std::vector<double> thetaDeg;
+        // water forces [N]: drag (pressure + skin friction) per part, fin lift (our FinLift), total
+        ForceFS dragHead, dragTail, dragFin, finLift, water;
+        double finAlphaDeg = 0;
     };
 
     class FishSimManager : public sf::SimulationManager
