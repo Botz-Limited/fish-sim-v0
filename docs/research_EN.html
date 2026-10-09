@@ -1,0 +1,928 @@
+<title>Robot Fish Simulator Survey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: engineering report. Sticky contents rail on wide screens, one reading column, tables in scroll boxes.
+   Palette: cool lab paper, ink-blue text, deep-water teal accent; one hue per tool for chips and matrix headers. */
+:root {
+  --bg: #f4f7f8;
+  --surface: #ffffff;
+  --fg: #142029;
+  --muted: #56646e;
+  --line: #d3dce1;
+  --accent: #0a6a84;
+  --accent-soft: #e2f0f3;
+  --warn: #9a5b12;
+  --warn-soft: #fbf1e3;
+  --t-mj: #2f68b0; --t-sf: #6a4fb0; --t-pe: #11807a; --t-so: #2d7f4e; --t-of: #b44a33; --t-om: #8a6a0c;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f171c; --surface: #16222a; --fg: #e3ebef; --muted: #9aaab4; --line: #2b3a44;
+    --accent: #5cc3dc; --accent-soft: #15323b; --warn: #e5a75a; --warn-soft: #2e2416;
+    --t-mj: #7aa8ec; --t-sf: #ab95ec; --t-pe: #4fc8bf; --t-so: #6cc58f; --t-of: #ef8a72; --t-om: #d8b545;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f171c; --surface: #16222a; --fg: #e3ebef; --muted: #9aaab4; --line: #2b3a44;
+  --accent: #5cc3dc; --accent-soft: #15323b; --warn: #e5a75a; --warn-soft: #2e2416;
+  --t-mj: #7aa8ec; --t-sf: #ab95ec; --t-pe: #4fc8bf; --t-so: #6cc58f; --t-of: #ef8a72; --t-om: #d8b545;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15.5px; line-height: 1.62; }
+.wrap { max-width: 1200px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; display: grid; gap: 40px; }
+@media (min-width: 1080px) { .wrap { grid-template-columns: 210px minmax(0, 1fr); } }
+main { min-width: 0; display: grid; gap: 56px; }
+section { min-width: 0; display: grid; gap: 16px; }
+h1, h2, h3, h4 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: -0.01em; }
+h2 { font-size: 27px; font-weight: 700; padding-top: 6px; border-top: 2px solid var(--fg); }
+h3 { font-size: 18px; font-weight: 700; margin-top: 8px; }
+p { margin: 0; max-width: 72ch; }
+ul, ol { margin: 0; padding-left: 1.2em; max-width: 72ch; }
+li + li { margin-top: 4px; }
+code, .mono { font-family: var(--font-mono); font-size: 0.9em; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* contents rail */
+nav.toc { font-size: 14px; }
+@media (min-width: 1080px) { nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 20px); align-self: start; } }
+nav.toc .label, .eyebrow { font-family: var(--font-display); font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+nav.toc ol { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 2px; }
+nav.toc li + li { margin-top: 0; }
+nav.toc a { display: flex; gap: 8px; align-items: center; color: var(--fg); text-decoration: none; padding: 4px 8px; border-radius: 6px; }
+nav.toc a:hover { background: var(--accent-soft); }
+nav.toc .sub a { padding-left: 22px; color: var(--muted); }
+
+/* header */
+header.doc { display: grid; gap: 14px; }
+header.doc .lede { font-size: 18px; color: var(--muted); max-width: 64ch; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); font-family: var(--font-mono); }
+.callout { border: 1px solid var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 12px 16px; max-width: 80ch; }
+.callout strong { color: var(--warn); }
+
+/* tool chips */
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; background: var(--c); }
+.mj { --c: var(--t-mj); } .sf { --c: var(--t-sf); } .pe { --c: var(--t-pe); }
+.so { --c: var(--t-so); } .of { --c: var(--t-of); } .om { --c: var(--t-om); }
+.tool-head { display: grid; gap: 10px; }
+.tool-head h2 { display: flex; gap: 12px; align-items: center; border-top-color: var(--c); }
+.tool-head h2 .dot { width: 14px; height: 14px; }
+.tool-head .one { font-size: 17px; max-width: 70ch; }
+dl.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: 0; }
+dl.facts div { background: var(--surface); padding: 10px 12px; min-width: 0; }
+dl.facts dt { font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+dl.facts dd { margin: 2px 0 0; font-size: 14px; }
+
+/* tables */
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+thead th { font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--bg); white-space: nowrap; }
+tbody th { font-weight: 600; white-space: nowrap; }
+td.num, th.num { font-variant-numeric: tabular-nums; }
+.io td:first-child { font-weight: 600; white-space: nowrap; }
+.io td:nth-child(3) { color: var(--muted); }
+.wide table { min-width: 860px; }
+
+/* capability matrix */
+.matrix th, .matrix td { text-align: center; padding: 7px 8px; }
+.matrix tbody th { text-align: left; white-space: normal; min-width: 210px; }
+.matrix thead th { white-space: normal; }
+.matrix thead th .dot { margin-right: 6px; vertical-align: 1px; }
+.lv { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--accent); background: var(--accent); font-size: 0; line-height: 0; vertical-align: -1px; overflow: hidden; }
+.lv.h { background: linear-gradient(90deg, var(--accent) 50%, transparent 50%); }
+.lv.n { background: transparent; border-color: var(--muted); }
+.matrix small { display: block; font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 13px; color: var(--muted); }
+
+/* figures */
+figure { margin: 0; display: grid; gap: 8px; }
+figure img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+figcaption { font-size: 13.5px; color: var(--muted); max-width: 80ch; }
+.diagram { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 12px; color: var(--fg); }
+.diagram svg { display: block; width: 100%; min-width: 640px; height: auto; font-family: var(--font-body); }
+.d-box { fill: var(--surface); stroke: currentColor; stroke-width: 1.4; }
+.d-soft { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4; }
+.d-line { fill: none; stroke: currentColor; stroke-width: 1.6; }
+.d-dash { fill: none; stroke: var(--warn); stroke-width: 1.6; stroke-dasharray: 6 4; }
+.d-group { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 2 4; }
+.d-t { fill: currentColor; font-size: 12px; }
+.d-b { fill: currentColor; font-size: 13px; font-weight: 600; }
+.d-m { fill: var(--muted); font-size: 11.5px; }
+.d-w { fill: var(--warn); font-size: 11.5px; }
+.d-head { fill: currentColor; }
+.d-whead { fill: var(--warn); }
+
+/* energy bar */
+.ebar { display: flex; height: 30px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+.ebar span { display: block; height: 100%; }
+.ebar .e1 { background: var(--t-om); } .ebar .e2 { background: var(--t-of); } .ebar .e3 { background: var(--t-mj); }
+.ebar .e4 { background: var(--t-so); } .ebar .e5 { background: var(--t-sf); } .ebar .e6 { background: var(--t-pe); }
+.ekey { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; }
+.ekey span { display: inline-flex; gap: 6px; align-items: center; font-variant-numeric: tabular-nums; }
+.ekey i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+.two { display: grid; gap: 16px; }
+@media (min-width: 860px) { .two { grid-template-columns: 1fr 1fr; } }
+.two > * { min-width: 0; }
+.stages { counter-reset: st; list-style: none; padding: 0; display: grid; gap: 6px; max-width: none; }
+.stages li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; margin: 0; }
+.stages li b { font-family: var(--font-mono); font-weight: 500; color: var(--muted); }
+
+@media print {
+  @page { size: A4; margin: 14mm 12mm 14mm 12mm; }
+  :root, :root[data-theme="dark"] {
+    --bg: #ffffff; --surface: #ffffff; --fg: #142029; --muted: #4e5c66; --line: #cfd8dd;
+    --accent: #0a6a84; --accent-soft: #e2f0f3; --warn: #9a5b12; --warn-soft: #fbf1e3;
+    --t-mj: #2f68b0; --t-sf: #6a4fb0; --t-pe: #11807a; --t-so: #2d7f4e; --t-of: #b44a33; --t-om: #8a6a0c;
+    color-scheme: light;
+  }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-size: 10pt; line-height: 1.45; }
+  .wrap { display: block; padding: 0; max-width: none; }
+  nav.toc { display: none; }
+  main { display: block; }
+  main > * + * { margin-top: 22px; }
+  section > * + * { margin-top: 10px; }
+  section { display: block; }
+  section.tool, #compare, #glossary { break-before: page; }
+  h2, h3 { break-after: avoid; }
+  table { font-size: 8.4pt; }
+  th, td { padding: 4px 7px; }
+  .wide table { min-width: 0; }
+  .tbl, .diagram { overflow: visible; }
+  .diagram svg { min-width: 0; }
+  tr, figure, .callout, dl.facts, .diagram { break-inside: avoid; }
+  figure img { max-height: 95mm; width: auto; max-width: 100%; }
+  dl.facts { grid-template-columns: repeat(3, 1fr); }
+  .two { grid-template-columns: 1fr 1fr; }
+  a { color: inherit; text-decoration: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <div class="label">Contents</div>
+  <ol>
+    <li><a href="#summary">1 · Summary</a></li>
+    <li><a href="#common">2 · The common fish model</a></li>
+    <li><a href="#tools">3 · The six tools</a></li>
+    <li class="sub"><a href="#mujoco"><span class="dot mj"></span>MuJoCo</a></li>
+    <li class="sub"><a href="#stonefish"><span class="dot sf"></span>Stonefish</a></li>
+    <li class="sub"><a href="#pyelastica"><span class="dot pe"></span>PyElastica</a></li>
+    <li class="sub"><a href="#sofa"><span class="dot so"></span>SOFA</a></li>
+    <li class="sub"><a href="#openfoam"><span class="dot of"></span>OpenFOAM FSI</a></li>
+    <li class="sub"><a href="#openmodelica"><span class="dot om"></span>OpenModelica</a></li>
+    <li><a href="#compare">4 · Comparison</a></li>
+    <li><a href="#glossary">5 · Glossary</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="doc">
+  <div class="eyebrow">fish-sim-v0 · research report</div>
+  <h1>Robot Fish Simulator Survey</h1>
+  <p class="lede">Six simulation tools applied to one soft, hydraulically actuated robot fish: what each one takes as input, what it produces, how it works inside, and what it can and cannot answer.</p>
+  <div class="meta-row">
+    <span>Branches: main · stonefish · pyelastica · sofa · openfoam · openmodelica</span>
+    <span>Version: 9 Oct 2026</span>
+    <span>Language: EN (PL version available)</span>
+  </div>
+  <div class="callout"><strong>Read the numbers as mechanisms, not as a ranking.</strong> Every physical parameter in the six demos is a placeholder that has not been identified on a real robot. The demos also use different parameter sets (for example, the SOFA chamber holds 91 ml and the MuJoCo chamber 30 ml). A speed of 22 cm/s in one tool and 44 cm/s in another says which physics each tool includes, not which tool is more accurate.</div>
+</header>
+
+<section id="summary">
+  <h2>1 · Summary</h2>
+  <p>Each tool answers a different question about the same fish. Three tools simulate the whole fish swimming freely, two look closely at the soft tail, and one models the drive train from the battery to the fin.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Tool</th><th>Branch / folder</th><th>Level of detail</th><th>What it shows in this repo</th></tr></thead>
+    <tbody>
+      <tr><th><span class="dot mj"></span> MuJoCo</th><td><code>main</code> · <code>MuJoCo/</code></td><td>Whole fish, rigid segments</td><td>Swimming, turning, depth control with a bladder; interactive keyboard control</td></tr>
+      <tr><th><span class="dot sf"></span> Stonefish</th><td><code>stonefish</code> · <code>Stonefish/</code></td><td>Whole fish, rigid segments, marine environment</td><td>Hydrodynamics from the mesh, VBS ballast, noisy pressure and IMU sensors, sea current</td></tr>
+      <tr><th><span class="dot pe"></span> PyElastica</th><td><code>pyelastica</code> · <code>fish_elastica_demo/</code></td><td>Whole fish as one soft rod</td><td>Chamber-driven bending, free 3D swimming, effect of stiffness on speed, depth control</td></tr>
+      <tr><th><span class="dot so"></span> SOFA + SoftRobots</th><td><code>sofa</code> · <code>SOFA/</code></td><td>Tail only, 3D finite elements</td><td>How the silicone tail and its chambers deform: p–V curve, bend angle, flapping in air and water</td></tr>
+      <tr><th><span class="dot of"></span> OpenFOAM + preCICE + CalculiX</th><td><code>openfoam</code> · <code>OpenFOAM/</code></td><td>Tail and water flow, 2D</td><td>Two-way fluid–structure interaction: vortex wake, added mass, tethered thrust</td></tr>
+      <tr><th><span class="dot om"></span> OpenModelica</th><td><code>openmodelica</code> · <code>FishRobot/</code></td><td>System model, lumped</td><td>Battery → motor → pump → pipes → chambers → tail; energy budget, ballast, FMU export, calibration</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Which tool for which question</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Question</th><th>First choice</th><th>Also useful</th></tr></thead>
+    <tbody>
+      <tr><td>Does the fish swim, turn and hold depth? I want to tune controllers interactively.</td><td><span class="dot mj"></span> MuJoCo</td><td>Stonefish</td></tr>
+      <tr><td>Does the control software work with noisy sensors and a sea current? Path to ROS 2.</td><td><span class="dot sf"></span> Stonefish</td><td>MuJoCo</td></tr>
+      <tr><td>How does body and tail stiffness change speed, cheaply and with a continuous body?</td><td><span class="dot pe"></span> PyElastica</td><td>SOFA</td></tr>
+      <tr><td>What pressure does a chamber need for a given volume and bend? Which wall, fiber or spine design bends best?</td><td><span class="dot so"></span> SOFA</td><td>OpenFOAM (CalculiX part)</td></tr>
+      <tr><td>What does the water really do: wake, added mass, real thrust or drag?</td><td><span class="dot of"></span> OpenFOAM FSI</td><td>none of the others resolves flow</td></tr>
+      <tr><td>Are the motor, pump and battery sized right? How long does the battery last? Where is the energy lost?</td><td><span class="dot om"></span> OpenModelica</td><td>none of the others has electrics</td></tr>
+      <tr><td>How do I turn bench measurements into model parameters?</td><td><span class="dot om"></span> OpenModelica (<code>calibrate.py</code>)</td><td>calibration plans in the MuJoCo and SOFA READMEs</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="common">
+  <h2>2 · The common fish model</h2>
+  <p>All six demos model the same robot concept, a fish with a soft silicone tail bent by water pumped between two chambers. Knowing this loop makes the input tables in section 3 readable.</p>
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 800 300" role="img" aria-label="Closed hydraulic loop: the rhythm generator commands a pump that moves water from chamber R to chamber L; a relief valve between them opens at 50 kPa; the pressure difference bends the silicone tail.">
+        <defs>
+          <marker id="ah1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+        </defs>
+        <rect class="d-soft" x="16" y="119" width="214" height="62" rx="8"/>
+        <text class="d-b" x="123" y="144" text-anchor="middle">Rhythm generator (CPG)</text>
+        <text class="d-t" x="123" y="165" text-anchor="middle">V_ref = A_V·sin(2πft) + V_bias</text>
+        <line class="d-line" x1="230" y1="150" x2="296" y2="150" marker-end="url(#ah1)"/>
+        <text class="d-m" x="263" y="141" text-anchor="middle">u</text>
+        <rect class="d-box" x="300" y="120" width="120" height="60" rx="8"/>
+        <text class="d-b" x="360" y="146" text-anchor="middle">Pump</text>
+        <text class="d-m" x="360" y="166" text-anchor="middle">Q_max, τ_pump</text>
+        <polyline class="d-line" points="360,120 360,60 612,60 612,78" marker-end="url(#ah1)"/>
+        <polyline class="d-line" points="612,222 612,240 360,240 360,180" marker-end="url(#ah1)"/>
+        <text class="d-t" x="490" y="52" text-anchor="middle">V_p: water R → L</text>
+        <line class="d-line" x1="470" y1="60" x2="470" y2="130"/>
+        <line class="d-line" x1="470" y1="170" x2="470" y2="240"/>
+        <rect class="d-box" x="446" y="130" width="48" height="40" rx="4"/>
+        <text class="d-t" x="470" y="155" text-anchor="middle">valve</text>
+        <text class="d-m" x="540" y="262" text-anchor="end">relief valve: opens at |Δp| = 50 kPa</text>
+        <path class="d-box" d="M560,30 L720,100 L720,200 L560,270 Z"/>
+        <rect class="d-soft" x="572" y="80" width="80" height="60" rx="6"/>
+        <rect class="d-soft" x="572" y="160" width="80" height="60" rx="6"/>
+        <text class="d-b" x="612" y="106" text-anchor="middle">chamber L</text>
+        <text class="d-m" x="612" y="124" text-anchor="middle">p_L</text>
+        <text class="d-b" x="612" y="186" text-anchor="middle">chamber R</text>
+        <text class="d-m" x="612" y="204" text-anchor="middle">p_R</text>
+        <rect class="d-box" x="720" y="146" width="56" height="8" rx="2"/>
+        <text class="d-m" x="748" y="138" text-anchor="middle">fin</text>
+        <text class="d-t" x="640" y="292" text-anchor="middle">silicone tail (top view)</text>
+      </svg>
+    </div>
+    <figcaption>The shared hydraulic loop. The pump moves a volume V_p from chamber R to chamber L in a closed circuit; the pressure difference Δp = p_L − p_R bends the tail. The rhythm generator commands a volume (not a flow), and an offset V_bias makes the fish turn. Depth is controlled separately: a PID sets the volume of a ballast bladder (MuJoCo, PyElastica), a VBS tank (Stonefish) or a syringe (OpenModelica).</figcaption>
+  </figure>
+
+  <h3>The same quantities, set differently in each demo</h3>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Quantity</th><th><span class="dot mj"></span> MuJoCo</th><th><span class="dot sf"></span> Stonefish</th><th><span class="dot pe"></span> PyElastica</th><th><span class="dot so"></span> SOFA</th><th><span class="dot of"></span> OpenFOAM</th><th><span class="dot om"></span> OpenModelica</th></tr></thead>
+    <tbody>
+      <tr><th>Body</th><td>ellipsoid hull 25×10×10 cm</td><td>same as MuJoCo</td><td>whole fish = rod 0.40 m</td><td>none (tail clamped)</td><td>2D head, half-ellipse 60 mm, fixed</td><td>lumped mass 1 kg</td></tr>
+      <tr><th>Tail</th><td>5 rigid segments × 40 mm, 3 actuated</td><td>5 rigid segments × 40 mm</td><td>continuous, chamber zone 0.20–0.32 m</td><td>3D FEM, 0.20 m</td><td>2D FEM, 0.15 m</td><td>1 rotational DOF</td></tr>
+      <tr><th>Pump flow Q_max</th><td class="num">60 ml/s</td><td class="num">60 ml/s</td><td class="num">160 ml/s</td><td class="num">250 ml/s</td><td>none (pressure prescribed)</td><td class="num">0.3 ml per revolution</td></tr>
+      <tr><th>Volume amplitude A_V</th><td class="num">8 ml</td><td class="num">8 ml</td><td class="num">8 ml</td><td class="num">17 ml</td><td class="num">P0 = 15 kPa</td><td>CPG duty A = 0.8</td></tr>
+      <tr><th>Relief pressure</th><td class="num">50 kPa</td><td class="num">50 kPa</td><td class="num">50 kPa</td><td class="num">50 kPa</td><td>none</td><td class="num">50 kPa</td></tr>
+      <tr><th>Ballast</th><td>bladder 0–40 ml</td><td>VBS 0.5–40.5 ml</td><td>bladder 0–40 ml</td><td>none</td><td>none</td><td>syringe 12.5 ml</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="tools">
+  <h2>3 · The six tools</h2>
+  <p>Each tool section has the same parts: a fact sheet, the working principle, the inputs (what the demo uses and what the tool could also take), the outputs with example values from the repo, the demo stages, and the limitations.</p>
+</section>
+
+<!-- ============================ MuJoCo ============================ -->
+<section class="tool mj" id="mujoco">
+  <div class="tool-head">
+    <div class="eyebrow">Whole fish · branch main</div>
+    <h2><span class="dot"></span>MuJoCo</h2>
+    <p class="one">A fast rigid-body engine with a simple built-in water model. The fish is a hull and a chain of five rigid tail segments; buoyancy and hydraulics are added in Python.</p>
+  </div>
+  <dl class="facts">
+    <div><dt>Method</dt><dd>Rigid multibody dynamics + quasi-static ellipsoid fluid forces</dd></div>
+    <div><dt>Interface</dt><dd>Python bindings, MJCF model generated in code</dd></div>
+    <div><dt>Tested version</dt><dd>MuJoCo 3.14.0, Python ≥ 3.10</dd></div>
+    <div><dt>Install</dt><dd><code>pip install -r requirements.txt</code>, minutes</dd></div>
+    <div><dt>Speed</dt><dd>Live in the interactive viewer; scenarios of 10–130 s run headless</dd></div>
+    <div><dt>Licence*</dt><dd>Apache-2.0</dd></div>
+  </dl>
+
+  <h3>How it works</h3>
+  <ul>
+    <li><b>Body.</b> The hull is an ellipsoid on a free joint. The tail is five ellipsoids on hinge joints with springs and dampers, a pseudo-rigid-body approximation of the silicone. The caudal fin is a flat ellipsoid on the last segment.</li>
+    <li><b>Water.</b> MuJoCo's built-in ellipsoid model gives blunt and slender drag, angular drag, Kutta lift and Magnus force for each part. There is no flow field.</li>
+    <li><b>Added mass, corrected.</b> MuJoCo keeps only the gyroscopic part of the added-mass force. On its own that part pushed the fish backwards (4.5 cm/s instead of 22 cm/s). The demo switches it off and adds the added mass as joint <code>armature</code> instead.</li>
+    <li><b>Buoyancy.</b> MuJoCo does not compute buoyancy. The demo applies it to each body, with the centre of buoyancy fixed in the hull frame so that tilting produces a righting moment. The hull mass is solved for neutral buoyancy at a half-full bladder.</li>
+    <li><b>Hydraulics.</b> A Python model runs before every physics step: a first-order pump, Δp = (V_p − A·r·L)/C_h clipped at ±50 kPa, and a tendon force F = A·r·Δp spread over the three actuated joints with weights from 1 to 0.4.</li>
+    <li><b>Control.</b> A volume rhythm generator for the tail and a cascade depth PID that sets the bladder volume, followed by a rate-limited ballast pump.</li>
+  </ul>
+
+  <h3>Inputs</h3>
+  <div class="tbl"><table class="io">
+    <thead><tr><th>Category</th><th>Used in the demo (<code>fishsim/config.py</code>)</th><th>Also possible with MuJoCo</th></tr></thead>
+    <tbody>
+      <tr><td>Environment</td><td>water ρ 1000 kg/m³, μ 0.0009 Pa·s, step 2 ms (<code>implicitfast</code>), floor at −3 m</td><td>height fields, terrain meshes</td></tr>
+      <tr><td>Geometry</td><td>hull ellipsoid 0.25 × 0.10 × 0.10 m; 5 tail segments × 40 mm tapering to 0.4; fin 70 × 6 × 120 mm</td><td>MJCF or URDF files, STL/OBJ meshes</td></tr>
+      <tr><td>Joints</td><td>±35°, actuated stiffness 0.3 N·m/rad, passive stiffness from a 3 Hz resonance, damping 0.005 N·m·s/rad</td><td>any joint type, tendons, equality constraints</td></tr>
+      <tr><td>Water model</td><td><code>fluidcoef</code> = blunt 0.5, slender 0.25, angular 1.5, Kutta 1.0, Magnus 1.0; added-mass mode</td><td>deformable <code>flex</code> bodies (the fluid model ignores them)</td></tr>
+      <tr><td>Hydraulics</td><td>A_eff 4·10⁻⁴ m², r_eff 0.05 m, C_h 8·10⁻¹¹ m³/Pa, p_max 50 kPa, chamber 30 ml, Q_max 60 ml/s, τ_pump 30 ms</td><td>any Python model coupled through <code>ctrl</code></td></tr>
+      <tr><td>Ballast and control</td><td>bladder 0–40 ml at 10 ml/s; depth PID gains; tail 2 Hz, A_V 8 ml, V_bias, K_v 10 s⁻¹</td><td>sensors (IMU, force, touch), cameras, GPU batches (MJX) for reinforcement learning</td></tr>
+      <tr><td>Live input</td><td>viewer keys: ←/→ V_bias ±0.5 ml, ↑/↓ frequency ±0.25 Hz, PgUp/PgDn depth ±0.25 m, Space start/stop</td><td>any Python callback</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Outputs</h3>
+  <div class="tbl"><table class="io">
+    <thead><tr><th>Output</th><th>Content</th><th>Example value</th></tr></thead>
+    <tbody>
+      <tr><td>s1 straight swim</td><td>CSV + PNG: speed, five joint angles, p_L, p_R, Δp, tendon force, pump command</td><td>≈22 cm/s at 2 Hz after ≈2 s</td></tr>
+      <tr><td>s2 water on/off</td><td>speed with water, without water, with MuJoCo's default added mass</td><td>22 / 0 / 4.5 cm/s</td></tr>
+      <tr><td>s3 turning</td><td>XY trajectories for V_bias from −3 to +3 ml</td><td>±3 ml: 6.3°/s, radius ≈1.6 m</td></tr>
+      <tr><td>s4 depth steps</td><td>depth, setpoint, bladder volume, pitch</td><td>1 m in ≈35 s swimming, ≈6 s hovering; overshoot ≈3 cm</td></tr>
+      <tr><td>s5 frequency sweep</td><td>speed, amplitudes, pump saturation for 0.5–3 Hz</td><td>peak 23.6 cm/s at 1.5 Hz</td></tr>
+      <tr><td>s6 righting</td><td>roll, pitch and depth after a 30° roll</td><td>upright in ≈0.3 s</td></tr>
+      <tr><td>Model report</td><td>text: masses, volumes, net buoyancy, CG/CB, stability margins of the time step</td><td>hover drift 0.000 cm in 5 s</td></tr>
+    </tbody>
+  </table></div>
+
+  <figure>
+    <img src="img/mujoco_sweep.png" alt="MuJoCo frequency sweep: forward speed rises to 23.6 cm/s at 1.5 Hz and falls to 13.4 cm/s at 3 Hz; tail amplitudes on the right axis." loading="lazy">
+    <figcaption>Stage 6 frequency sweep (plot labels are in Polish on the main branch). Speed peaks at 1.5 Hz, just above 1.19 Hz, where the pump starts to saturate.</figcaption>
+  </figure>
+
+  <h3>Demo stages</h3>
+  <ol class="stages">
+    <li><b>0</b><span><code>check_api.py</code>: checks the API; a ball with the density of water sinks, which shows that MuJoCo has no built-in buoyancy</span></li>
+    <li><b>1</b><span><code>show_model.py</code>: static model and mass/buoyancy report</span></li>
+    <li><b>2–5</b><span><code>run_scenarios.py</code>: hover and righting, offline hydraulics, swimming with the added-mass diagnosis, turning, depth steps</span></li>
+    <li><b>6</b><span><code>sweep_frequency.py</code>: frequency sweep</span></li>
+    <li><b>7</b><span><code>run_viewer.py</code>: interactive control from the keyboard</span></li>
+  </ol>
+
+  <h3>Limitations</h3>
+  <ul>
+    <li>No flow simulation: no wake, no vortices, no interaction between body parts through the water.</li>
+    <li>Diagonal added mass, computed once for a straight tail, so the fish accelerates too quickly.</li>
+    <li>The tail is rigid segments, not a continuum. The hydraulics are linear (constant C_h, ideal valve, no losses).</li>
+    <li>No waves or free surface; buoyancy is faded out over ±5 cm near the surface as a patch.</li>
+  </ul>
+</section>
+
+<!-- ============================ Stonefish ============================ -->
+<section class="tool sf" id="stonefish">
+  <div class="tool-head">
+    <div class="eyebrow">Whole fish · branch stonefish</div>
+    <h2><span class="dot"></span>Stonefish</h2>
+    <p class="one">A marine-robotics simulator that computes water forces from the actual surface mesh and ships sensors, ballast tanks and ocean currents. The fish has the same layout as in MuJoCo; the extra physics is written in C++.</p>
+  </div>
+  <dl class="facts">
+    <div><dt>Method</dt><dd>Bullet multibody (Featherstone) + per-triangle hydrodynamics</dd></div>
+    <div><dt>Interface</dt><dd>C++20 application + XML scenarios + JSON config</dd></div>
+    <div><dt>Tested version</dt><dd>Stonefish 1.5.0, built from source</dd></div>
+    <div><dt>Install</dt><dd>CMake build; OpenGL ≥ 4.3, SDL2, Freetype, GLM, OpenMP</dd></div>
+    <div><dt>Speed</dt><dd>5–8× faster than real time in console mode at 2000 Hz; GUI ≈800 FPS</dd></div>
+    <div><dt>Licence*</dt><dd>GPL-3.0</dd></div>
+  </dl>
+
+  <h3>How it works</h3>
+  <ul>
+    <li><b>Body.</b> Head plus five tail links on revolute joints and a fin. The meshes are generated by <code>make_meshes.py</code> (320 triangles for physics, 5120 for display), which also balances the mass and sizes the steel ballast.</li>
+    <li><b>Water from geometry.</b> Buoyancy is computed from hydrostatic pressure on every triangle. Pressure drag acts per face, skin friction acts along the surface, and added mass comes from a fitted ellipsoid.</li>
+    <li><b>Fixes in C++.</b> Face drag cannot produce lift, so <code>FinLift.cpp</code> adds a flat-plate lift on the fin. Without it the fish reaches only 2.7 cm/s instead of 34 cm/s. The library's skin friction was about 250× too high and is replaced by a Blasius law.</li>
+    <li><b>Drive.</b> <code>Hydraulics.cpp</code> holds the same lumped pump and chamber model as MuJoCo. <code>TailDriver.cpp</code> applies joint torques τ_i = w_i·F − k_i·θ_i as an internal drive (action equals reaction).</li>
+    <li><b>Sensors and control.</b> The pressure sensor (50 Hz, σ 50 Pa) and the IMU (100 Hz) are noisy. The depth PID reads the filtered pressure and sets the VBS water volume; a heading PI on the IMU yaw sets V_bias.</li>
+    <li><b>Ocean.</b> Seabed, posts for visual reference, water type and a uniform current.</li>
+  </ul>
+
+  <h3>Inputs</h3>
+  <div class="tbl"><table class="io">
+    <thead><tr><th>Category</th><th>Used in the demo</th><th>Also possible with Stonefish</th></tr></thead>
+    <tbody>
+      <tr><td>Config file</td><td><code>config/default.json</code>, per-scenario patches <code>sN_*.json</code>, single overrides <code>--set key=value</code> (no recompilation)</td><td>any parameter exposed by the application</td></tr>
+      <tr><td>Scenario XML</td><td><code>fish_base.scn</code>: links, joints, motors, VBS, pressure sensor, IMU, encoders; <code>world_base.scn</code>: seabed, ocean, current</td><td>waves (GPU only), other current types, custom hydrodynamic coefficients</td></tr>
+      <tr><td>Geometry and materials</td><td>OBJ meshes; hull density 600, silicone 1100, steel ballast 7850 kg/m³ (sized automatically)</td><td>any OBJ geometry</td></tr>
+      <tr><td>Hydraulics and rhythm</td><td>same values as MuJoCo: Q_max 60 ml/s, A_V 8 ml, f 2 Hz, p_max 50 kPa; fin lift slope 2.8/rad</td><td>thrusters, rudders, servos</td></tr>
+      <tr><td>Sensors</td><td>pressure 50 Hz with σ 50 Pa; IMU 100 Hz with angle, gyro and accelerometer noise</td><td>cameras, sonar, DVL, GPS, thermal camera</td></tr>
+      <tr><td>Control and live input</td><td>depth setpoint schedule, heading PI; GUI keys for the CPG, V_bias, frequency and depth</td><td>ROS 2 interface (<code>stonefish_ros2</code>), not used here</td></tr>
+      <tr><td>Simulation</td><td>2000 steps/s (2 ms was unstable), hydrodynamics every step, log every 20 steps</td><td>real-time or batch mode</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Outputs</h3>
+  <div class="tbl"><table class="io">
+    <thead><tr><th>Output</th><th>Content</th><th>Example value</th></tr></thead>
+    <tbody>
+      <tr><td>CSV log, 100 Hz</td><td>≈70 columns: pose, velocities, sensor readings, joint θ/ω/τ, pump, chambers, VBS, forces per body part</td><td>full logs in <code>results/logs/</code></td></tr>
+      <tr><td>s1 hover / righting</td><td>depth drift; roll after a 30° tilt</td><td>0.21 mm in 10 s; 30° → 10° in 5 s</td></tr>
+      <tr><td>s2 swim</td><td>speed with and without fin lift, locked tail; force balance</td><td>34 cm/s; 2.7 cm/s without lift; fin lift 0.51 N</td></tr>
+      <tr><td>s3 turning</td><td>turning radius for V_bias ±1/±2/±3 ml</td><td>20.4 / 10.1 / 6.6 m</td></tr>
+      <tr><td>s4 depth</td><td>true vs measured depth with the noisy sensor</td><td>1 → 3 m: overshoot 3.3 cm, within ±5 cm after 21 s</td></tr>
+      <tr><td>s5 current</td><td>drift in a 5 cm/s side current, with and without heading control</td><td>heading held at +2.9°, yet 1 m sideways drift in 30 s</td></tr>
+      <tr><td>s6 sweep, GUI</td><td>speed vs frequency; <code>summary.json</code>; 3D window</td><td>peak 33.9 cm/s at 2 Hz</td></tr>
+    </tbody>
+  </table></div>
+
+  <figure>
+    <img src="img/stonefish_gui.png" alt="Stonefish 3D window: the robot fish swimming between reference posts, with a status panel showing speed 0.336 m/s, depth, chamber pressures and VBS volume." loading="lazy">
+    <figcaption>The Stonefish GUI during scenario s2: the panel on the right shows live speed, true and measured depth, chamber pressures and VBS volume.</figcaption>
+  </figure>
+
+  <h3>Demo stages</h3>
+  <ol class="stages">
+    <li><b>1–2</b><span>Build Stonefish; generate meshes and the mass balance (<code>tools/make_meshes.py</code>)</span></li>
+    <li><b>3</b><span>s1: hovering and righting</span></li>
+    <li><b>4</b><span>s2: joints and hydraulics, diagnosing where thrust comes from</span></li>
+    <li><b>5</b><span>s3–s5: turning, depth on the noisy sensor, side current</span></li>
+    <li><b>6</b><span>s6: frequency sweep; <code>t_internal</code> checks that the drive is internal</span></li>
+    <li><b>7</b><span>ROS 2: skipped</span></li>
+  </ol>
+
+  <h3>Limitations</h3>
+  <ul>
+    <li>Rigid-segment tail; quasi-static hydrodynamics with no wake, no delayed stall and no interaction between bodies.</li>
+    <li>Added mass averaged over the axes, with no added inertia about the roll axis; friction linearised at 0.2 m/s.</li>
+    <li>The GUI needs a GPU. Eight library pitfalls of version 1.5 are documented together with their workarounds.</li>
+  </ul>
+</section>
+
+<!-- ============================ PyElastica ============================ -->
+<section class="tool pe" id="pyelastica">
+  <div class="tool-head">
+    <div class="eyebrow">Whole fish · branch pyelastica</div>
+    <h2><span class="dot"></span>PyElastica</h2>
+    <p class="one">The whole fish is one soft Cosserat rod: a centreline with a rotating frame that can bend, twist, shear and stretch. It is the cheapest way here to simulate a continuously deforming body that swims freely.</p>
+  </div>
+  <dl class="facts">
+    <div><dt>Method</dt><dd>Cosserat rod theory, explicit symplectic Position Verlet</dd></div>
+    <div><dt>Interface</dt><dd>Pure Python, <code>import elastica as ea</code>, numba kernels</dd></div>
+    <div><dt>Tested version</dt><dd>PyElastica 1.0.0, numba 0.68, Python 3.14</dd></div>
+    <div><dt>Install</dt><dd><code>pip install -r requirements.txt</code>, minutes</dd></div>
+    <div><dt>Speed</dt><dd>≈27 µs per step of a 100-element rod; 9–70 s per stage</dd></div>
+    <div><dt>Licence*</dt><dd>MIT</dd></div>
+  </dl>
+
+  <h3>How it works</h3>
+  <ul>
+    <li><b>Body.</b> A 0.40 m rod with 50 elements. Each element has an elliptical section (from a table of 7 stations), so the tail is soft sideways and stiff vertically. The head is 20× stiffer.</li>
+    <li><b>Actuation from inside.</b> The chamber pressure changes the rest curvature of the chamber zone (0.20–0.32 m): κ_rest = −A_r·Δp / B. The drive produces no net force; the centre of mass drifts only 10⁻¹⁵ m in vacuum.</li>
+    <li><b>Hydraulics.</b> The same lumped pump, chamber and valve model as in MuJoCo and SOFA, stepped every 0.2 ms and coupled through the bend angle of the chamber zone.</li>
+    <li><b>Water.</b> A custom force: quadratic Morison drag per unit length, plus the Lighthill large-amplitude reactive force at the trailing edge. The built-in Stokes slender-body model is kept only to show it is wrong at this Reynolds number (≈1.8·10⁵): its force is ≈400× too small.</li>
+    <li><b>Buoyancy and depth.</b> Per-element weight and buoyancy, a righting moment from the centre of gravity sitting below the axis, a bladder, and a cascade depth PID ported from MuJoCo.</li>
+    <li><b>Time step.</b> ≈19 µs, from the explicit stability limit of the rod.</li>
+  </ul>
+
+  <h3>Inputs</h3>
+  <div class="tbl"><table class="io">
+    <thead><tr><th>Category</th><th>Used in the demo (<code>fishrod/config.py</code>)</th><th>Also possible with PyElastica</th></tr></thead>
+    <tbody>
+      <tr><td>Rod</td><td>L 0.40 m, ρ 1050 kg/m³, E 0.5 MPa, ν 0.5, 50 elements</td><td>several rods joined by joints, rigid bodies</td></tr>
+      <tr><td>Shape</td><td>half-width and half-height at 7 stations (24 × 34 mm at mid-body), ellipse or circle, stiff head</td><td>any per-element radius and stiffness</td></tr>
+      <tr><td>Hydraulics</td><td>A_eff 4.3·10⁻⁴ m², r_eff 5.5 mm, C_h 4.5·10⁻¹⁰ m³/Pa, p_max 50 kPa, Q_max 160 ml/s, f 2 Hz, A_V 8 ml</td><td>built-in muscle torques, uniform torques</td></tr>
+      <tr><td>Water</td><td>model: none, drag, drag+reactive, stokes_sbt; C_n 1.2, C_t 0.01</td><td>coupling to an immersed-boundary flow solver (SophT)</td></tr>
+      <tr><td>Buoyancy and control</td><td>CG 5 mm below the axis, bladder 0–40 ml at 10 ml/s, PID at 100 Hz, depth schedule</td><td>contact and friction with a floor</td></tr>
+      <tr><td>Stage settings</td><td>sweep grids (f 0.5–3 Hz × E ×0.5/1/2), durations, damping type</td><td>other boundary conditions and dampers</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Outputs</h3>
+  <div class="tbl"><table class="io">
+    <thead><tr><th>Output</th><th>Content</th><th>Example value</th></tr></thead>
+    <tbody>
+      <tr><td>e1 validation</td><td>cantilever vs theory, natural frequency, energy drift for n = 25/50/100</td><td>n = 50: tip error 1.05 %, ω₁ error 1.8 %</td></tr>
+      <tr><td>e2 actuation</td><td>bend vs pressure and vs volume; internal-drive check</td><td>8 ml → 15.8 kPa, 0.377 rad</td></tr>
+      <tr><td>e3 tethered</td><td>tip amplitude, phase, thrust and lateral force for each water model</td><td>thrust 149 mN with the reactive force, 5.9 mN with drag only</td></tr>
+      <tr><td>e4 free swim</td><td>speed vs time; body shape over one period; <code>free_swim.gif</code></td><td>44.1 cm/s (1.1 body lengths/s); 17 cm/s with drag only</td></tr>
+      <tr><td>e5 sweep f × E</td><td>speed, Strouhal number, tail natural frequency</td><td>softest tail at 3 Hz: 55 cm/s; f_n 1.89/2.60/3.64 Hz</td></tr>
+      <tr><td>e6 depth</td><td>depth, bladder volume, pitch, roll, speed</td><td>1.0 → 1.5 m settles in 9.9 s, overshoot 23 cm</td></tr>
+    </tbody>
+  </table></div>
+
+  <figure>
+    <img src="img/pyelastica_free_swim.png" alt="PyElastica free swimming at 2 Hz: speed curves for four water models, with drag+reactive reaching 44.1 cm/s; on the right, the body shape over one period." loading="lazy">
+    <figcaption>Stage 4: the choice of water model decides the result. Without the reactive (Lighthill) force the fish reaches 17 cm/s; the Stokes model gives zero.</figcaption>
+  </figure>
+
+  <h3>Demo stages</h3>
+  <ol class="stages">
+    <li><b>1</b><span>Rod validation against beam theory, convergence in 1/n</span></li>
+    <li><b>2</b><span>Rest-curvature actuation and hydraulic coupling; internal-drive check in vacuum</span></li>
+    <li><b>3</b><span>Tethered tail with three water models; thrust from momentum balance</span></li>
+    <li><b>4</b><span>Free planar swimming, comparison of water models and damping</span></li>
+    <li><b>5</b><span>Frequency × stiffness sweep, resonance, Strouhal number</span></li>
+    <li><b>6</b><span>3D with gravity, buoyancy, bladder and depth PID while swimming</span></li>
+    <li><b>7</b><span>Stiffness export to MuJoCo: not done</span></li>
+  </ol>
+
+  <h3>Limitations</h3>
+  <ul>
+    <li>Local water model with no wake: the Strouhal number is too low (0.12–0.2) and speed is overestimated.</li>
+    <li>No distributed added mass, so the natural frequency in water is too high. The section is an ellipse, not a thin fin plate.</li>
+    <li>The chamber is reduced to A_r·Δp and C_h; elasticity is linear. A very stiff hydraulic spring breaks the explicit coupling.</li>
+  </ul>
+</section>
+
+<!-- ============================ SOFA ============================ -->
+<section class="tool so" id="sofa">
+  <div class="tool-head">
+    <div class="eyebrow">Tail detail · branch sofa</div>
+    <h2><span class="dot"></span>SOFA + SoftRobots</h2>
+    <p class="one">A 3D finite-element model of the silicone tail with real chamber cavities. The pump prescribes the chamber volume and SOFA computes the pressure needed. The tail is clamped at the root, as on a thrust test rig.</p>
+  </div>
+  <dl class="facts">
+    <div><dt>Method</dt><dd>Corotational FEM on tetrahedra + Lagrange constraints for chambers</dd></div>
+    <div><dt>Interface</dt><dd>SofaPython3 scenes (<code>createScene</code>), C++ engine</dd></div>
+    <div><dt>Tested version</dt><dd>SOFA v26.06.00 binary (SoftRobots included)</dd></div>
+    <div><dt>Install</dt><dd><code>scripts/setup.sh</code>: ≈2 min + 230 MB, builds the CHOLMOD plugin</dd></div>
+    <div><dt>Speed</dt><dd>100–800× slower than real time (coarse mesh, one core)</dd></div>
+    <div><dt>Licence*</dt><dd>LGPL-2.1+ (SOFA), LGPL-3.0 (SoftRobots)</dd></div>
+  </dl>
+
+  <h3>How it works</h3>
+  <ul>
+    <li><b>Mesh.</b> gmsh builds the tail with two cavities. The coarse level has 28 112 tetrahedra and 7 744 nodes; the fine level has 142 096 tetrahedra.</li>
+    <li><b>Material.</b> Corotational linear elasticity (large rotations, small strains), E 0.3 MPa, ν 0.45. The default design V4 adds a spine 20× stiffer in the septum and tension-only hoop fibers every 4 mm.</li>
+    <li><b>Chambers.</b> <code>SurfacePressureConstraint</code> in volume-growth mode: the pump sets the volume, and the constraint solver returns the pressure.</li>
+    <li><b>Solver.</b> Implicit Euler, a Gauss–Seidel constraint solver and the CHOLMOD sparse Cholesky factorisation (4–15× faster than LDL). Static curves are found pseudo-statically, holding each point until the motion dies out.</li>
+    <li><b>Water.</b> Custom quadratic normal drag and tangential friction on every skin triangle, applied explicitly; the silicone weight is reduced by buoyancy. There is no added mass, lift or wake.</li>
+    <li><b>Hydraulics.</b> A port of the MuJoCo rhythm with pump-lag compensation (without it the volume overshoots by 16 % at 2 Hz), a closed circuit and a 20 ml prefill.</li>
+  </ul>
+
+  <h3>Inputs</h3>
+  <div class="tbl"><table class="io">
+    <thead><tr><th>Category</th><th>Used in the demo (<code>fishsofa/config.py</code>)</th><th>Also possible with SOFA</th></tr></thead>
+    <tbody>
+      <tr><td>Geometry</td><td>tail 0.20 m, section 60 × 80 mm tapering to 0.4, fin 70 × 120 × 6 mm; two chambers 0.12 m long, 4 mm wall, 4 mm septum (91 ml each)</td><td>any Gmsh, STL, OBJ or VTK mesh; XML <code>.scn</code> scenes</td></tr>
+      <tr><td>Material</td><td>E 3·10⁵ Pa, ν 0.45, ρ 1100; spine E × 20; fibers 2·10⁵ N/m every 4 mm</td><td>hyperelastic materials, beams (BeamAdapter)</td></tr>
+      <tr><td>Actuation</td><td>f 2 Hz, A_V 17 ml, prefill 20 ml, Q_max 250 ml/s, p_max 50 kPa</td><td>pressure control, cable actuators, inverse control (SoftRobots.Inverse)</td></tr>
+      <tr><td>Environment</td><td>air or water; drag coefficients C_n 1.0, C_t 0.01</td><td>contact and collision</td></tr>
+      <tr><td>Numerics</td><td>step 2 ms (0.5–1 ms in water), Rayleigh damping, solver cholmod/ldl/cg/warp, mesh level test/coarse/medium/fine</td><td>model order reduction (up to ≈50× faster)</td></tr>
+      <tr><td>Run control</td><td>environment variables <code>FISHSOFA_LEVEL</code>, <code>_MODE</code>, <code>_ENV</code>, <code>_WORKERS</code></td><td>GUI interaction</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Outputs</h3>
+  <div class="tbl"><table class="io">
+    <thead><tr><th>Output</th><th>Content</th><th>Example value</th></tr></thead>
+    <tbody>
+      <tr><td>s1 mesh and sag</td><td>mesh quality report; tip sag under own weight on three meshes</td><td>−40.5 mm (coarse) to −41.2 mm (fine)</td></tr>
+      <tr><td>s2a design variants</td><td>bend for homogeneous, spine, thick wall, fibers, spine + fibers</td><td>1.3° homogeneous vs 31° for V4</td></tr>
+      <tr><td>s2 p–V curve</td><td>pressure and tip angle vs chamber volume, mesh convergence</td><td>50 ml: 16.1 kPa and 15.4° (fine mesh)</td></tr>
+      <tr><td>s3 symmetry</td><td>left vs right chamber</td><td>error ≤ 0.75 % in angle</td></tr>
+      <tr><td>s4 flapping in air</td><td>angle, pressures, volume conservation, solver iterations</td><td>±12.7° at 2 Hz, |Δp| ≤ 5.7 kPa</td></tr>
+      <tr><td>s5 water vs air</td><td>amplitude, phase, tethered thrust, lateral force, drag power</td><td>±7.3° in water (0.55× air); thrust 66.7 mN</td></tr>
+      <tr><td>s6 sweeps, video</td><td>frequency and Young's modulus sweeps; <code>flapping.mp4</code> 1080p60</td><td>max thrust 67.9 mN at 2.25 Hz</td></tr>
+    </tbody>
+  </table></div>
+
+  <figure>
+    <img src="img/sofa_freq_sweep.png" alt="SOFA frequency sweep in water: tip angle falls from 11.8° at 0.5 Hz to 4.3° at 3 Hz; tethered thrust peaks near 68 mN at 2.25 Hz; pressure difference stays below 6 kPa; pump saturates above 2 Hz." loading="lazy">
+    <figcaption>Stage 6 in water. Amplitude falls steadily with frequency (no resonance in water), thrust peaks at 2.25 Hz, and above 2 Hz the pump saturates. The thrust comes from a drag model and is qualitative.</figcaption>
+  </figure>
+
+  <h3>Demo stages</h3>
+  <ol class="stages">
+    <li><b>0</b><span>Component check; meaning, sign and units of the chamber volume constraint (≈2.5 min)</span></li>
+    <li><b>1</b><span>Meshes and sag under own weight (≈10 min)</span></li>
+    <li><b>2</b><span>Design variants V0–V4; p–V and angle curves, mesh convergence (≈35 min)</span></li>
+    <li><b>3</b><span>Left/right symmetry (≈3 min)</span></li>
+    <li><b>4</b><span>Antagonistic flapping in air (≈25 min)</span></li>
+    <li><b>5</b><span>Water vs air, tethered thrust (30–60 min)</span></li>
+    <li><b>6</b><span>Frequency and stiffness sweeps, 19 runs (≈1 h on 12 threads)</span></li>
+  </ol>
+
+  <h3>Limitations</h3>
+  <ul>
+    <li>No flow and no reactive force, so the thrust is qualitative. The tail is clamped; the fish does not swim.</li>
+    <li>Linear tetrahedra lock in thin walls, which overestimates pressure by 15–25 %. The material is corotational linear, not hyperelastic.</li>
+    <li>Slow: explicit drag limits the step to 0.5 ms in water. A bug in SOFA v26.12-dev keeps the demo on v26.06.</li>
+    <li>Exporting equivalent joint stiffnesses to MuJoCo (stage 7) was not done.</li>
+  </ul>
+</section>
+
+<!-- ============================ OpenFOAM ============================ -->
+<section class="tool of" id="openfoam">
+  <div class="tool-head">
+    <div class="eyebrow">Tail detail · branch openfoam</div>
+    <h2><span class="dot"></span>OpenFOAM + preCICE + CalculiX</h2>
+    <p class="one">The only demo that solves the actual water flow. A CFD solver and a structural FEM solver exchange forces and displacements every time step until they agree. It is a 2D slice of the tail with the head held fixed.</p>
+  </div>
+  <dl class="facts">
+    <div><dt>Method</dt><dd>Partitioned FSI: finite volumes + nonlinear FEM, implicit coupling</dd></div>
+    <div><dt>Interface</dt><dd>OpenFOAM dictionaries, CalculiX <code>.inp</code>, preCICE XML; Bash and Python tools</dd></div>
+    <div><dt>Tested versions</dt><dd>OpenFOAM v2606, CalculiX 2.20, preCICE 3.4.1</dd></div>
+    <div><dt>Install</dt><dd><code>setup.sh</code>, ≈1.5 h, mostly built from source</dd></div>
+    <div><dt>Speed</dt><dd>0.6–1 s per 2.5 ms window; stages 4–6 take 3 h 47 min</dd></div>
+    <div><dt>Licence*</dt><dd>GPL-3.0 (OpenFOAM), GPL-2.0+ (CalculiX), LGPL-3.0 (preCICE)</dd></div>
+  </dl>
+
+  <h3>How it works</h3>
+  <ul>
+    <li><b>Fluid.</b> <code>pimpleFoam</code> solves incompressible laminar Navier–Stokes in 2D (one cell deep, so forces are per metre of span) on a mesh that deforms with the tail.</li>
+    <li><b>Solid.</b> CalculiX runs dynamic nonlinear FEM (large deformations, linear elastic silicone, E 0.3 MPa) of a tail with PneuNet-style chambers.</li>
+    <li><b>Coupling.</b> preCICE maps fluid forces onto the solid and solid displacements onto the fluid mesh, and repeats each 2.5 ms window with the IQN-ILS quasi-Newton method until both agree (4.7 iterations on average).</li>
+    <li><b>Why implicit.</b> Silicone is almost as dense as water, so explicit coupling is unstable for any time step (the added-mass effect). Stage 3 shows the force growing 13× per window.</li>
+    <li><b>Actuation.</b> Prescribed chamber pressure p_L = P0·max(0, sin 2πft), with the opposite half-wave in p_R. Pressure is the input, not volume.</li>
+    <li><b>Thrust.</b> The cycle-averaged axial force on the fixed body (head + tail).</li>
+  </ul>
+
+  <h3>Inputs</h3>
+  <div class="tbl"><table class="io">
+    <thead><tr><th>Category</th><th>Used in the demo</th><th>Also possible with this toolchain</th></tr></thead>
+    <tbody>
+      <tr><td>Geometry (<code>params.py</code>)</td><td>tail 0.15 m, thickness 30 → 10 mm, chambers at 10–110 mm, 3 mm walls, 10 cells per side; head half-ellipse 60 mm; domain 3L upstream, 8L downstream</td><td>full 3D geometry</td></tr>
+      <tr><td>Materials and water</td><td>E 3·10⁵ Pa, ν 0.45, ρ 1070 kg/m³; water ρ 1000, ν 10⁻⁶ m²/s</td><td>hyperelastic material, material damping (CalculiX)</td></tr>
+      <tr><td>Case (<code>new-fsi-case.sh</code>)</td><td>inflow speed U, time step, end time, P0, frequency, implicit/explicit coupling</td><td>free body with a 6-DOF solver</td></tr>
+      <tr><td>OpenFOAM setup</td><td>PIMPLE + GAMG, Laplacian mesh motion, force and vorticity function objects, inlet ramp, slip sides</td><td>RANS/LES turbulence, overset or remeshing for large amplitude</td></tr>
+      <tr><td>CalculiX setup</td><td><code>fsi.inp</code>: nonlinear dynamics, HHT α −0.2, PARDISO solver, pressure amplitude tables</td><td>contact between chamber walls</td></tr>
+      <tr><td>preCICE setup</td><td>RBF mapping (5 mm radius), IQN-ILS, convergence 10⁻³, tip watch point</td><td>more participants, e.g. a volume-driven hydraulics model</td></tr>
+      <tr><td>Mesh</td><td>gmsh, refinement via <code>MESH_SCALE</code> (0.7 / 1.0 / 1.4)</td><td>any OpenFOAM mesh generator</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Outputs</h3>
+  <div class="tbl"><table class="io">
+    <thead><tr><th>Output</th><th>Content</th><th>Example value</th></tr></thead>
+    <tbody>
+      <tr><td>Flow fields</td><td>velocity, pressure, vorticity, time averages for ParaView</td><td>Kármán vortex street behind the body</td></tr>
+      <tr><td>Forces</td><td>pressure and viscous force and moment per patch (head, tail)</td><td>rigid body at 0.2 m/s: drag 0.13 N/m, ⅔ pressure</td></tr>
+      <tr><td>E1 dry tail</td><td>tip deflection vs pressure, L/R symmetry</td><td>1.2 mm/kPa; 24 mm (16 % of L) at 20 kPa</td></tr>
+      <tr><td>E3 coupling</td><td>explicit vs implicit stability</td><td>explicit diverges; implicit stable</td></tr>
+      <tr><td>E4 actuated</td><td>tip amplitude in water vs dry, thrust per cycle</td><td>28.3 mm in water vs 20 mm dry at 1 Hz</td></tr>
+      <tr><td>E5 inflow</td><td>mean axial force and Strouhal number vs speed</td><td>net drag at 0.05–0.2 m/s; zero only near 0.02 m/s</td></tr>
+      <tr><td>E6 frequency</td><td>amplitude and thrust vs frequency</td><td>resonance in water ≈1 Hz (dry 3.39 Hz)</td></tr>
+    </tbody>
+  </table></div>
+
+  <figure>
+    <img src="img/openfoam_vorticity.png" alt="Vorticity field behind the rigid 2D fish body at 0.2 m/s: alternating red and blue vortices form a Kármán street downstream of the tail." loading="lazy">
+    <figcaption>Stage 2, fine mesh, U = 0.2 m/s: the vortex wake that none of the other five tools can show.</figcaption>
+  </figure>
+
+  <h3>Demo stages</h3>
+  <ol class="stages">
+    <li><b>0</b><span>Official perpendicular-flap tutorial, to validate the install (34 s)</span></li>
+    <li><b>1</b><span>Solid only: deflection vs pressure (≈10 s)</span></li>
+    <li><b>2</b><span>Fluid only, rigid body: drag and mesh convergence (7 min)</span></li>
+    <li><b>3</b><span>Passive tail: explicit vs implicit coupling (10 min)</span></li>
+    <li><b>4</b><span>Actuated tail in still water vs dry (16–80 min)</span></li>
+    <li><b>5</b><span>Inflow at 0.05/0.1/0.2 m/s (≈30 min each)</span></li>
+    <li><b>6</b><span>Frequency sweep 0.5–2 Hz (16–102 min each)</span></li>
+  </ol>
+
+  <h3>Limitations</h3>
+  <ul>
+    <li>2D: no tip vortices, and forces are per metre of span. Laminar flow at Re ≈ 4·10⁴.</li>
+    <li>Fixed head, so no free swimming or recoil. Actuation is by pressure, not volume. No material damping.</li>
+    <li>Mesh deformation limits the tip amplitude to ≈15 % of L. Two uniform chambers make a standing wave and a blunt tip, so the tail produces net drag.</li>
+    <li>Slow and the most complex of the six to install.</li>
+  </ul>
+</section>
+
+<!-- ============================ OpenModelica ============================ -->
+<section class="tool om" id="openmodelica">
+  <div class="tool-head">
+    <div class="eyebrow">System level · branch openmodelica</div>
+    <h2><span class="dot"></span>OpenModelica</h2>
+    <p class="one">An equation-based model of the whole drive train, from the battery through the motor, pump, pipes and chambers to a one-degree-of-freedom tail. It is the only demo with electrics, an energy budget, FMU export and a full calibration workflow.</p>
+  </div>
+  <dl class="facts">
+    <div><dt>Method</dt><dd>Acausal Modelica equations → DAE → C code, variable-step solver</dd></div>
+    <div><dt>Interface</dt><dd>Modelica (OMEdit GUI), Python through OMPython and FMPy</dd></div>
+    <div><dt>Tested version</dt><dd>OpenModelica 1.27.1, MSL 4.1.0</dd></div>
+    <div><dt>Install</dt><dd>apt repository (<code>install_system.sh</code>) + venv (<code>install_user.sh</code>)</dd></div>
+    <div><dt>Speed</dt><dd>16 simulations ≈0.2 s after ≈1 s of compilation</dd></div>
+    <div><dt>Licence*</dt><dd>OSMC-PL / GPL-3 (OpenModelica), BSD-3 (MSL)</dd></div>
+  </dl>
+
+  <h3>How it works</h3>
+  <ul>
+    <li><b>Acausal components.</b> Parts are joined by physical connectors. The custom hydraulic port carries pressure p and flow V_flow, whose product is power. The compiler sorts the equations itself, so there is no input/output wiring.</li>
+    <li><b>Drive chain.</b> 2S LiPo battery 7.4 V → H-bridge → DC motor → gear pump (Q = D·ω − k_leak·Δp) → pipes (laminar plus Haaland turbulent friction, minor losses) → chambers with a nonlinear p–V table → relief valves.</li>
+    <li><b>Tail and fin.</b> The tail is a rotary piston with one degree of freedom: (J + J_added)·θ̈ = τ − kθ − cθ̇ − c_h|θ̇|θ̇. Thrust comes from Lighthill's rigid-fin formula and drives a surge equation.</li>
+    <li><b>Ballast.</b> A motor and lead screw drive a syringe piston; a heave equation and a cascade depth PID close the loop.</li>
+    <li><b>Energy.</b> Every loss is integrated, and the balance closes to ≈10⁻⁶.</li>
+    <li><b>Export and calibration.</b> <code>TailDrive</code> exports as an FMU 2.0 for co-simulation. Ten bench models and <code>calibrate.py</code> (least squares) identify the parameters step by step, from the motor to the water.</li>
+  </ul>
+
+  <h3>Inputs</h3>
+  <div class="tbl"><table class="io">
+    <thead><tr><th>Category</th><th>Used in the demo</th><th>Also possible with Modelica</th></tr></thead>
+    <tbody>
+      <tr><td>Electrical</td><td>battery 7.4 V, R_int 0.05 Ω, 16.3 Wh; motor R 1 Ω, L 0.5 mH, k 0.01 N·m/A, rotor inertia</td><td>SoC-dependent voltage, PWM losses, thermal models</td></tr>
+      <tr><td>Hydraulic</td><td>pump 0.3 ml/rev, leakage, η 0.8; pipe 0.2 m × 4 mm, ζ 1.5, roughness 25 µm; valve 50 kPa; chamber p–V table (11 points or a CSV file)</td><td><code>Modelica.Fluid</code> and media, compressible or two-phase (a variant is already in <code>HydraulicsFluid/</code>)</td></tr>
+      <tr><td>Tail and fin</td><td>displacement 2·10⁻⁵ m³/rad, k 2 N·m/rad, inertia, added inertia, damping; fin span 0.06 m, C_T 1.0</td><td>a p–V curve from SOFA or from measurement</td></tr>
+      <tr><td>Body and ballast</td><td>m 1 kg, added mass, C_d 0.3, area 0.005 m²; syringe 20 mm × 40 mm (12.5 ml), lead 1 mm</td><td>multibody library for 3D motion</td></tr>
+      <tr><td>Control</td><td>CPG amplitude 0.8, 1.5 Hz, bias; depth PID gains</td><td>any block-diagram controller</td></tr>
+      <tr><td>Measured data</td><td>CSV files for <code>calibrate.py</code>: motor step, pump, pipe, chamber cycles, valve, tail, thrust, hull tow and coast-down, ballast</td><td>tables from <code>.mat</code>/<code>.txt</code>, FMU import</td></tr>
+      <tr><td>Run time</td><td><code>-override</code> parameters, OMEdit modifiers</td><td>solver choice: DASSL, IDA, CVODE, Euler</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Outputs</h3>
+  <div class="tbl"><table class="io">
+    <thead><tr><th>Output</th><th>Content</th><th>Example value</th></tr></thead>
+    <tbody>
+      <tr><td>Time series (.mat)</td><td>every variable: p_L, p_R, flows, currents, motor speed, θ, thrust, speed, depth, ballast volume</td><td>valve opens at ≈51 kPa (HydraulicsStep)</td></tr>
+      <tr><td>Energy budget</td><td>loss per component, mechanical output, stored energy, balance error</td><td>1.8 W at 1 Hz → ≈9.2 h on 16.3 Wh</td></tr>
+      <tr><td>Swimming</td><td>surge speed, thrust, battery power vs frequency</td><td>best 8.5 cm/s at 0.5 Hz; 16.6 W at 4 Hz</td></tr>
+      <tr><td>Depth control</td><td>depth, piston position, current</td><td>3 cm/s descent, 6 % overshoot, 5 mm error</td></tr>
+      <tr><td>FMU</td><td><code>TailDrive.fmu</code> (linux64, 1.8 MB) + comparison with OpenModelica</td><td>difference 0.016 % of amplitude</td></tr>
+      <tr><td>Calibration reports</td><td>fitted parameters with 1σ uncertainty and correlation matrix</td><td>e.g. hull C_d 0.402 ± 0.9 % (synthetic data)</td></tr>
+    </tbody>
+  </table></div>
+
+  <figure>
+    <div class="ebar" role="img" aria-label="Energy loss shares at 1 Hz: motor winding 78.5 %, pipes 9.3 %, motor bearings 8.4 %, pump friction 2.7 %, battery 0.8 %, tail 0.1 %.">
+      <span class="e1" style="width:78.5%"></span><span class="e2" style="width:9.3%"></span><span class="e3" style="width:8.4%"></span><span class="e4" style="width:2.7%"></span><span class="e5" style="width:0.8%"></span><span class="e6" style="width:0.1%"></span>
+    </div>
+    <div class="ekey">
+      <span><i class="e1" style="background:var(--t-om)"></i>motor winding 78.5 %</span>
+      <span><i style="background:var(--t-of)"></i>pipes 9.3 %</span>
+      <span><i style="background:var(--t-mj)"></i>motor bearings 8.4 %</span>
+      <span><i style="background:var(--t-so)"></i>pump friction 2.7 %</span>
+      <span><i style="background:var(--t-sf)"></i>battery 0.8 %</span>
+      <span><i style="background:var(--t-pe)"></i>tail 0.1 %</span>
+    </div>
+    <figcaption>Where the energy goes (EnergyBudget scenario: 60 s at 1 Hz, 1.8 W). With placeholder parameters the motor is oversized, so its winding dominates. In SwimForward only ≈0.01 % of battery energy becomes useful propulsion work. The demo commits no plots; they are generated by the scripts.</figcaption>
+  </figure>
+
+  <h3>Demo stages</h3>
+  <ol class="stages">
+    <li><b>1–2</b><span>Pipe, chamber and relief valve with tests (laminar, turbulent vs MSL, closed loop)</span></li>
+    <li><b>3–4</b><span>Battery, H-bridge, motor, pump; tail, CPG and the TailDrive subsystem; frequency sweep</span></li>
+    <li><b>5–7</b><span>Energy budget; ballast and depth control; fin and surge, forward swimming</span></li>
+    <li><b>8–9</b><span>FMU export and FMPy loop; <code>Modelica.Fluid</code> variant (same results within 0.5 %, 6× slower)</span></li>
+    <li><b>10</b><span>Calibration benches and <code>calibrate.py</code> for 10 subsystems</span></li>
+  </ol>
+
+  <h3>Limitations</h3>
+  <ul>
+    <li>The tail has one degree of freedom (no travelling wave); thrust is a placeholder Lighthill formula.</li>
+    <li>Surge, heave and yaw are not coupled; drag and added mass are constants.</li>
+    <li>Lumped incompressible hydraulics without hysteresis; ideal electrics. The FMU runs only on the OS it was built on.</li>
+  </ul>
+</section>
+
+<!-- ============================ Comparison ============================ -->
+<section id="compare">
+  <h2>4 · Comparison</h2>
+
+  <h3>Capability matrix</h3>
+  <div class="legend"><span><span class="lv">●</span> modelled in the demo</span><span><span class="lv h">◐</span> simplified or partial</span><span><span class="lv n">○</span> not modelled</span></div>
+  <div class="tbl wide matrix"><table>
+    <thead><tr><th>Capability</th><th><span class="dot mj"></span>MuJoCo</th><th><span class="dot sf"></span>Stonefish</th><th><span class="dot pe"></span>PyElastica</th><th><span class="dot so"></span>SOFA</th><th><span class="dot of"></span>OpenFOAM FSI</th><th><span class="dot om"></span>OpenModelica</th></tr></thead>
+    <tbody>
+      <tr><th>Free swimming of the whole fish</th><td><span class="lv">●</span></td><td><span class="lv">●</span></td><td><span class="lv">●</span></td><td><span class="lv n">○</span><small>clamped</small></td><td><span class="lv n">○</span><small>head fixed</small></td><td><span class="lv h">◐</span><small>surge + heave</small></td></tr>
+      <tr><th>Soft tail deformation</th><td><span class="lv h">◐</span><small>5 segments</small></td><td><span class="lv h">◐</span><small>5 segments</small></td><td><span class="lv h">◐</span><small>continuous rod</small></td><td><span class="lv">●</span><small>3D FEM</small></td><td><span class="lv">●</span><small>2D FEM</small></td><td><span class="lv n">○</span><small>1 DOF</small></td></tr>
+      <tr><th>Chamber pressure from structure</th><td><span class="lv h">◐</span><small>constant C_h</small></td><td><span class="lv h">◐</span><small>constant C_h</small></td><td><span class="lv h">◐</span><small>constant C_h</small></td><td><span class="lv">●</span></td><td><span class="lv h">◐</span><small>pressure is input</small></td><td><span class="lv h">◐</span><small>p–V table</small></td></tr>
+      <tr><th>Water flow, wake, vortices</th><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td><td><span class="lv">●</span></td><td><span class="lv n">○</span></td></tr>
+      <tr><th>Hydrodynamic forces</th><td><span class="lv h">◐</span><small>ellipsoid model</small></td><td><span class="lv h">◐</span><small>per mesh face</small></td><td><span class="lv h">◐</span><small>Morison + Lighthill</small></td><td><span class="lv h">◐</span><small>drag only</small></td><td><span class="lv">●</span><small>Navier–Stokes</small></td><td><span class="lv h">◐</span><small>Lighthill + C_d</small></td></tr>
+      <tr><th>Added mass</th><td><span class="lv h">◐</span><small>diagonal</small></td><td><span class="lv h">◐</span><small>axis-averaged</small></td><td><span class="lv h">◐</span><small>trailing edge</small></td><td><span class="lv n">○</span></td><td><span class="lv">●</span><small>from the flow</small></td><td><span class="lv h">◐</span><small>constant</small></td></tr>
+      <tr><th>Pump and valve dynamics</th><td><span class="lv h">◐</span></td><td><span class="lv h">◐</span></td><td><span class="lv h">◐</span></td><td><span class="lv h">◐</span></td><td><span class="lv n">○</span></td><td><span class="lv">●</span></td></tr>
+      <tr><th>Electrics and energy budget</th><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td><td><span class="lv">●</span></td></tr>
+      <tr><th>Buoyancy and depth control</th><td><span class="lv">●</span></td><td><span class="lv">●</span></td><td><span class="lv">●</span></td><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td><td><span class="lv h">◐</span><small>1D heave</small></td></tr>
+      <tr><th>Noisy sensors</th><td><span class="lv n">○</span><small>possible</small></td><td><span class="lv">●</span></td><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td></tr>
+      <tr><th>Currents and environment</th><td><span class="lv n">○</span></td><td><span class="lv">●</span></td><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td><td><span class="lv h">◐</span><small>inflow</small></td><td><span class="lv n">○</span></td></tr>
+      <tr><th>Interactive 3D view</th><td><span class="lv">●</span></td><td><span class="lv">●</span></td><td><span class="lv n">○</span><small>GIF</small></td><td><span class="lv">●</span></td><td><span class="lv h">◐</span><small>ParaView, after the run</small></td><td><span class="lv n">○</span><small>plots</small></td></tr>
+      <tr><th>Real time or faster</th><td><span class="lv">●</span></td><td><span class="lv">●</span><small>5–8×</small></td><td><span class="lv h">◐</span><small>≈1.5× slower</small></td><td><span class="lv n">○</span><small>100–800× slower</small></td><td><span class="lv n">○</span><small>hours</small></td><td><span class="lv">●</span><small>milliseconds</small></td></tr>
+      <tr><th>Parameter identification</th><td><span class="lv n">○</span><small>plan only</small></td><td><span class="lv n">○</span></td><td><span class="lv n">○</span><small>plan only</small></td><td><span class="lv n">○</span><small>plan only</small></td><td><span class="lv n">○</span></td><td><span class="lv">●</span><small>calibrate.py</small></td></tr>
+      <tr><th>Co-simulation / export</th><td><span class="lv n">○</span></td><td><span class="lv h">◐</span><small>ROS 2 possible</small></td><td><span class="lv n">○</span></td><td><span class="lv n">○</span></td><td><span class="lv">●</span><small>preCICE</small></td><td><span class="lv">●</span><small>FMU 2.0</small></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Inputs at a glance</h3>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Input</th><th><span class="dot mj"></span>MuJoCo</th><th><span class="dot sf"></span>Stonefish</th><th><span class="dot pe"></span>PyElastica</th><th><span class="dot so"></span>SOFA</th><th><span class="dot of"></span>OpenFOAM FSI</th><th><span class="dot om"></span>OpenModelica</th></tr></thead>
+    <tbody>
+      <tr><th>Geometry</th><td>MJCF generated in Python</td><td>OBJ meshes + <code>.scn</code> XML</td><td>station table in Python</td><td>gmsh → VTK + OBJ</td><td>gmsh → OpenFOAM mesh + CalculiX mesh</td><td>none (lumped parameters)</td></tr>
+      <tr><th>Material</th><td>densities, joint stiffness</td><td>densities, joint stiffness</td><td>E, ν, ρ per element</td><td>E, ν, ρ, fibers, spine</td><td>E, ν, ρ</td><td>tail k, J, c</td></tr>
+      <tr><th>Hydraulics</th><td>lumped (A, r, C_h)</td><td>lumped (A, r, C_h)</td><td>lumped (A_r, C_h)</td><td>volume per chamber</td><td>pressure per chamber</td><td>component parameters + p–V table</td></tr>
+      <tr><th>Water</th><td><code>fluidcoef</code></td><td>from the mesh + lift slope</td><td>C_n, C_t, model choice</td><td>C_n, C_t</td><td>ρ, ν, inflow U</td><td>C_d, C_T, added mass</td></tr>
+      <tr><th>Config format</th><td>Python dataclass</td><td>JSON + XML</td><td>Python dataclass</td><td>Python dataclass + env vars</td><td>dictionaries, <code>.inp</code>, XML</td><td>Modelica parameters</td></tr>
+      <tr><th>Live control</th><td>keyboard</td><td>keyboard</td><td>none</td><td>GUI</td><td>none</td><td>none</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Outputs at a glance</h3>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Output</th><th><span class="dot mj"></span>MuJoCo</th><th><span class="dot sf"></span>Stonefish</th><th><span class="dot pe"></span>PyElastica</th><th><span class="dot so"></span>SOFA</th><th><span class="dot of"></span>OpenFOAM FSI</th><th><span class="dot om"></span>OpenModelica</th></tr></thead>
+    <tbody>
+      <tr><th>Main quantity</th><td>speed, trajectory, depth</td><td>speed, trajectory, sensor readings</td><td>speed, body shape, thrust</td><td>pressure, bend, tethered thrust</td><td>flow field, forces, wake</td><td>currents, pressures, energy</td></tr>
+      <tr><th>Data format</th><td>CSV</td><td>CSV 100 Hz + JSON</td><td>CSV</td><td>CSV + NPZ</td><td>OpenFOAM fields, <code>.frd</code>, logs</td><td><code>.mat</code>, CSV</td></tr>
+      <tr><th>Visual</th><td>viewer, PNG</td><td>3D GUI, PNG</td><td>PNG, GIF</td><td>GUI, MP4</td><td>ParaView, PNG</td><td>PNG plots</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Same fish, different speeds: why</h3>
+  <p>At about 2 Hz the three free-swimming demos give speeds that differ by 2×. The difference comes from where each tool gets its thrust.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Tool</th><th class="num">Speed near 2 Hz</th><th>Main source of thrust in the model</th></tr></thead>
+    <tbody>
+      <tr><th><span class="dot mj"></span> MuJoCo</th><td class="num">22 cm/s</td><td>Kutta lift on ellipsoids from the built-in model</td></tr>
+      <tr><th><span class="dot sf"></span> Stonefish</th><td class="num">34 cm/s</td><td>flat-plate fin lift added in C++</td></tr>
+      <tr><th><span class="dot pe"></span> PyElastica</th><td class="num">44 cm/s</td><td>Lighthill reactive force at the trailing edge</td></tr>
+      <tr><th><span class="dot om"></span> OpenModelica</th><td class="num">7.3 cm/s</td><td>Lighthill rigid fin on a 1-DOF tail (only 3.4° amplitude at 2 Hz)</td></tr>
+      <tr><th><span class="dot so"></span> SOFA</th><td class="num">tethered</td><td>drag on skin triangles: 63 mN at 2 Hz</td></tr>
+      <tr><th><span class="dot of"></span> OpenFOAM FSI</th><td class="num">tethered</td><td>resolved flow: net drag with this tail shape</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Cost of use</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Tool</th><th>Install</th><th>Typical run</th><th>Skills needed</th></tr></thead>
+    <tbody>
+      <tr><th><span class="dot mj"></span> MuJoCo</th><td>pip, minutes</td><td>seconds to minutes</td><td>Python</td></tr>
+      <tr><th><span class="dot sf"></span> Stonefish</th><td>build from source, GPU for the GUI</td><td>1–2 min for all scenarios</td><td>C++, XML</td></tr>
+      <tr><th><span class="dot pe"></span> PyElastica</th><td>pip, minutes</td><td>9–70 s per stage</td><td>Python, rod mechanics</td></tr>
+      <tr><th><span class="dot so"></span> SOFA</th><td>script, ≈2 min + compiler for CHOLMOD</td><td>10 min to 1 h per stage</td><td>Python, FEM, meshing</td></tr>
+      <tr><th><span class="dot of"></span> OpenFOAM FSI</th><td>≈1.5 h, three programs and adapters from source</td><td>7–102 min per case</td><td>CFD, FEM, coupling</td></tr>
+      <tr><th><span class="dot om"></span> OpenModelica</th><td>apt repository + venv</td><td>under a second</td><td>Modelica</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>How the tools fit together</h3>
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 800 380" role="img" aria-label="Data links between the six demos: MuJoCo passes its parameters to Stonefish, PyElastica and SOFA; planned links send SOFA stiffness and p–V curves, the OpenModelica FMU and OpenFOAM coefficients back into the whole-fish models.">
+        <defs>
+          <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+          <marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-whead"/></marker>
+        </defs>
+        <rect class="d-group" x="204" y="108" width="432" height="136" rx="10"/>
+        <text class="d-m" x="636" y="101" text-anchor="end">whole-fish models</text>
+        <rect class="d-box" x="16" y="20" width="160" height="50" rx="8"/>
+        <text class="d-b" x="96" y="41" text-anchor="middle">Bench tests</text>
+        <text class="d-m" x="96" y="58" text-anchor="middle">measured CSV</text>
+        <rect class="d-box" x="220" y="20" width="160" height="50" rx="8"/>
+        <text class="d-b" x="300" y="41" text-anchor="middle">OpenModelica</text>
+        <text class="d-m" x="300" y="58" text-anchor="middle">system model</text>
+        <rect class="d-soft" x="220" y="150" width="160" height="50" rx="8"/>
+        <text class="d-b" x="300" y="171" text-anchor="middle">MuJoCo</text>
+        <text class="d-m" x="300" y="188" text-anchor="middle">reference parameters</text>
+        <rect class="d-box" x="460" y="118" width="160" height="44" rx="8"/>
+        <text class="d-b" x="540" y="137" text-anchor="middle">Stonefish</text>
+        <text class="d-m" x="540" y="153" text-anchor="middle">sensors, currents</text>
+        <rect class="d-box" x="460" y="188" width="160" height="44" rx="8"/>
+        <text class="d-b" x="540" y="207" text-anchor="middle">PyElastica</text>
+        <text class="d-m" x="540" y="223" text-anchor="middle">soft rod</text>
+        <rect class="d-box" x="220" y="282" width="160" height="50" rx="8"/>
+        <text class="d-b" x="300" y="303" text-anchor="middle">SOFA</text>
+        <text class="d-m" x="300" y="320" text-anchor="middle">3D FEM tail</text>
+        <rect class="d-box" x="460" y="282" width="160" height="50" rx="8"/>
+        <text class="d-b" x="540" y="303" text-anchor="middle">OpenFOAM FSI</text>
+        <text class="d-m" x="540" y="320" text-anchor="middle">flow + 2D FEM tail</text>
+
+        <line class="d-line" x1="176" y1="40" x2="218" y2="40" marker-end="url(#ah2)"/>
+        <text class="d-m" x="197" y="33" text-anchor="middle">fit</text>
+        <line class="d-line" x1="380" y1="166" x2="458" y2="142" marker-end="url(#ah2)"/>
+        <text class="d-m" x="412" y="141" text-anchor="middle">same params</text>
+        <line class="d-line" x1="380" y1="186" x2="458" y2="208" marker-end="url(#ah2)"/>
+        <text class="d-m" x="412" y="223" text-anchor="middle">hydraulics, PID</text>
+        <line class="d-line" x1="270" y1="200" x2="270" y2="280" marker-end="url(#ah2)"/>
+        <text class="d-t" x="262" y="266" text-anchor="end">geometry, rhythm</text>
+
+        <line class="d-dash" x1="300" y1="70" x2="300" y2="148" marker-end="url(#ah3)"/>
+        <text class="d-w" x="308" y="98">FMU: tail torque</text>
+        <line class="d-dash" x1="340" y1="282" x2="340" y2="202" marker-end="url(#ah3)"/>
+        <text class="d-w" x="348" y="266">joint stiffness</text>
+        <polyline class="d-dash" points="220,316 190,316 190,58 218,58" marker-end="url(#ah3)"/>
+        <text class="d-w" x="182" y="190" text-anchor="end">chamber p–V curve</text>
+        <line class="d-dash" x1="540" y1="282" x2="540" y2="246" marker-end="url(#ah3)"/>
+        <text class="d-w" x="548" y="268">added mass, thrust coefficients</text>
+
+        <line class="d-line" x1="220" y1="362" x2="260" y2="362"/>
+        <text class="d-t" x="268" y="366">exists in the repo</text>
+        <line class="d-dash" x1="420" y1="362" x2="460" y2="362"/>
+        <text class="d-w" x="468" y="366">described, not implemented</text>
+      </svg>
+    </div>
+    <figcaption>MuJoCo is the reference: Stonefish reuses its fish and parameters, PyElastica ports its hydraulics and depth PID, and SOFA copies its tail geometry and rhythm. The dashed links are the planned next steps, each described in a README: SOFA p–V curves into the OpenModelica chamber table, the OpenModelica FMU driving a MuJoCo joint, SOFA/PyElastica stiffness exported to MuJoCo joints, and OpenFOAM results used to calibrate the cheaper water models.</figcaption>
+  </figure>
+</section>
+
+<!-- ============================ Glossary ============================ -->
+<section id="glossary">
+  <h2>5 · Glossary</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>English</th><th>Polish</th><th>Meaning here</th></tr></thead>
+    <tbody>
+      <tr><th>added mass</th><td>masa dodana</td><td>water that has to be accelerated together with the body; in the FSI demo it lowers the tail resonance from 3.39 Hz to ≈1 Hz</td></tr>
+      <tr><th>CPG (rhythm generator)</th><td>generator rytmu</td><td>controller that produces the periodic volume command for the tail</td></tr>
+      <tr><th>Cosserat rod</th><td>pręt Cosseratów</td><td>1D continuum that bends, twists, shears and stretches (PyElastica)</td></tr>
+      <tr><th>corotational FEM</th><td>MES korotacyjna</td><td>linear elasticity that handles large rotations (SOFA)</td></tr>
+      <tr><th>FMU</th><td>FMU (Functional Mock-up Unit)</td><td>packaged model that other tools can run (OpenModelica export)</td></tr>
+      <tr><th>FSI</th><td>interakcja płyn–struktura</td><td>coupled simulation of water flow and a deforming solid (OpenFOAM + CalculiX)</td></tr>
+      <tr><th>IQN-ILS</th><td>IQN-ILS (quasi-Newton)</td><td>method preCICE uses to make implicit coupling converge</td></tr>
+      <tr><th>Lighthill reactive force</th><td>siła reakcyjna Lighthilla</td><td>thrust from the water pushed sideways by the trailing edge</td></tr>
+      <tr><th>p–V curve</th><td>krzywa ciśnienie–objętość</td><td>chamber pressure as a function of the water volume pumped in</td></tr>
+      <tr><th>PRBM</th><td>model pseudo-sztywny</td><td>soft tail approximated by rigid segments and springs (MuJoCo, Stonefish)</td></tr>
+      <tr><th>relief valve</th><td>zawór przelewowy</td><td>valve that opens at |Δp| = 50 kPa to protect the chambers</td></tr>
+      <tr><th>Strouhal number</th><td>liczba Strouhala</td><td>St = f·A/U; efficient fish swim at St ≈ 0.2–0.4</td></tr>
+      <tr><th>tethered</th><td>na uwięzi</td><td>body held in place while thrust is measured (SOFA, OpenFOAM)</td></tr>
+      <tr><th>VBS</th><td>układ zmiennej pływalności</td><td>variable buoyancy system: a tank whose water volume sets depth (Stonefish)</td></tr>
+    </tbody>
+  </table></div>
+  <p style="font-size:13px;color:var(--muted)">* Licences are not stated in the repository. The licences listed are those of the tools themselves, from their public distributions.</p>
+</section>
+</main>
+</div>

@@ -12,3 +12,12 @@ Educational simulations of a soft, hydraulically actuated robot fish tail.
 | `pyelastica` | `fish_elastica_demo/` | PyElastica | Soft fish as a Cosserat rod: chamber-driven curvature, swimming, ballast, depth PID |
 
 Each branch holds only its own demo. This branch holds `MuJoCo/`; details and instructions: `MuJoCo/README.md`.
+
+## Documentation
+
+A report comparing all six tools covers inputs, outputs, working principle and a capability matrix:
+
+- English: [`docs/research_EN.pdf`](docs/research_EN.pdf) · [`docs/research_EN.html`](docs/research_EN.html)
+- Polski: [`docs/research_PL.pdf`](docs/research_PL.pdf) · [`docs/research_PL.html`](docs/research_PL.html)
+
+Rebuild the PDFs after editing the HTML: `docs/build_pdf.sh` (needs Google Chrome).
