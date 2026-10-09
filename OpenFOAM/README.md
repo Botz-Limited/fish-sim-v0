@@ -177,6 +177,13 @@ python tools/check_results.py      # checks all criteria and refreshes the plots
 Vorticity snapshots: `pvbatch tools/pv_snapshots.py 05-fsi-inflow/U0.1 e5_vorticity_U0.1 4`.
 Manually in ParaView: open `<case>/fluid-openfoam/fluid-openfoam.foam`
 (built-in reader), field `vorticity`, component Z, range e.g. ±20 1/s.
+Ready-made GUI state: `FSI_CASE=05-fsi-inflow/U0.2 paraview --script=tools/pv_gui.py` – vorticity,
+plus **force readouts that follow the animation time**: a text box with the water force on the
+body (head + tail) and on the tail alone (total, pressure and viscous x/y, mN/m), the moment on
+the tail about its root, and arrows of the total force at the body and tail centroids (black =
+body, magenta = tail). Values come from `postProcessing/forcesBody` and `forcesTail`,
+interpolated to the shown time. Play is slowed down (`PV_FRAMES_PER_STEP`, default 2 frames per
+saved step); `PV_FONT` sets the text size.
 
 New case (e.g. a different speed):
 `tools/new-fsi-case.sh my-case --u 0.15 --p0 15000 --freq 1 --t-end 5 && my-case/run.sh`.
