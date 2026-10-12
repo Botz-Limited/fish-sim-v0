@@ -181,7 +181,7 @@ Three bugs in earlier attempts (stage 1), for future readers:
 **Tried without gain:** Metis/AMD/COLAMD ordering (the default is good), `nbThreads`, `ParallelTetrahedronFEMForceField` (matrix assembly stays sequential), CG on the assembled matrix (~10%), `AsyncSparseLDLSolver` alone (unstable, as the SOFA documentation admits).
 
 **Unused options:**
-- Model order reduction (ModelOrderReduction plugin, in the binary) gives up to ~50×, but requires offline training and works only within the trained range. A candidate only for stage 6.
+- Model order reduction (ModelOrderReduction plugin, in the binary) is reported at >100× faster ([Goury & Duriez 2018](https://doi.org/10.1109/TRO.2018.2861900)), but requires offline training and works only within the trained range. A candidate only for stage 6.
 
 ### Performance: CHOLMOD (after stage 2, default solver)
 
