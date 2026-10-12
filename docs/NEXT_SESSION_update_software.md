@@ -6,7 +6,7 @@ Goal: bring tested versions up to date, re-run demos, then update the reports.
 
 ## Order of work (stop after each, commit per step)
 
-### 1. MuJoCo 3.14.0 -> 3.15.0 (OUTDATED, ~15 min)
+### 1. MuJoCo 3.14.0 -> 3.15.0 (DONE 2026-10-12: 41/41 tests pass, all scenario CSVs identical to 3.14.0)
 1. `pip install -U mujoco` in the MuJoCo env (branch `main`, dir `MuJoCo/`).
 2. Re-run the demo and the live-GUI viewer; compare readouts with the old numbers.
 3. If results hold, change "MuJoCo 3.14.0" to "3.15.0" in `research_EN.html:321` and `research_PL.html:321`. If not, report the diff and keep 3.14.0 with a note "3.15.0 released 5 Oct 2026, not tested".
