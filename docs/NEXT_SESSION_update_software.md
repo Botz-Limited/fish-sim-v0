@@ -11,7 +11,7 @@ Goal: bring tested versions up to date, re-run demos, then update the reports.
 2. Re-run the demo and the live-GUI viewer; compare readouts with the old numbers.
 3. If results hold, change "MuJoCo 3.14.0" to "3.15.0" in `research_EN.html:321` and `research_PL.html:321`. If not, report the diff and keep 3.14.0 with a note "3.15.0 released 5 Oct 2026, not tested".
 
-### 2. CalculiX 2.20 vs 2.23 (NUANCED, ~10 min check)
+### 2. CalculiX 2.20 vs 2.23 (DONE 2026-10-12: no 2.21+ adapter upstream; issue #129 closed "not planned", PR #115 for 2.21 abandoned. Kept 2.20 + note)
 1. Branch `openfoam`. The preCICE CalculiX adapter (v2.20.2) is built on CalculiX 2.20, so do NOT upgrade CalculiX alone.
 2. Check https://github.com/precice/calculix-adapter/releases for a 2.23-based adapter.
 3. If none: keep 2.20 and add to EN/PL line 688 "(2.23 exists; the preCICE adapter targets 2.20)".
