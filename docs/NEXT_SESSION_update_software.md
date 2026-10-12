@@ -20,7 +20,7 @@ Goal: bring tested versions up to date, re-run demos, then update the reports.
 1. Branch `pyelastica`. PyElastica 1.0.0 declares Python 3.10-3.13 only.
 2. Re-run the demo on Python 3.13 (numba 0.68 supports it). If it passes, switch the "tested" line (EN/PL line 505) to Python 3.13; otherwise annotate "3.14, not officially supported".
 
-### 4. SOFA claims (UNCONFIRMED, ~20 min)
+### 4. SOFA claims (DONE 2026-10-12: SoftRobots confirmed in binary plugins/; MOR source says >100x not 50x; v26.12 bug is our own test, no issue; v26.12 still unreleased)
 1. Branch `sofa`. List plugins loaded in the v26.06.00 binary; confirm SoftRobots is bundled, or reword to "SoftRobots plugin loaded".
 2. Find the primary source for "model order reduction up to ~50x" (cite the MOR paper) or drop the number.
 3. Link the real issue for the "v26.12-dev bug", or remove the sentence.

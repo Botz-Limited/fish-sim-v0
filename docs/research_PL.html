@@ -631,7 +631,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>Materiał</td><td>E 3·10⁵ Pa, ν 0,45, ρ 1100; kręgosłup E × 20; włókna 2·10⁵ N/m co 4 mm</td><td>materiały hipersprężyste, belki (BeamAdapter)</td></tr>
       <tr><td>Napęd</td><td>f 2 Hz, A_V 17 ml, napełnienie wstępne 20 ml, Q_max 250 ml/s, p_max 50 kPa</td><td>sterowanie ciśnieniem, aktuatory cięgnowe, sterowanie odwrotne (SoftRobots.Inverse)</td></tr>
       <tr><td>Środowisko</td><td>powietrze lub woda; współczynniki oporu C_n 1,0, C_t 0,01</td><td>kontakt i kolizje</td></tr>
-      <tr><td>Numeryka</td><td>krok 2 ms (0,5–1 ms w wodzie), tłumienie Rayleigha, solver cholmod/ldl/cg/warp, poziom siatki test/coarse/medium/fine</td><td>redukcja rzędu modelu (do ≈50× szybciej)</td></tr>
+      <tr><td>Numeryka</td><td>krok 2 ms (0,5–1 ms w wodzie), tłumienie Rayleigha, solver cholmod/ldl/cg/warp, poziom siatki test/coarse/medium/fine</td><td>redukcja rzędu modelu (&gt;100× szybciej wg <a href="https://doi.org/10.1109/TRO.2018.2861900">Goury &amp; Duriez 2018</a>; wymaga treningu offline)</td></tr>
       <tr><td>Sterowanie uruchomieniem</td><td>zmienne środowiskowe <code>FISHSOFA_LEVEL</code>, <code>_MODE</code>, <code>_ENV</code>, <code>_WORKERS</code></td><td>interakcja w GUI</td></tr>
     </tbody>
   </table></div>
@@ -670,7 +670,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li>Brak przepływu i siły reakcyjnej, więc ciąg jest jakościowy. Ogon jest utwierdzony; ryba nie pływa.</li>
     <li>Liniowe czworościany blokują się w cienkich ściankach, co zawyża ciśnienie o 15–25 %. Materiał jest korotacyjny liniowy, nie hipersprężysty.</li>
-    <li>Wolno: jawny opór ogranicza krok do 0,5 ms w wodzie. Błąd w SOFA v26.12-dev trzyma demo na v26.06.</li>
+    <li>Wolno: jawny opór ogranicza krok do 0,5 ms w wodzie. W naszych testach SOFA master (v26.12-dev, niewydany) dawał drgającą lub rozbiegającą się komorę ze sztywnymi włóknami, więc demo zostaje na v26.06 (szczegóły w <code>SOFA/README.md</code>; zgłoszenia upstream brak).</li>
     <li>Eksport równoważnych sztywności przegubów do MuJoCo (etap 7) nie został wykonany.</li>
   </ul>
 </section>

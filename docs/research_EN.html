@@ -631,7 +631,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>Material</td><td>E 3·10⁵ Pa, ν 0.45, ρ 1100; spine E × 20; fibers 2·10⁵ N/m every 4 mm</td><td>hyperelastic materials, beams (BeamAdapter)</td></tr>
       <tr><td>Actuation</td><td>f 2 Hz, A_V 17 ml, prefill 20 ml, Q_max 250 ml/s, p_max 50 kPa</td><td>pressure control, cable actuators, inverse control (SoftRobots.Inverse)</td></tr>
       <tr><td>Environment</td><td>air or water; drag coefficients C_n 1.0, C_t 0.01</td><td>contact and collision</td></tr>
-      <tr><td>Numerics</td><td>step 2 ms (0.5–1 ms in water), Rayleigh damping, solver cholmod/ldl/cg/warp, mesh level test/coarse/medium/fine</td><td>model order reduction (up to ≈50× faster)</td></tr>
+      <tr><td>Numerics</td><td>step 2 ms (0.5–1 ms in water), Rayleigh damping, solver cholmod/ldl/cg/warp, mesh level test/coarse/medium/fine</td><td>model order reduction (&gt;100× faster per <a href="https://doi.org/10.1109/TRO.2018.2861900">Goury &amp; Duriez 2018</a>; needs offline training)</td></tr>
       <tr><td>Run control</td><td>environment variables <code>FISHSOFA_LEVEL</code>, <code>_MODE</code>, <code>_ENV</code>, <code>_WORKERS</code></td><td>GUI interaction</td></tr>
     </tbody>
   </table></div>
@@ -670,7 +670,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li>No flow and no reactive force, so the thrust is qualitative. The tail is clamped; the fish does not swim.</li>
     <li>Linear tetrahedra lock in thin walls, which overestimates pressure by 15–25 %. The material is corotational linear, not hyperelastic.</li>
-    <li>Slow: explicit drag limits the step to 0.5 ms in water. A bug in SOFA v26.12-dev keeps the demo on v26.06.</li>
+    <li>Slow: explicit drag limits the step to 0.5 ms in water. In our tests SOFA master (v26.12-dev, unreleased) left a fibre-stiffened chamber vibrating or diverging, so the demo stays on v26.06 (details in <code>SOFA/README.md</code>; no upstream issue filed).</li>
     <li>Exporting equivalent joint stiffnesses to MuJoCo (stage 7) was not done.</li>
   </ul>
 </section>
