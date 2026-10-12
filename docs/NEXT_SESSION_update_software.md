@@ -16,7 +16,7 @@ Goal: bring tested versions up to date, re-run demos, then update the reports.
 2. Check https://github.com/precice/calculix-adapter/releases for a 2.23-based adapter.
 3. If none: keep 2.20 and add to EN/PL line 688 "(2.23 exists; the preCICE adapter targets 2.20)".
 
-### 3. PyElastica on Python 3.14 (NUANCED, ~10 min)
+### 3. PyElastica on Python 3.14 (DONE 2026-10-12: annotated only, no 3.13 re-run; PyPI classifiers list 3.10-3.13, requires_python ">=3.10")
 1. Branch `pyelastica`. PyElastica 1.0.0 declares Python 3.10-3.13 only.
 2. Re-run the demo on Python 3.13 (numba 0.68 supports it). If it passes, switch the "tested" line (EN/PL line 505) to Python 3.13; otherwise annotate "3.14, not officially supported".
 
