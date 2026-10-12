@@ -33,7 +33,7 @@ Goal: bring tested versions up to date, re-run demos, then update the reports.
 - MuJoCo flex bodies: mark as "observed", docs are silent.
 - Strouhal glossary: "St ~0.2-0.4 (0.25-0.35 for most fish)", cite Taylor et al. 2003 and Triantafyllou et al. 1993.
 
-### 6. Finish
+### 6. Finish (DONE 2026-10-12: PDFs rebuilt, fact-check status table added)
 1. Apply all edits to BOTH `research_EN.html` and `research_PL.html`.
 2. `bash docs/build_pdf.sh` to rebuild the PDFs.
 3. Update the verdicts in the fact-check file, then commit.

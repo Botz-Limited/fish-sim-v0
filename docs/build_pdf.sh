@@ -4,7 +4,7 @@
 # skeleton), so wrap each one in a minimal skeleton before printing.
 set -euo pipefail
 cd "$(dirname "$0")"
-CHROME=${CHROME:-google-chrome}
+CHROME=${CHROME:-$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || echo google-chrome)}
 
 for lang in EN PL; do
   src="research_${lang}.html"

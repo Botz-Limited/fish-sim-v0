@@ -17,6 +17,27 @@ Top problems: (1) OpenModelica licence is AGPL-3 / OSMC-PL, not GPL-3; (2) MuJoC
 
 ---
 
+## Status after fixes (2026-10-12)
+
+All 12 non-CONFIRMED findings are resolved in `research_EN.html` and `research_PL.html` (PDFs rebuilt). The original verdicts below are kept as the audit record.
+
+| # | Resolution | Commit |
+|---|---|---|
+| OM-1 | Licence changed to AGPL-3 / OSMC-PL. | 21d401e7 |
+| MJ-1 | Re-tested on MuJoCo 3.15.0: 41/41 tests pass, all scenario CSVs bit-identical to 3.14.0. Version bumped. | 9be159a0 |
+| OF-1 | No adapter for CalculiX > 2.20 upstream (issue #129 closed "not planned", PR #115 for 2.21 abandoned). Kept 2.20, added "(2.23 exists; the preCICE adapter v2.20.2 targets 2.20)". | 85e0debe |
+| PE-1 | Not re-run on 3.13. Annotated "works; PyElastica officially lists 3.10-3.13". Note: PyPI `requires_python` is ">=3.10"; 3.10-3.13 are only the classifiers. | f95b36ef |
+| SO-1 | CONFIRMED: `plugins/SoftRobots` (and SoftRobots.Inverse, STLIB, ModelOrderReduction) ship in the official `SOFA_v26.06.00_Linux` zip; `check_sofa.log` shows `libSoftRobots.so` loaded. Wording unchanged. | 5b0d6533 |
+| SO-2 | Primary source (Goury & Duriez, IEEE T-RO 34(6):1565-1576, 2018, doi:10.1109/TRO.2018.2861900) says "acceleration factors of more than 100". Changed to ">100x" with citation, also in the `sofa` branch README. | 5b0d6533, 05147127 (`sofa`) |
+| SO-3 | The bug is this project's own test of SOFA master (documented in the `sofa` branch README), no upstream issue. Reworded as own observation. v26.12 still unreleased (latest v26.06.00). | 5b0d6533 |
+| SF-1 | Reworded to "automatically fitted sphere, cylinder or ellipsoid". The demo does not record which solid was fitted, so "ellipsoid in this demo" was not added. | 13faf0ce |
+| SF-2 | Reworded to "geometric waves (GPU-computed; body interaction still experimental)". | 13faf0ce |
+| MJ-2 | Now cites `engine_passive.c`: the acceleration term shown in the docs is omitted. | 13faf0ce |
+| MJ-3 | Marked "observed; the docs are silent". | 13faf0ce |
+| ST-1 | "St ~0.2-0.4, most fish 0.25-0.35", citing Taylor et al. 2003 (doi:10.1038/nature02000) and Triantafyllou et al. 1993 (doi:10.1006/jfls.1993.1012). | 13faf0ce |
+
+---
+
 ## INCORRECT / OUTDATED
 
 | # | Claim (exact quote) | Verdict | Source URL | Evidence / quote | Suggested fix |
