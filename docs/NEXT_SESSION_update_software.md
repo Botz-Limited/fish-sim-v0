@@ -26,7 +26,7 @@ Goal: bring tested versions up to date, re-run demos, then update the reports.
 3. Link the real issue for the "v26.12-dev bug", or remove the sentence.
 4. Check if v26.12 is released; if yes, retry it.
 
-### 5. Wording fixes, no re-test (NUANCED)
+### 5. Wording fixes, no re-test (DONE 2026-10-12; Stonefish fitted solid not recorded by the demo, so "ellipsoid in this demo" left out)
 - Stonefish added mass: "an automatically fitted sphere, cylinder or ellipsoid (ellipsoid in this demo)" - verify the demo's choice first.
 - Stonefish "waves (GPU only)": docs say GPU FFT waves, body interaction "under development"; reword.
 - MuJoCo added mass: say "per the source (`engine_passive.c`), only the gyroscopic part is applied; docs differ".

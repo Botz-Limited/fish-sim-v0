@@ -343,7 +343,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li><b>Ciało.</b> Kadłub to elipsoida na przegubie swobodnym. Ogon to pięć elipsoid na zawiasach ze sprężynami i tłumikami, czyli przybliżenie silikonu modelem pseudo-sztywnym. Płetwa ogonowa to płaska elipsoida na ostatnim segmencie.</li>
     <li><b>Woda.</b> Wbudowany model elipsoidalny MuJoCo daje opór czołowy i boczny, opór obrotowy, siłę nośną Kutty i siłę Magnusa dla każdej części. Nie ma pola przepływu.</li>
-    <li><b>Masa dodana, poprawiona.</b> MuJoCo zachowuje tylko żyroskopową część siły masy dodanej. Sama ta część pchała rybę do tyłu (4,5 cm/s zamiast 22 cm/s). Demo ją wyłącza i dodaje masę dodaną jako <code>armature</code> przegubów.</li>
+    <li><b>Masa dodana, poprawiona.</b> MuJoCo stosuje tylko żyroskopową część siły masy dodanej: kod źródłowy (<code>engine_passive.c</code>) pomija człon z przyspieszeniem, który pokazuje dokumentacja. Sama ta część pchała rybę do tyłu (4,5 cm/s zamiast 22 cm/s). Demo ją wyłącza i dodaje masę dodaną jako <code>armature</code> przegubów.</li>
     <li><b>Wyporność.</b> MuJoCo nie liczy wyporu. Demo przykłada go do każdej bryły, ze środkiem wyporu stałym w układzie kadłuba, więc przechył daje moment prostujący. Masa kadłuba jest wyliczana z neutralnej pływalności przy pęcherzu wypełnionym do połowy.</li>
     <li><b>Hydraulika.</b> Model w Pythonie działa przed każdym krokiem fizyki: pompa pierwszego rzędu, Δp = (V_p − A·r·L)/C_h obcięte do ±50 kPa i siła cięgna F = A·r·Δp rozłożona na trzy napędzane przeguby z wagami od 1 do 0,4.</li>
     <li><b>Sterowanie.</b> Objętościowy generator rytmu dla ogona i kaskadowy PID głębokości ustawiający objętość pęcherza, za nim pompa balastu z ograniczeniem wydajności.</li>
@@ -356,7 +356,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>Środowisko</td><td>woda ρ 1000 kg/m³, μ 0,0009 Pa·s, krok 2 ms (<code>implicitfast</code>), dno na −3 m</td><td>mapy wysokości, siatki terenu</td></tr>
       <tr><td>Geometria</td><td>kadłub-elipsoida 0,25 × 0,10 × 0,10 m; 5 segmentów ogona × 40 mm zwężanych do 0,4; płetwa 70 × 6 × 120 mm</td><td>pliki MJCF lub URDF, siatki STL/OBJ</td></tr>
       <tr><td>Przeguby</td><td>±35°, sztywność napędzanych 0,3 N·m/rad, sztywność pasywnych z rezonansu 3 Hz, tłumienie 0,005 N·m·s/rad</td><td>dowolne typy przegubów, cięgna, więzy równościowe</td></tr>
-      <tr><td>Model wody</td><td><code>fluidcoef</code> = blunt 0,5, slender 0,25, angular 1,5, Kutta 1,0, Magnus 1,0; tryb masy dodanej</td><td>odkształcalne bryły <code>flex</code> (model płynu ich nie obejmuje)</td></tr>
+      <tr><td>Model wody</td><td><code>fluidcoef</code> = blunt 0,5, slender 0,25, angular 1,5, Kutta 1,0, Magnus 1,0; tryb masy dodanej</td><td>odkształcalne bryły <code>flex</code> (zaobserwowane: model płynu ich nie uwzględniał; dokumentacja tego nie mówi)</td></tr>
       <tr><td>Hydraulika</td><td>A_eff 4·10⁻⁴ m², r_eff 0,05 m, C_h 8·10⁻¹¹ m³/Pa, p_max 50 kPa, komora 30 ml, Q_max 60 ml/s, τ_pump 30 ms</td><td>dowolny model w Pythonie sprzężony przez <code>ctrl</code></td></tr>
       <tr><td>Balast i sterowanie</td><td>pęcherz 0–40 ml przy 10 ml/s; wzmocnienia PID głębokości; ogon 2 Hz, A_V 8 ml, V_bias, K_v 10 s⁻¹</td><td>czujniki (IMU, siła, dotyk), kamery, wsady GPU (MJX) do uczenia ze wzmocnieniem</td></tr>
       <tr><td>Wejście na żywo</td><td>klawisze podglądu: ←/→ V_bias ±0,5 ml, ↑/↓ częstotliwość ±0,25 Hz, PgUp/PgDn głębokość ±0,25 m, spacja start/stop</td><td>dowolny callback w Pythonie</td></tr>
@@ -434,7 +434,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <h3>Zasada działania</h3>
   <ul>
     <li><b>Ciało.</b> Głowa i pięć ogniw ogona na przegubach obrotowych oraz płetwa. Siatki generuje <code>make_meshes.py</code> (320 trójkątów do fizyki, 5120 do wyświetlania), który też bilansuje masę i dobiera stalowy balast.</li>
-    <li><b>Woda z geometrii.</b> Wypór liczony jest z ciśnienia hydrostatycznego na każdym trójkącie. Opór ciśnieniowy działa na każdą ściankę, tarcie wzdłuż powierzchni, a masa dodana pochodzi z dopasowanej elipsoidy.</li>
+    <li><b>Woda z geometrii.</b> Wypór liczony jest z ciśnienia hydrostatycznego na każdym trójkącie. Opór ciśnieniowy działa na każdą ściankę, tarcie wzdłuż powierzchni, a masa dodana pochodzi z automatycznie dopasowanej kuli, walca lub elipsoidy.</li>
     <li><b>Poprawki w C++.</b> Opór ścianek nie daje siły nośnej, więc <code>FinLift.cpp</code> dodaje siłę nośną płaskiej płyty na płetwie. Bez niej ryba osiąga tylko 2,7 cm/s zamiast 34 cm/s. Tarcie z biblioteki było ≈250× za duże i zastąpiono je prawem Blasiusa.</li>
     <li><b>Napęd.</b> <code>Hydraulics.cpp</code> zawiera ten sam skupiony model pompy i komór co MuJoCo. <code>TailDriver.cpp</code> przykłada momenty τ_i = w_i·F − k_i·θ_i jako napęd wewnętrzny (akcja równa reakcji).</li>
     <li><b>Czujniki i sterowanie.</b> Czujnik ciśnienia (50 Hz, σ 50 Pa) i IMU (100 Hz) są zaszumione. PID głębokości czyta filtrowane ciśnienie i ustawia objętość wody w VBS; regulator PI kursu na odchyleniu z IMU ustawia V_bias.</li>
@@ -446,7 +446,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <thead><tr><th>Kategoria</th><th>Używane w demie</th><th>Możliwe też w Stonefish</th></tr></thead>
     <tbody>
       <tr><td>Plik konfiguracji</td><td><code>config/default.json</code>, łatki scenariuszy <code>sN_*.json</code>, pojedyncze nadpisania <code>--set klucz=wartość</code> (bez rekompilacji)</td><td>dowolny parametr udostępniony przez aplikację</td></tr>
-      <tr><td>Scenariusz XML</td><td><code>fish_base.scn</code>: ogniwa, przeguby, silniki, VBS, czujnik ciśnienia, IMU, enkodery; <code>world_base.scn</code>: dno, ocean, prąd</td><td>fale (tylko GPU), inne typy prądów, własne współczynniki hydrodynamiczne</td></tr>
+      <tr><td>Scenariusz XML</td><td><code>fish_base.scn</code>: ogniwa, przeguby, silniki, VBS, czujnik ciśnienia, IMU, enkodery; <code>world_base.scn</code>: dno, ocean, prąd</td><td>fale geometryczne (liczone na GPU; oddziaływanie z bryłami wciąż eksperymentalne), inne typy prądów, własne współczynniki hydrodynamiczne</td></tr>
       <tr><td>Geometria i materiały</td><td>siatki OBJ; gęstość kadłuba 600, silikon 1100, stalowy balast 7850 kg/m³ (dobierany automatycznie)</td><td>dowolna geometria OBJ</td></tr>
       <tr><td>Hydraulika i rytm</td><td>te same wartości co w MuJoCo: Q_max 60 ml/s, A_V 8 ml, f 2 Hz, p_max 50 kPa; nachylenie siły nośnej płetwy 2,8/rad</td><td>pędniki, stery, serwa</td></tr>
       <tr><td>Czujniki</td><td>ciśnienie 50 Hz z σ 50 Pa; IMU 100 Hz z szumem kąta, żyroskopu i akcelerometru</td><td>kamery, sonar, DVL, GPS, kamera termowizyjna</td></tr>
@@ -1128,7 +1128,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><th>interakcja płyn–struktura</th><td>FSI</td><td>sprzężona symulacja przepływu wody i odkształcającego się ciała (OpenFOAM + CalculiX)</td></tr>
       <tr><th>IQN-ILS</th><td>IQN-ILS (quasi-Newton)</td><td>metoda, którą preCICE doprowadza sprzężenie niejawne do zbieżności</td></tr>
       <tr><th>krzywa ciśnienie–objętość</th><td>p–V curve</td><td>ciśnienie w komorze w funkcji wpompowanej objętości wody</td></tr>
-      <tr><th>liczba Strouhala</th><td>Strouhal number</td><td>St = f·A/U; ryby pływają wydajnie przy St ≈ 0,2–0,4</td></tr>
+      <tr><th>liczba Strouhala</th><td>Strouhal number</td><td>St = f·A/U; zwierzęta pływają wydajnie przy St ≈ 0,2–0,4, większość ryb 0,25–0,35 (<a href="https://doi.org/10.1038/nature02000">Taylor et al. 2003</a>; <a href="https://doi.org/10.1006/jfls.1993.1012">Triantafyllou et al. 1993</a>)</td></tr>
       <tr><th>masa dodana</th><td>added mass</td><td>woda, którą trzeba przyspieszyć razem z ciałem; w demie FSI obniża rezonans ogona z 3,39 Hz do ≈1 Hz</td></tr>
       <tr><th>MES korotacyjna</th><td>corotational FEM</td><td>sprężystość liniowa poprawnie obsługująca duże obroty (SOFA)</td></tr>
       <tr><th>model pseudo-sztywny</th><td>PRBM</td><td>miękki ogon przybliżony sztywnymi segmentami i sprężynami (MuJoCo, Stonefish)</td></tr>
