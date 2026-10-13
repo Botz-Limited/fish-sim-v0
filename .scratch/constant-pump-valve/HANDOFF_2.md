@@ -6,6 +6,8 @@ User wants ADHD output mode (`/i-have-adhd:i-have-adhd`). **Commit is authorised
 ## UPDATE (end of session, 20:50)
 All six branches were **committed** (not pushed): main 94be7ff, stonefish 57d54ef, openmodelica a32e640, pyelastica 22c27e9, sofa f943d0d, openfoam 98172ff. Per the user's rule (>15 min left -> stop and commit) **SOFA stage 6 was aborted** after ~63 min (it had not finished). So: SOFA `results/s6_*`, `sofa_freq_sweep.png` and the README numbers are still from the OLD sine-pump model, and SOFA stages 4+5 are new. To finish: rerun `cd ../fish-sim-v0-wt/sofa/SOFA && source scripts/env.sh && python scripts/run_stage6.py` (≈1 h+, 19 runs), then do steps 2-3 below and make a follow-up commit on `sofa`. Step 4 ("Commit") is done for everything else.
 
+**Worktrees are now DETACHED** (the user could not `git checkout <branch>` in the main folder because each branch was checked out in `../fish-sim-v0-wt/<branch>`). The wt folders keep all files; branches `stonefish/openmodelica/pyelastica/sofa/openfoam` are free to check out in the main repo. For the SOFA follow-up commit: either `git -C ../fish-sim-v0-wt/sofa checkout sofa` (only if the main folder is not on `sofa`) or commit in the detached wt and `git branch -f sofa HEAD` / cherry-pick. When all work is done, consider `git worktree remove ../fish-sim-v0-wt/<name>` (keep untracked stuff: `OpenFOAM/results/old_sine/`, venvs, builds).
+
 ## Decisions applied (from HANDOFF.md)
 1. Q_const ≈ 7.5·A_V on every branch: MuJoCo/Stonefish/PyElastica 60 ml/s, SOFA 100 ml/s (A_V 13 ml). f_track ≈ 1.2 Hz < tail_freq_min 1.5 Hz, so the valve switches exactly 2×/cycle (OpenModelica 2.7× at 1.5 Hz).
 2. OpenModelica 2.7 switches/cycle + ReliefValveDemo redesign accepted.
