@@ -7,7 +7,7 @@ TOOLS="$d/tools"
 exec > >(tee --append "$LOGFILE") 2>&1
 
 python "$TOOLS/make_geometry.py" solid .
-python "$TOOLS/make_actuation.py" . --p0 15000 --freq 0.5 --t-end 16
+python "$TOOLS/make_actuation.py" . --p0 15000 --freq 2.5 --t-end 3.2
 ccx_preCICE -i fsi -precice-participant Solid
 
 close_log

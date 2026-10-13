@@ -17,6 +17,14 @@ Status: **stages 0–6 completed** (7.10.2026); `tools/check_results.py`: 47 PAS
 the resonance in water; explained in NOTES.md). Stage 7 (3D) not run – requires
 confirming the computation time.
 
+**Actuation changed (13.10.2026):** `make_actuation.py` now generates the chamber
+pressure from a constant-speed pump + ±1 valve model (section 3). The valve holds
+each state ≥ 0.2 s (≤ 5 switches/s), so the tail frequency is limited to
+**1.5–2.5 Hz**; the stage 4–6 case setups were moved into that range (stages 4/5:
+1 → 1.5 Hz, stage 6: 1.75 / 2 / 2.5 Hz). All FSI results below were computed with the
+**old sinusoidal pressure at the old frequencies** (0.5 / 1 / 1.5 / 2 Hz) and have not
+been re-run.
+
 Log of problems and their diagnoses: [NOTES.md](NOTES.md). Exact versions: [versions.txt](versions.txt).
 
 ---
@@ -66,11 +74,12 @@ OpenFOAM/
   03-fsi-passive/         FSI: passive tail in a stream; explicit/ vs implicit/
   04-fsi-actuated/        FSI: chamber pressure actuation, still water; water/ vs dry/
   05-fsi-inflow/          FSI: actuation + inflow U = 0.05 / 0.1 / 0.2 m/s
-  06-freq-sweep/          FSI: f = 0.5 / 1.5 / 2 Hz (1 Hz = stage 4)
+  06-freq-sweep/          FSI: f = 1.75 / 2 / 2.5 Hz (1.5 Hz = stage 4)
   tools/
     params.py             ALL physical and geometric parameters (placeholders)
     make_geometry.py      gmsh: 2D tail geometry with chambers -> CalculiX and OpenFOAM
-    make_actuation.py     chamber pressure waveform (*AMPLITUDE/*DLOAD)
+    make_actuation.py     chamber pressure waveform (*AMPLITUDE/*DLOAD): valve model (default) or old sine
+    test_make_actuation.py  quick checks of the valve model (python tools/test_make_actuation.py)
     fluid-base/           OpenFOAM case template (commented)
     precice-base/         precice-config templates (implicit/explicit), fsi.inp, config.yml
     new-fsi-case.sh       creates an FSI case from the templates (parameters: U, dt, T, P0, f, scheme)
@@ -107,9 +116,76 @@ Each FSI case has the same layout as the preCICE tutorials: `fluid-openfoam/run.
 - Silicone: E = 3e5 Pa, ν = 0.45, ρ = 1070 kg/m³, linear elastic, **NLGEOM**
   analysis (large deflections). C3D8 elements, one layer in z, z displacement
   locked (plane strain).
-- Actuation: pressure on the cell walls (`*DLOAD` + `*AMPLITUDE`):
-  p_L = P0·r(t)·max(0, sin 2πft), p_R = P0·r(t)·max(0, −sin 2πft), ramp r(t)
-  over the first period.
+- Actuation: pressure on the cell walls (`*DLOAD` + `*AMPLITUDE`), from the
+  **valve model** (default since 2026-10-13, see below): constant-speed pump
+  with a constant flow `Q_const` + directional valves with only two states
+  (s = ±1). p_L = max(0, Δp), p_R = max(0, −Δp). The old sine
+  (p_L = P0·r(t)·max(0, sin 2πft), p_R = P0·r(t)·max(0, −sin 2πft)) is kept as
+  `make_actuation.py --waveform sine`. Ramp r(t) over the first period in both.
+
+### Actuation: constant pump + ±1 valves (valve model)
+
+The real hardware is a pump with **constant speed and constant flow `Q_const`**
+(replaces `Q_max` of the other demos) and directional valves that only choose the
+flow direction: s = +1 (R→L) or s = −1 (L→R), there is no closed state.
+`tools/make_actuation.py` simulates this before the run and writes the result as
+the `*AMPLITUDE` table (1 ms sampling, CalculiX interpolates linearly):
+
+    V_ref = r(t)·A_V·sin 2πft                     pumped-volume reference (as in the other demos)
+    e = V_ref − V_p;  e > δ → s = +1;  e < −δ → s = −1;  otherwise s unchanged (start s = +1)
+    the relay is ignored until t − t_switch ≥ valve_min_dwell = 0.2 s (valve ≤ 5 switches/s)
+    dQ/dt = (s·Q_const − Q)/τ_valve,  dV_p/dt = Q
+    Δp = clip(V_p/C_h, ±p_max)
+
+**Volume → pressure.** This case prescribes pressure, so it had no volume–pressure
+relation. We use the hydraulic spring of the other demos, Δp = (V_p − A_r·L)/C_h,
+with a **rigid-tail assumption** (A_r·L = 0): one lumped stiffness 1/C_h, with
+C_h = A_V/P0 = 5.3·10⁻¹⁰ m³/Pa by default (`--compliance`). A perfectly tracked
+V_ref would then give exactly the old peak P0 = 15 kPa, so both waveforms are
+comparable. The rigid-tail assumption ignores that a bending tail “makes room” for
+fluid (it overestimates the pressure for a given volume); full volume coupling
+would need the chamber volume from CalculiX at every step – not done.
+
+Values (all PLACEHOLDER, as in MuJoCo): `Q_const` = 60 ml/s, A_V = 8 ml,
+`tau_valve` = 20 ms, δ = 1 ml, p_max = 50 kPa, `valve_min_dwell` = 0.2 s. The 2D
+model has no real chamber volume, so A_V and `Q_const` only set the ratio
+**f_track = Q_const/(2π·A_V) ≈ 1.19 Hz**.
+
+**Frequency range 1.5–2.5 Hz** (`TAIL_FREQ_MIN`, `TAIL_FREQ_MAX`). Below f_track the
+relay would have to follow V_ref with a sawtooth (many switches per cycle), which a
+valve limited to 5 switches/s cannot do; at 1.25 Hz the dwell-limited valve still
+adds 1–2 extra switches per cycle, hence the minimum of 1.5 Hz (user decision, the same
+on all demos). The maximum 1/(2·valve_min_dwell) = 2.5 Hz is 2 switches per cycle with
+each state held 0.2 s. `make_actuation.py` **rejects** a valve-waveform frequency
+outside the range with an error (no silent clamping – the case name and `case.txt`
+would no longer match the actuation). P0 = 0 (passive) and `--waveform sine` are not
+limited.
+
+| f | valve switches / cycle | min. gap between switches | V_p amplitude (triangle Q_const/(4f)) | peak Δp (steady) |
+|---|---|---|---|---|
+| 1.5 Hz | 2.0 | 0.200 s | 9.2 ml (10.0) | 17.2 kPa |
+| 1.75 Hz | 2.1 | 0.200 s | 7.7 ml (8.6) | 14.5 kPa |
+| 2 Hz | 2.1 | 0.200 s | 6.7 ml (7.5) | 12.5 kPa |
+| 2.25 Hz | 2.1 | 0.200 s | 5.8 ml (6.7) | 11.0 kPa |
+| 2.5 Hz | 2.0 | 0.200 s | 5.2 ml (6.0) | 10.8 kPa |
+
+(P0 = 15 kPa, 8 s; switches counted after the ramp; the ~2.1 includes the switches
+during the start-up transient.) In the whole range the valve switches only at the
+peaks, the volume and pressure are triangular, lag V_ref, and the amplitude falls
+as 1/f (“end of tracking”, formerly “the pump saturates”). At exactly 2.5 Hz the
+dwell equals half a period, so the switch times are locked to the dwell and the
+triangle keeps a small constant offset (+0.6 ml, ≈ +1.1 kPa) left from the start-up.
+The relief valve stays as a separate safeguard (not reached here, max. ≈ 17 kPa).
+
+> **The FSI results in section 6 (stages 4–6) were computed with the OLD sinusoidal
+> pressure at the old frequencies** (stages 4/5: 1 Hz, stage 6: 0.5 / 1.5 / 2 Hz;
+> `--waveform sine`) and have not been re-run with the valve model or the new
+> frequencies. To reproduce them, add `--waveform sine` and the old `--freq` to the
+> `make_actuation.py` line in `solid-calculix/run.sh` (and restore the old end
+> times: stage 6 f0.5 had T_END = 16 s). Expected differences with the valve model:
+> triangular instead of sinusoidal pressure, a smaller and later stroke at higher f,
+> and much weaker motion than at the old 1 Hz point, which sat on the resonance in
+> water (~1 Hz, stage 6) – 1 Hz is now outside the valve range.
 
 ### Simplifications you need to understand
 
@@ -124,7 +200,9 @@ boundary-layer separation carry errors. A “laminar-correct” variant = lower 
 (positive-displacement) hydraulic pump rather prescribes *volume* – with
 prescribed pressure the tail can “give way” under the water load, whereas with
 prescribed volume the pressure rises when the water resists. This is an
-approximation; SOFA (the neighbouring demo) prescribes volume.
+approximation; SOFA (the neighbouring demo) prescribes volume. The valve model
+(above) gets closer: the pressure follows a pumped volume, but through a fixed
+stiffness with a rigid tail, not through the actual chamber deformation.
 
 ---
 
@@ -151,7 +229,7 @@ approximation; SOFA (the neighbouring demo) prescribes volume.
    number ~0.85 (at U = 0.2 m/s), at the tip corners.
 5. **Numerical damping in CalculiX** (`*DYNAMIC, ALPHA=-0.2`, HHT scheme).
    Without it the undamped axial modes of the soft tail made Newton diverge – even
-   without water. HHT damping ∝ (ω·Δt)³ – negligible in the 0.5–2 Hz band.
+   without water. HHT damping ∝ (ω·Δt)³ – negligible in the 0.5–2.5 Hz band.
 
 ---
 
@@ -171,7 +249,7 @@ python tools/check_results.py      # checks all criteria and refreshes the plots
 | 3 | `03-fsi-passive/run_all.sh` | 10 min (explicit 20 s, implicit 592 s) |
 | 4 | `04-fsi-actuated/run_all.sh` | 16 min for 4 s; 8 s version: 80 min (in parallel with stage 5) |
 | 5 | `05-fsi-inflow/run_all.sh` | 30 min per speed on its own; 2 h in parallel with stage 4 |
-| 6 | `06-freq-sweep/run_all.sh` | f = 0.5 Hz (16 s): 102 min, 1.5 Hz: 22 min, 2 Hz: 16 min |
+| 6 | `06-freq-sweep/run_all.sh` | old sweep: f = 0.5 Hz (16 s): 102 min, 1.5 Hz: 22 min, 2 Hz: 16 min (new 1.75 / 2 / 2.5 Hz: 4.6 / 4 / 3.2 s, not run) |
 | 4–6 | `setsid nohup ./run_parallel.sh &` (two queues in parallel, logs in `logs/`) | 3 h 47 min |
 
 Vorticity snapshots: `pvbatch tools/pv_snapshots.py 05-fsi-inflow/U0.1 e5_vorticity_U0.1 4`.
@@ -186,14 +264,18 @@ interpolated to the shown time. Play is slowed down (`PV_FRAMES_PER_STEP`, defau
 saved step); `PV_FONT` sets the text size.
 
 New case (e.g. a different speed):
-`tools/new-fsi-case.sh my-case --u 0.15 --p0 15000 --freq 1 --t-end 5 && my-case/run.sh`.
+`tools/new-fsi-case.sh my-case --u 0.15 --p0 15000 --freq 1.5 --t-end 5 && my-case/run.sh`
+(valve waveform: f within 1.5–2.5 Hz).
 
 ---
 
 ## 6. Results – what each plot shows
 
 All forces per metre of span (2D model). Parameters = placeholders,
-so the numbers are for comparisons, not predictions.
+so the numbers are for comparisons, not predictions. Stages 4–6 use the **old
+sinusoidal pressure** (`--waveform sine`) at the **old frequencies** (0.5–2 Hz), not
+the valve model and its 1.5–2.5 Hz range (section 3); the case directories now hold
+the new setups (the old `06-freq-sweep/f0.5` and `f1.5` became `f2.5` and `f1.75`).
 
 ### Stage 0 – reference `e0_flap_tip.png`
 Tip displacement of an elastic flap in a channel (official preCICE tutorial)
@@ -224,7 +306,7 @@ added mass effect: with silicone density ≈ water density, explicit coupling is
 unstable for every time step (Causin, Gerbeau, Nobile 2005).
 
 ### Stage 4 – actuation in still water `e4_tip_angle_water_vs_dry.png`, `e4_thrust_cycle.png`
-Tip angle under a sinusoidal pressure (P0 = 15 kPa, f = 1 Hz) in water and
+Tip angle under a sinusoidal pressure (old actuation, `--waveform sine`; P0 = 15 kPa, f = 1 Hz) in water and
 dry. **In water the amplitude is larger** (28.3 vs 20.0 mm) and lags
 by ~71°. The water adds mass and lowers the tail's natural frequency from 3.39 Hz
 (dry) to around 1 Hz (stage 6), so the 1 Hz actuation hits the resonance in water.
@@ -246,7 +328,11 @@ check: a travelling wave (chambers phase-shifted along the tail), a sharp/
 flexible caudal fin (NOTES.md, stage 5).
 
 ### Stage 6 – frequency sweep `e6_freq_sweep.png`
-Amplitude and mean thrust vs frequency (still water, P0 = 15 kPa).
+Amplitude and mean thrust vs frequency (still water, P0 = 15 kPa, old sinusoidal
+actuation at the old points 0.5 / 1 / 1.5 / 2 Hz – the valve range is now
+1.5–2.5 Hz with a triangular, lagging pressure; the new sweep 1.5 / 1.75 / 2 / 2.5 Hz
+has not been run). Note: the whole valve range lies **above the resonance in water
+(~1 Hz)**, where the old sweep already showed a fast drop of amplitude.
 Amplitude: 20.7 / **28.3** / 14.8 / 3.1 mm at 0.5 / 1 / 1.5 / 2 Hz –
 **resonance in water ~1 Hz**, above it the response drops quickly (the water mass
 dominates). Thrust: 0 ± 5, 87 ± 99, −142 ± 61, −23 ± 32 mN/m – only at 1.5 Hz
@@ -268,7 +354,9 @@ vortex, blue = clockwise. Manually in ParaView: open
 - **Laminar flow** at a realistically transitional/turbulent Re (section 3).
 - **Fixed head** – no free swimming, recoil or head yaw;
   the “balance speed” from stage 5 is only an estimate for a tethered fish.
-- **Pressure actuation**, not volume actuation (section 3).
+- **Pressure actuation**, not volume actuation (section 3). The valve model
+  converts pumped volume to pressure with a fixed stiffness and a rigid tail;
+  the published FSI results still use the old sine.
 - **Linear elastic material** (with NLGEOM); silicone at large strains
   is hyperelastic, and there is no material damping.
 - **Limited amplitude** due to fluid mesh deformation (~15% L).

@@ -82,7 +82,7 @@
   <coupling-scheme:parallel-implicit>
     <!-- Time window = time step of both solvers (DELTA_T in caseParams and in fsi.inp) -->
     <time-window-size value="0.0025" />
-    <max-time value="5.335" />
+    <max-time value="4.575" />
     <participants first="Fluid" second="Solid" />
     <exchange data="Force" mesh="Solid-Mesh" from="Fluid" to="Solid" />
     <exchange data="Displacement" mesh="Solid-Mesh" from="Solid" to="Fluid" />

@@ -29,10 +29,10 @@ U_RAMP          0.5;
 // With preCICE coupling the step is set by time-window-size in precice-config.xml,
 // but OpenFOAM must get the same deltaT.
 DELTA_T         0.0025;
-END_TIME        5.335;
+END_TIME        3.2;
 
 // How often (in seconds) to write fields (for ParaView).
-WRITE_INTERVAL  0.1;
+WRITE_INTERVAL  0.04;
 
 // When to start time-averaging fields (pMean, UMean) [s] – after the start-up transient.
 AVG_START       5;

@@ -1,3 +1,0 @@
-Case parameters (new-fsi-case.sh):
-  U_IN = 0 m/s, DT = 0.0025 s, T_END = 16 s
-  P0 = 15000 Pa, f = 0.5 Hz, coupling = implicit

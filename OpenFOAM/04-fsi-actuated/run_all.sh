@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stage 4: pressure actuation (sine, f = 1 Hz, P0 = 15 kPa), still water.
+# Stage 4: pressure actuation (pump + ±1 valve model, f = 1.5 Hz, P0 = 15 kPa; --waveform sine = old), still water.
 # "dry" – the same tail without water (CalculiX alone), "water" – FSI.
 cd "$(dirname "$0")"
 (s=$(date +%s); ./dry/run.sh; echo "dry: $(( $(date +%s)-s )) s")

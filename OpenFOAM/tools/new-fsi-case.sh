@@ -6,13 +6,13 @@
 #     --dt DT        time window = step of both solvers (default 0.005)
 #     --t-end T      end time [s]                     (default 2)
 #     --p0 P         chamber pressure amplitude [Pa], 0 = passive (default 0)
-#     --freq F       actuation frequency [Hz]         (default 1)
+#     --freq F       actuation frequency [Hz]         (default 1.5; valve range 1.5..2.5)
 #     --coupling C   implicit | explicit              (default implicit)
 #     --write W      field write interval [s]         (default 0.1)
 set -e -u
 TOOLS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEST="$1"; shift
-U=0.2; DT=0.005; TEND=2; P0=0; FREQ=1; COUPLING=implicit; WRITE=0.1
+U=0.2; DT=0.005; TEND=2; P0=0; FREQ=1.5; COUPLING=implicit; WRITE=0.1
 while [ $# -gt 0 ]; do
     case "$1" in
         --u) U="$2" ;;

@@ -20,7 +20,7 @@
 ** (~30 Hz) made Newton diverge – even without water (NOTES.md). HHT damping
 ** grows like (omega*dt)^3, so at 1–3 Hz it is negligible.
 *DYNAMIC, ALPHA=-0.2, DIRECT, SOLVER=PARDISO
-0.0025, 16
+0.0025, 4.575
 **
 ** Root glued to the rigid head: fully clamped
 *BOUNDARY
