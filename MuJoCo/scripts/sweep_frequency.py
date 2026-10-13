@@ -1,11 +1,14 @@
 """Etap 6: przegląd częstotliwości ogona -> prędkość i amplituda.
 
-  .venv/bin/python scripts/sweep_frequency.py                   # 0.5…3 Hz co 0.25
-  .venv/bin/python scripts/sweep_frequency.py --fmin 1 --fmax 2 --step 0.1
+  .venv/bin/python scripts/sweep_frequency.py                   # 1.5…2.5 Hz co 0.25 (zakres zaworu)
+  .venv/bin/python scripts/sweep_frequency.py --fmin 1.5 --fmax 2 --step 0.1
 
 Dwa efekty do zobaczenia na wykresie:
-  1) pompa nie nadąża: powyżej f_sat = Q_max/(2π·A_V) amplituda ruchu napędzanego
-     przegubu spada ~1/f (stały wydatek pompy rozkłada się na krótszy cykl),
+  1) pompa nie nadąża: powyżej f_track = Q_const/(2π·A_V) zawór przełącza się tylko
+     w szczytach, objętość to trójkąt ≈ Q_const/(4f), więc amplituda ruchu napędzanego
+     przegubu spada ~1/f (stały wydatek pompy rozkłada się na krótszy cykl);
+     poniżej f_track zawór musiałby przełączać się wiele razy na cykl, żeby śledzić
+     V_ref – dlatego zakres to tail_freq_min…tail_freq_max (zawór ≤ 5 przełączeń/s),
   2) rezonans ogona: amplituda płetwy ma maksimum, a faza końca ogona względem
      nasady przechodzi przez ~90°. UWAGA: passive_resonance_hz liczone przy
      "zamrożonych" pozostałych przegubach i nieruchomym kadłubie – w pełnym modelu
@@ -57,7 +60,7 @@ def run_sweep(freqs, duration=20.0, t_measure=10.0, cfg_kwargs=None):
             amp_theta1=np.degrees(amplitude(th[:, 0])),
             amp_fin=np.degrees(amplitude(fin)),
             lag_tip=phase_lag_deg(log["t"][late], th[:, 0], th[:, -1], f),
-            u_sat=float(np.mean(np.abs(log["u"][late]) >= 1.0)),
+            switches=float(np.count_nonzero(np.diff(log["u"][late])) / ((log["t"][-1] - t_measure) * f)),
         ))
     return rows
 
@@ -77,8 +80,8 @@ def plot_sweep(rows, path, cfg=None):
     ax2.plot(f, [r["amp_theta1"] for r in rows], ".:", color="tab:red", lw=1, label="amplituda θ1")
     ax2.plot(f, [r["amp_fin"] for r in rows], "^--", color="tab:green", label="amplituda kąta płetwy (Σθ)")
     ax2.set_ylabel("amplituda [°]")
-    f_sat = cfg.Q_max / (2 * np.pi * cfg.tail_volume_amp)
-    for x, txt in ((f_sat, f"pompa nasyca się\nf ≈ {f_sat:.2f} Hz"),
+    f_track = cfg.Q_const / (2 * np.pi * cfg.tail_volume_amp)
+    for x, txt in ((f_track, f"zawór tylko w szczytach\nf ≈ {f_track:.2f} Hz"),
                    (cfg.passive_resonance_hz,
                     f"f_res z configu\n{cfg.passive_resonance_hz} Hz (przybliżenie\nprzy sztywnym kadłubie)")):
         if f.min() <= x <= f.max():
@@ -103,16 +106,16 @@ def save_rows(rows, path):
 
 
 def print_rows(rows):
-    print(f"{'f [Hz]':>7}{'v [cm/s]':>10}{'L [°]':>8}{'θ1 [°]':>9}{'płetwa [°]':>12}{'faza końca [°]':>16}{'nasycenie u':>13}")
+    print(f"{'f [Hz]':>7}{'v [cm/s]':>10}{'L [°]':>8}{'θ1 [°]':>9}{'płetwa [°]':>12}{'faza końca [°]':>16}{'przełączeń/cykl':>17}")
     for r in rows:
         print(f"{r['f']:7.2f}{r['v'] * 100:10.2f}{r['amp_L']:8.1f}{r['amp_theta1']:9.1f}{r['amp_fin']:12.1f}"
-              f"{r['lag_tip']:16.0f}{r['u_sat'] * 100:12.0f}%")
+              f"{r['lag_tip']:16.0f}{r['switches']:17.1f}")
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--fmin", type=float, default=0.5)
-    ap.add_argument("--fmax", type=float, default=3.0)
+    ap.add_argument("--fmin", type=float, default=FishConfig.tail_freq_min)
+    ap.add_argument("--fmax", type=float, default=FishConfig.tail_freq_max)
     ap.add_argument("--step", type=float, default=0.25)
     args = ap.parse_args(argv)
     freqs = np.arange(args.fmin, args.fmax + 1e-9, args.step)

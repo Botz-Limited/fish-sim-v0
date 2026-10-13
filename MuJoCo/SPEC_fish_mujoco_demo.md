@@ -99,7 +99,7 @@ Dla Pythona 3.14 są gotowe wheele `mujoco` 3.14.0. Jeśli `venv` nie zadziała:
 - `<option timestep="0.002" integrator="implicitfast" density="1000" viscosity="0.0009"/>`. Integrator `implicit`/`implicitfast` jest zalecany przy siłach płynu. Grawitacja włączona.
 - **Głowa/kadłub**: body z `<freejoint/>`, geom elipsoida o długości ok. 0.25 m i promieniu 0.05 m (placeholder). Uwaga: `size` w MJCF to **półosie**, czyli `size="0.125 0.05 0.05"`.
 - **Ogon**: N = 5 segmentów (parametr), zwężających się, połączonych przegubami `hinge` wokół osi pionowej (ruch w płaszczyźnie poziomej). Przeguby mają `stiffness` i `damping` (sztywność i tłumienie silikonu, placeholdery) oraz `range` ok. ±35°.
-- **Napęd tylko na początku ogona**: domyślnie K = 3 pierwsze przeguby są napędzane, 2 ostatnie pasywne (parametr K). Pasywny koniec ogona opóźnia się w fazie i tworzy falę biegnącą, bez której model bezstanowy daje mały lub zerowy ciąg (siła Kutty = 0 przy α = 90°). Sztywność pasywnych przegubów dobierz tak, by częstotliwość własna końca ogona leżała w zakresie sweepu (0.5–3 Hz). W README opisz to jako rezonans.
+- **Napęd tylko na początku ogona**: domyślnie K = 3 pierwsze przeguby są napędzane, 2 ostatnie pasywne (parametr K). Pasywny koniec ogona opóźnia się w fazie i tworzy falę biegnącą, bez której model bezstanowy daje mały lub zerowy ciąg (siła Kutty = 0 przy α = 90°). Sztywność pasywnych przegubów dobierz tak, by częstotliwość własna końca ogona leżała w zakresie sweepu (1.5–2.5 Hz) albo tuż nad nim. W README opisz to jako rezonans.
 - **Płetwa ogonowa**: płaska elipsoida na końcu ostatniego segmentu, cienka w osi bocznej (Y), wysoka w osi pionowej (Z), jak u prawdziwej ryby. Ogon macha w kierunku Y, więc duża powierzchnia płetwy „pcha” wodę na boki. Sprawdź orientację wizualnie w viewerze.
 - **Wszystkie geomy ciał ryby** (bez wyjątku, patrz §1): `fluidshape="ellipsoid"`, `fluidcoef` jawnie wpisane (domyślne wg dokumentacji: blunt 0.5, slender 0.25, angular 1.5, Kutta 1.0, Magnus 1.0), z komentarzem, co znaczy każdy współczynnik. Geomy czysto wizualne umieszczaj w `worldbody`, nie w ciałach ryby.
 - **Kolizje**: wyłącz kolizje między częściami ryby (`contype`/`conaffinity`), np. głowa ↔ segment 2. Zostaw kolizję ryby z podłogą.
@@ -114,7 +114,8 @@ Dla Pythona 3.14 są gotowe wheele `mujoco` 3.14.0. Jeśli `venv` nie zadziała:
 
 Uproszczony zamknięty układ jak w SoFi: pompa przepompowuje wodę z komory R do L i odwrotnie. Komory leżą po obu stronach ogona, więc **napełnienie komory zgina ogon**.
 
-- Wejście: `u ∈ [−1, 1]` (komenda pompy). Pompa jako człon inercyjny I rzędu: `dQ/dt = (u·Q_max − Q)/τ_pump`.
+- Pompa ma **stałe obroty** i stały wydatek `Q_const`; kierunek przepływu wybierają zawory kierunkowe. Zawory mają tylko dwa stany (bez zamkniętego): `s = +1` (R → L) albo `s = −1` (L → R).
+- Wejście: stan zaworów `s ∈ {−1, +1}` (`0` = pompa wyłączona, brak rytmu). Przełączenie zaworu i odwrócenie strumienia jako człon I rzędu: `dQ/dt = (s·Q_const − Q)/τ_valve`.
 - Stan objętości: `V_p` = objętość przepompowana z R do L. `V_L = V0 + V_p`, `V_R = V0 − V_p` (układ zamknięty, suma stała, sprawdź to w teście).
 - Objętość „zajęta” przez zgięty ogon: `V_g = A_eff · r_eff · L`, gdzie `L = Σ w_i θ_i` (długość tendonu z §3).
 - Różnica ciśnień (ze znakiem!) z podatności układu: `Δp = clip((V_p − V_g)/C_h, −p_max, +p_max)`. To jest **sprężyna hydrauliczna**: pompa zadaje objętość, ogon nadąża, a różnica się ściska.
@@ -122,10 +123,10 @@ Uproszczony zamknięty układ jak w SoFi: pompa przepompowuje wodę z komory R d
 - Ciśnienia do wykresów: `p_L = p_pre + Δp/2`, `p_R = p_pre − Δp/2` (`p_pre` = ciśnienie wstępne, placeholder; może być 0, wtedy jedno z ciśnień jest ujemne jako nadciśnienie względne – opisz to).
 - Moment na ogonie: siła tendonu `F = A_eff · r_eff · Δp` (→ `data.ctrl`). Zgodność energetyczna: `Δp · dV_g = F · dL = Σ τ_i dθ_i`. Napisz to w komentarzu.
 - Integracja jawnym Eulerem z krokiem MuJoCo. W komentarzu opisz **dwa** warunki stabilności:
-  1. `dt ≪ τ_pump` (pompa jako człon I rzędu),
+  1. `dt ≪ τ_valve` (przełączanie zaworu jako człon I rzędu),
   2. sprężyna hydrauliczna liczona jawnie: sztywność na tendonie `k_h = (A_eff·r_eff)²/C_h`, częstotliwość `ω_n ≈ sqrt(k_h / I_eff)` (`I_eff` = bezwładność ogona widziana przez tendon; masa dołączona NIE jest w macierzy mas, więc `I_eff` jest małe). Warunek: `ω_n · dt < 0.5` (z zapasem względem granicy 2).
   `config` liczy `ω_n · dt` przy starcie i wypisuje ostrzeżenie, gdy warunek nie jest spełniony.
-- Fizyczna lekcja do pokazania: przy stałym `Q_max` amplituda wychylenia spada wraz ze wzrostem częstotliwości, bo pompa nie nadąża. Po nasyceniu `u` amplituda `L ≈ Q_max/(2πf·A_eff·r_eff)`. Do tego dochodzi rezonans pasywnego końca ogona. Sweep w etapie 6 ma pokazać oba efekty.
+- Fizyczna lekcja do pokazania: przy stałym `Q_const` amplituda wychylenia spada wraz ze wzrostem częstotliwości, bo pompa nie nadąża. Powyżej `f_track = Q_const/(2π·A_V)` zawór przełącza się tylko w szczytach (2 razy na cykl), objętość ma kształt trójkąta i amplituda `L ≈ Q_const/(4f·A_eff·r_eff)` (mniej o czas przełączania). Poniżej `f_track` zawór musiałby przełączać się wiele razy na cykl, żeby śledzić `V_ref` – a prawdziwy zawór przełącza się najwyżej ~5 razy/s. Dlatego zakres częstotliwości to `tail_freq_min…tail_freq_max = 1.5…2.5 Hz` (dolna granica: przy 1.25 Hz, tuż nad `f_track` ≈ 1.19 Hz, zawór wciąż dokłada przełączenia; górna: `1/(2·valve_min_dwell)`). Liczba przełączeń na cykl to metryka w sweepie. Do tego dochodzi rezonans pasywnego końca ogona. Sweep w etapie 6 ma pokazać oba efekty.
 
 ## 5. Wypór i balast (buoyancy.py)
 
@@ -143,7 +144,9 @@ Uproszczony zamknięty układ jak w SoFi: pompa przepompowuje wodę z komory R d
 
 - **Generator rytmu zadaje objętość, nie przepływ:**
   - `V_ref(t) = a(t) · A_V · sin(2π f t) + V_bias`, gdzie `a(t)` = rampa 0 → 1 przez pierwszą 1 s (miękki start, mniej asymetrii pierwszego uderzenia).
-  - Komenda pompy: `u = clip((dV_ref/dt + K_v·(V_ref − V_p)) / Q_max, −1, 1)` (feed-forward + korekta proporcjonalna).
+  - Stan zaworów z regulatora przekaźnikowego z histerezą `δ` (`valve_hysteresis`): `e = V_ref − V_p`; `e > δ → s = +1`, `e < −δ → s = −1`, inaczej `s` bez zmian. Płynnej komendy pompy nie ma, więc feed-forward `dV_ref/dt` i wzmocnienie `K_v` odpadają.
+  - Minimalny czas stanu zaworu `valve_min_dwell = 0.2 s` (≤ 5 przełączeń/s): przez ten czas od ostatniego przełączenia regulator nie zmienia `s`.
+  - Częstotliwość obcinana do `[tail_freq_min, tail_freq_max]` (w konstruktorze i w `set_freq`).
   - W komentarzu wyjaśnij, dlaczego bias w `u` (v1) powodował dryf: objętość całkuje przepływ.
 - **Skręt**: `V_bias ≠ 0` (stałe ugięcie ogona = asymetria uderzeń).
 - **Głębokość – kaskada:**
@@ -162,7 +165,7 @@ Uproszczony zamknięty układ jak w SoFi: pompa przepompowuje wodę z komory R d
 4. **Pływanie**: hydraulika + MuJoCo, ruch do przodu. Porównanie: woda włączona vs `density=0, viscosity=0` (wypór zostaje). Bez płynu prędkość COM ≈ 0 (zachowanie pędu – siły wewnętrzne nie przesuną środka masy). To pokazuje, że ciąg pochodzi z modelu płynu.
    **Jeśli ryba nie płynie** (zgodnie z §1.6): zanim cokolwiek zmienisz, zrób wykres θ_1 i θ_N w czasie (czy jest przesunięcie fazy?), sprawdź orientację płetwy w viewerze i znak `qfrc_fluid` na płetwie. Dopiero potem decyzja, co zmienić, opisana w README.
 5. **Skręt i głębokość**: scenariusz skrętu (trajektoria XY) i skoki zadanej głębokości (−0.5 → −1.5 → −1.0 m).
-6. **Sweep**: f = 0.5…3 Hz → średnia prędkość i amplituda kąta ogona. Wykres z dwiema osiami Y.
+6. **Sweep**: f = 1.5…2.5 Hz (zakres zaworu) → średnia prędkość i amplituda kąta ogona. Wykres z dwiema osiami Y.
 7. **Viewer interaktywny**: `mujoco.viewer.launch_passive` z `key_callback` (dostaje kod klawisza `int`, zgodny z GLFW, tylko wciśnięcie).
    - Strzałki ←/→ to skręt (`V_bias`), ↑/↓ to częstotliwość, PageUp/PageDown to głębokość zadana.
    - Callback działa w wątku viewera. Zmienia tylko zmienne sterujące w Pythonie, a zmiany w `data` rób pod `with viewer.lock():`.

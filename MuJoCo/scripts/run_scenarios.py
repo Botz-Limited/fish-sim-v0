@@ -196,7 +196,7 @@ def s5_sweep():
     """Przegląd częstotliwości (logika w scripts/sweep_frequency.py)."""
     import sweep_frequency  # ten sam katalog scripts/ jest na sys.path
 
-    rows = sweep_frequency.run_sweep(np.arange(0.5, 3.0 + 1e-9, 0.25))
+    rows = sweep_frequency.run_sweep(np.arange(FishConfig.tail_freq_min, FishConfig.tail_freq_max + 1e-9, 0.25))
     sweep_frequency.plot_sweep(rows, RESULTS / "s5_sweep.png")
     sweep_frequency.save_rows(rows, RESULTS / "s5_sweep.csv")
     best = max(rows, key=lambda r: r["v"])
@@ -235,9 +235,9 @@ def s6_righting():
 
 
 def h3_hydraulics():
-    """Etap 3: sama hydraulika + zastępczy ogon (bez MuJoCo). Sinus 1 Hz, od 5 s V_bias = 3 ml."""
-    cfg = FishConfig(tail_freq=1.0)
-    log = simulate_offline(cfg, TailRhythm(cfg), 8.0,
+    """Etap 3: sama hydraulika + zastępczy ogon (bez MuJoCo). Sinus 1.5 Hz, od 5 s V_bias = 3 ml."""
+    cfg = FishConfig(tail_freq=1.5)
+    log = simulate_offline(cfg, TailRhythm(cfg), 14.0,
                            bias_schedule=lambda t: 3e-6 if t >= 5.0 else 0.0)
     t = log["t"]
     ml, kpa = 1e6, 1e-3
@@ -246,11 +246,9 @@ def h3_hydraulics():
     ax[0].plot(t, log["V_p"] * ml, label="V_p (przepompowana)")
     ax[0].plot(t, log["V_g"] * ml, label="V_g = A·r·L (zajęta przez ogon)")
     ax[0].set_ylabel("objętość [ml]")
-    ax[0].set_title("h3: hydraulika offline – f = 1 Hz, od t = 5 s skręt (V_bias = 3 ml)")
+    ax[0].set_title("h3: hydraulika offline – f = 1.5 Hz, od t = 5 s skręt (V_bias = 3 ml)")
     ax[1].plot(t, log["Q"] * ml, label="Q pompy")
-    ax[1].plot(t, log["u"] * cfg.Q_max * ml, "k--", lw=1, label="u·Q_max (komenda)")
-    ax[1].axhline(cfg.Q_max * ml, color="r", ls=":", lw=1, label="±Q_max")
-    ax[1].axhline(-cfg.Q_max * ml, color="r", ls=":", lw=1)
+    ax[1].plot(t, log["u"] * cfg.Q_const * ml, "k--", lw=1, label="s·Q_const (stan zaworów)")
     ax[1].set_ylabel("przepływ [ml/s]")
     ax[2].plot(t, log["p_L"] * kpa, label="p_L")
     ax[2].plot(t, log["p_R"] * kpa, label="p_R")
@@ -272,7 +270,7 @@ def h3_hydraulics():
     save_csv(RESULTS / "h3_hydraulics.csv", log)
 
     # Mini-sweep offline: amplituda vs częstotliwość (pełny sweep z wodą – etap 6)
-    freqs = np.linspace(0.5, 3.0, 11)
+    freqs = np.linspace(cfg.tail_freq_min, cfg.tail_freq_max, 6)
     amps = []
     for f in freqs:
         lg = simulate_offline(cfg, TailRhythm(cfg, freq=f), 10.0)
@@ -280,24 +278,25 @@ def h3_hydraulics():
         amps.append((L.max() - L.min()) / 2)
     amps = np.degrees(amps)
     target = np.degrees(cfg.tail_volume_amp / (cfg.A_eff * cfg.r_eff))
-    fs = np.linspace(0.5, 3.0, 200)
-    sat = np.degrees(cfg.Q_max / (2 * np.pi * fs * cfg.A_eff * cfg.r_eff))
+    fs = np.linspace(cfg.tail_freq_min, cfg.tail_freq_max, 200)
+    tri = np.degrees(cfg.Q_const / (4 * fs * cfg.A_eff * cfg.r_eff))
     fig, a = plt.subplots(figsize=(8, 4.5))
     a.plot(freqs, amps, "o-", label="amplituda L (symulacja offline)")
     a.axhline(target, color="k", ls="--", lw=1, label="zadana A_V/(A·r)")
-    a.plot(fs, sat, "r:", label="granica pompy Q_max/(2πf·A·r)")
+    a.plot(fs, tri, "r:", label="trójkąt objętości Q_const/(4f·A·r)")
     a.set_ylim(0, target * 1.6)
     a.set_xlabel("częstotliwość [Hz]")
     a.set_ylabel("amplituda L [°]")
-    a.set_title("h3: pompa nie nadąża – amplituda spada powyżej ~1.2 Hz")
+    a.set_title("h3: zawór tylko w szczytach – amplituda ≈ Q_const/(4f)")
     a.grid(alpha=0.3)
     a.legend()
     fig.tight_layout()
     fig.savefig(RESULTS / "h3_offline_sweep.png", dpi=110)
     plt.close(fig)
-    late = t >= 6.0
+    T = 1.0 / cfg.tail_freq
+    late = (t >= 8.0) & (t < 8.0 + 5 * T)   # 5 pełnych cykli – piła zaworu się uśrednia
     return (f"średnie V_p po skręcie: {log['V_p'][late].mean() * ml:.3f} ml (zadane 3.000), "
-            f"amplituda 0.5 Hz / 3 Hz: {amps[0]:.1f}° / {amps[-1]:.1f}°")
+            f"amplituda {freqs[0]:.2f} Hz / {freqs[-1]:.2f} Hz: {amps[0]:.1f}° / {amps[-1]:.1f}°")
 
 
 SCENARIOS = {

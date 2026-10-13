@@ -46,7 +46,7 @@ class ViewerControls:
     """
 
     BIAS_STEP, BIAS_MAX = 0.5e-6, 4e-6     # [m³]
-    FREQ_STEP, FREQ_MIN, FREQ_MAX = 0.25, 0.25, 3.5   # [Hz]
+    FREQ_STEP = 0.25                       # [Hz]; zakres z configu (tail_freq_min/max)
     DEPTH_STEP = 0.25                      # [m]
 
     def __init__(self, cfg: FishConfig):
@@ -64,9 +64,9 @@ class ViewerControls:
         elif key == KEY_LEFT:
             self.bias = max(self.bias - self.BIAS_STEP, -self.BIAS_MAX)
         elif key == KEY_UP:
-            self.freq = min(self.freq + self.FREQ_STEP, self.FREQ_MAX)
+            self.freq = min(self.freq + self.FREQ_STEP, c.tail_freq_max)
         elif key == KEY_DOWN:
-            self.freq = max(self.freq - self.FREQ_STEP, self.FREQ_MIN)
+            self.freq = max(self.freq - self.FREQ_STEP, c.tail_freq_min)
         elif key == KEY_PAGE_UP:
             self.z_ref = min(self.z_ref + self.DEPTH_STEP, c.z_ref_max)
         elif key == KEY_PAGE_DOWN:

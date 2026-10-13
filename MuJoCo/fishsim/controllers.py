@@ -12,21 +12,39 @@ import numpy as np
 
 
 class TailRhythm:
-    """V_ref(t) = a(t)·A_V·sin(2πft) + V_bias, komenda pompy z feed-forward + P.
+    """V_ref(t) = a(t)·A_V·sin(2πft) + V_bias, stan zaworów z regulatora przekaźnikowego.
 
-    u = clip((dV_ref/dt + K_v·(V_ref − V_p)) / Q_max, −1, 1)
-      dV_ref/dt        – przepływ, który "powinien" płynąć (feed-forward),
-      K_v·(V_ref − V_p) – korekta, gdy pompa nie nadąża albo dryfuje.
-    Gdy 2πf·A_V > Q_max, pompa się nasyca (|u| = 1) i amplituda spada – to jest
-    lekcja z etapu 6: przy stałym wydatku pompy wyższa częstotliwość = mniejszy ruch.
+    Pompa ma stałe obroty, a zawory tylko dwa stany, więc przepływ to ±Q_const –
+    płynnej komendy nie ma. Regulator z histerezą δ (stan s pamiętany między krokami):
+      e = V_ref − V_p;  e > δ -> s = +1,  e < −δ -> s = −1,  inaczej s bez zmian.
+    Dwa reżimy:
+      2πf·A_V < Q_const – zawór przełącza się wiele razy na cykl, V_p śledzi V_ref
+                          "piłą" w paśmie ≈ ±δ (plus przerzut ≈ Q_const·τ_valve),
+      2πf·A_V > Q_const – V_p nie nadąża, zawór przełącza się tylko w szczytach
+                          (2 razy na cykl), objętość to trójkąt o amplitudzie ≈ Q_const/(4f).
+    Lekcja z etapu 6 zostaje: przy stałym wydatku wyższa częstotliwość = mniejszy ruch.
+
+    Ograniczenia sprzętu: zawór trzyma stan co najmniej valve_min_dwell (≤ 5 przełączeń/s),
+    a częstotliwość leży w [tail_freq_min, tail_freq_max]: niżej pierwszy reżim wymagałby
+    szybkiego przełączania, którego zawór nie zrobi; wyżej zawór nie zdąży 2 razy na cykl.
     """
 
     def __init__(self, cfg, freq=None, amp=None, bias=None):
         self.cfg = cfg
-        self.freq = cfg.tail_freq if freq is None else freq
+        self.freq = self._clamp(cfg.tail_freq if freq is None else freq)
         self.amp = cfg.tail_volume_amp if amp is None else amp
         self.bias = cfg.tail_volume_bias if bias is None else bias
         self.phase0 = 0.0   # [rad] przesunięcie fazy – utrzymuje ciągłość przy zmianie f
+        self.s = 1          # stan zaworów: +1 = R -> L, −1 = L -> R (stanu zamkniętego nie ma)
+        self.t_switch = -np.inf   # [s] czas ostatniego przełączenia zaworu
+
+    def reset(self):
+        self.phase0 = 0.0
+        self.s = 1
+        self.t_switch = -np.inf
+
+    def _clamp(self, freq: float) -> float:
+        return float(np.clip(freq, self.cfg.tail_freq_min, self.cfg.tail_freq_max))
 
     def set_freq(self, freq: float, t: float):
         """Zmiana częstotliwości w trakcie ruchu BEZ skoku fazy.
@@ -35,6 +53,7 @@ class TailRhythm:
         2π·(f_nowe − f_stare)·t – dla t = 60 s to setki radianów, czyli skok V_ref
         i uderzenie pompy. Dobieramy φ0 tak, żeby φ(t) było ciągłe.
         """
+        freq = self._clamp(freq)
         self.phase0 += 2 * np.pi * (self.freq - freq) * t
         self.freq = freq
 
@@ -52,10 +71,19 @@ class TailRhythm:
         s, c = np.sin(w * t + self.phase0), np.cos(w * t + self.phase0)
         return a * self.amp * s + self.bias, self.amp * (da * s + a * w * c)
 
-    def command(self, t: float, V_p: float) -> float:
-        v, dv = self.v_ref(t)
-        u = (dv + self.cfg.K_v * (v - V_p)) / self.cfg.Q_max
-        return float(np.clip(u, -1.0, 1.0))
+    def command(self, t: float, V_p: float) -> int:
+        """Stan zaworów s ∈ {−1, +1} (przekaźnik z histerezą na błędzie objętości)."""
+        if t - self.t_switch < self.cfg.valve_min_dwell:
+            return self.s
+        e = self.v_ref(t)[0] - V_p
+        s = self.s
+        if e > self.cfg.valve_hysteresis:
+            s = 1
+        elif e < -self.cfg.valve_hysteresis:
+            s = -1
+        if s != self.s:
+            self.s, self.t_switch = s, t
+        return self.s
 
 
 class DepthController:

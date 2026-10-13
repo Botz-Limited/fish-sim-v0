@@ -175,23 +175,23 @@ from fishsim.hydraulics import LumpedTail, TailHydraulics, simulate_offline  # n
 
 
 @pytest.fixture(scope="module")
-def offline_1hz():
-    cfg = FishConfig(tail_freq=1.0)
+def offline_low():
+    cfg = FishConfig(tail_freq=1.5)
     return cfg, simulate_offline(cfg, TailRhythm(cfg), 10.0)
 
 
-def test_hydraulics_total_volume_conserved(offline_1hz):
-    cfg, log = offline_1hz
+def test_hydraulics_total_volume_conserved(offline_low):
+    cfg, log = offline_low
     total = log["V_L"] + log["V_R"]
     assert np.abs(total - 2 * cfg.V0_chamber).max() < 1e-15
 
 
-def test_pressure_difference_changes_sign_every_cycle(offline_1hz):
+def test_pressure_difference_changes_sign_every_cycle(offline_low):
     # Luka v1 nr 1: max(0, ·) dawało Δp ≥ 0 przez cały czas (ogon w jedną stronę).
-    cfg, log = offline_1hz
-    t, dp = log["t"], log["dp"]
-    for k in range(2, 10):   # pełne cykle po rampie
-        cycle = (t >= k) & (t < k + 1)
+    cfg, log = offline_low
+    t, dp, T = log["t"], log["dp"], 1.0 / cfg.tail_freq
+    for k in range(2, 12):   # pełne cykle po rampie
+        cycle = (t >= k * T) & (t < (k + 1) * T)
         assert dp[cycle].max() > 0 and dp[cycle].min() < 0, f"cykl {k}"
 
 
@@ -211,40 +211,71 @@ def test_relief_valve_limits_pressure_on_blocked_tail():
     assert hyd.V_L + hyd.V_R == pytest.approx(2 * cfg.V0_chamber, abs=1e-15)
 
 
-def test_offline_pressure_within_limit(offline_1hz):
-    cfg, log = offline_1hz
+def test_offline_pressure_within_limit(offline_low):
+    cfg, log = offline_low
     assert np.abs(log["dp"]).max() <= cfg.p_max
 
 
 def test_volume_bias_gives_offset_without_drift():
     # Luka v1 nr 2: bias w komendzie przepływu całkował się bez końca.
     # Teraz V_bias to zadane przesunięcie objętości: średnia stała w czasie.
-    cfg = FishConfig(tail_freq=1.0, tail_volume_bias=3e-6)
+    cfg = FishConfig(tail_volume_bias=3e-6)
     log = simulate_offline(cfg, TailRhythm(cfg), 20.0)
     t, vp = log["t"], log["V_p"]
     early = vp[(t >= 5) & (t < 10)].mean()
     late = vp[(t >= 15) & (t < 20)].mean()
-    assert early == pytest.approx(3e-6, rel=0.02)
-    assert late == pytest.approx(early, abs=1e-9)   # dryf < 0.001 ml na 10 s
+    # ±0.1 ml: przy 2 przełączeniach na cykl średnia zależy też od tego, gdzie wypadają szczyty
+    assert early == pytest.approx(3e-6, abs=1e-7)
+    # dryf < 0.1 ml na 10 s; resztę różnicy daje piła przekaźnika, nie całkowanie biasu
+    assert late == pytest.approx(early, abs=1e-7)
 
 
-def test_amplitude_drops_when_pump_saturates():
-    # Lekcja fizyczna: przy stałym Q_max amplituda spada z częstotliwością.
+def _switches_per_cycle(log, f, t_from=6.0):
+    u = log["u"][log["t"] > t_from]
+    return np.count_nonzero(np.diff(u)) / ((log["t"][-1] - t_from) * f)
+
+
+def test_valve_state_is_only_plus_minus_one(offline_low):
+    # Zawory nie mają stanu zamkniętego: pompa zawsze tłoczy w którąś stronę.
+    _, log = offline_low
+    assert set(np.unique(log["u"])) == {-1, 1}
+
+
+def test_valve_holds_each_state_for_min_dwell():
+    # Zawór przełącza się najwyżej ~5 razy/s: między przełączeniami ≥ valve_min_dwell.
+    cfg = FishConfig()
+    for f in (cfg.tail_freq_min, 2.0, cfg.tail_freq_max):
+        log = simulate_offline(cfg, TailRhythm(cfg, freq=f), 10.0)
+        t_sw = log["t"][1:][np.diff(log["u"]) != 0]
+        assert np.diff(t_sw).min() >= cfg.valve_min_dwell - 1e-9, f
+
+
+def test_frequency_clamped_to_valve_range():
+    cfg = FishConfig()
+    assert TailRhythm(cfg, freq=0.5).freq == cfg.tail_freq_min
+    assert TailRhythm(cfg, freq=3.0).freq == cfg.tail_freq_max
+    r = TailRhythm(cfg)
+    r.set_freq(10.0, 3.7)
+    assert r.freq == cfg.tail_freq_max
+    assert cfg.tail_freq_max <= 1 / (2 * cfg.valve_min_dwell)   # 2 przełączenia na cykl
+
+
+def test_amplitude_drops_when_valves_switch_only_at_peaks():
+    # Lekcja fizyczna: przy stałym Q_const amplituda spada z częstotliwością.
+    # Powyżej f = Q_const/(2π·A_V) zawór przełącza się tylko w szczytach (2 razy na cykl),
+    # objętość to trójkąt o amplitudzie ≤ Q_const/(4f) (mniej o czas przełączania τ_valve).
     cfg = FishConfig()
 
-    def amp(f):
+    def run(f):
         log = simulate_offline(cfg, TailRhythm(cfg, freq=f), 10.0)
-        L = log["L"][log["t"] > 6.0]
-        return (L.max() - L.min()) / 2
+        vp = log["V_p"][log["t"] > 6.0]
+        return (vp.max() - vp.min()) / 2, _switches_per_cycle(log, f)
 
-    a_low, a_mid, a_high = amp(0.5), amp(2.0), amp(3.0)
-    target = cfg.tail_volume_amp / (cfg.A_eff * cfg.r_eff)
-    assert a_low == pytest.approx(target, rel=0.1)    # pompa nadąża
-    assert a_low > a_mid > a_high                      # nasycenie
-    # nasycona pompa ~ fala prostokątna przepływu: amplituda między Q_max/(2πf·A·r)
-    # (sinus) a Q_max/(4f·A·r) (trójkąt objętości)
-    Ar = cfg.A_eff * cfg.r_eff
-    assert cfg.Q_max / (2 * np.pi * 3.0 * Ar) < a_high < cfg.Q_max / (4 * 3.0 * Ar)
+    (v_low, _), (v_mid, sw_mid), (v_high, sw_high) = run(1.5), run(2.0), run(2.5)
+    assert v_low > v_mid > v_high
+    assert sw_mid == pytest.approx(2, abs=0.1) and sw_high == pytest.approx(2, abs=0.1)
+    for f, v in ((2.0, v_mid), (2.5, v_high)):
+        assert 0.7 * cfg.Q_const / (4 * f) < v <= cfg.Q_const / (4 * f)
 
 
 def test_lumped_tail_is_stable_with_hydraulic_spring():
@@ -292,7 +323,12 @@ def test_no_nan_after_20s_swimming(swim_logs):
 
 def test_swimming_pressure_and_joint_limits(swim_logs):
     cfg, _, log = swim_logs[True]
-    assert np.abs(log["dp"]).max() <= cfg.p_max
+    # Zawór przelewowy pracuje tylko przy starcie: pierwszy skok zaworu trwa ≥ valve_min_dwell,
+    # a V_ref w rampie jest jeszcze małe. Log Δp jest liczony po ruchu ogona w mj_step,
+    # przed kolejnym upustem – stąd 1%. W ustalonym pływaniu zawór przelewowy milczy.
+    dp, t = np.abs(log["dp"]), log["t"]
+    assert dp.max() <= cfg.p_max * 1.01
+    assert dp[t > 3.0].max() < cfg.p_max
     assert np.degrees(np.abs(log["theta"])).max() <= cfg.joint_range_deg + 1.0
 
 
@@ -378,17 +414,16 @@ def test_depth_anti_windup_stops_integral_when_saturated():
 
 def test_sweep_speed_peaks_inside_range_and_pump_limits_amplitude():
     # Lekcja z etapu 6: prędkość rośnie, dopóki pompa nadąża, potem spada, bo
-    # przy stałym Q_max amplituda L (to, czym steruje pompa) maleje z częstotliwością.
+    # przy stałym Q_const amplituda L (to, czym steruje pompa) maleje z częstotliwością.
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
     import sweep_frequency
 
-    rows = {r["f"]: r for r in sweep_frequency.run_sweep([0.5, 1.5, 3.0], duration=16.0)}
-    assert rows[1.5]["v"] > rows[0.5]["v"]
-    assert rows[1.5]["v"] > rows[3.0]["v"]
-    assert rows[3.0]["amp_L"] < rows[0.5]["amp_L"]
-    assert rows[0.5]["u_sat"] == 0.0 and rows[3.0]["u_sat"] > 0.5   # nasycenie pompy
+    rows = {r["f"]: r for r in sweep_frequency.run_sweep([1.5, 1.75, 2.5], duration=16.0)}
+    assert rows[1.75]["v"] > rows[2.5]["v"] and rows[1.5]["v"] > rows[2.5]["v"]
+    assert rows[1.5]["amp_L"] > rows[1.75]["amp_L"] > rows[2.5]["amp_L"]
+    assert all(r["switches"] <= 4 for r in rows.values())   # zawór ≤ 5/s: bez drgania
 
 
 # ---------------------------------------------------------------- etap 7: viewer (logika bez okna)
@@ -411,7 +446,7 @@ def test_viewer_keys_change_controls_with_limits():
         c.on_key(rv.KEY_DOWN)
     assert c.bias == pytest.approx(c.BIAS_MAX)
     assert c.z_ref == cfg.z_ref_max            # nie wyżej niż −0.3 m
-    assert c.freq == c.FREQ_MIN
+    assert c.freq == cfg.tail_freq_min
     c.on_key(999)                               # nieznany klawisz – bez zmian, bez wyjątku
     sim = rv.make_sim(cfg)
     c.apply(sim)
@@ -424,9 +459,9 @@ def test_frequency_change_keeps_reference_continuous():
     r = TailRhythm(cfg, freq=2.0)
     t = 37.3
     before = r.v_ref(t)[0]
-    r.set_freq(1.25, t)
+    r.set_freq(1.75, t)
     assert r.v_ref(t)[0] == pytest.approx(before, abs=1e-15)
-    assert r.freq == 1.25
+    assert r.freq == 1.75
 
 
 def test_sim_reset_restores_python_states():
@@ -439,6 +474,7 @@ def test_sim_reset_restores_python_states():
     assert sim.hydraulics.V_p == 0.0 and sim.hydraulics.Q == 0.0
     assert sim.bladder.volume == cfg.bladder_v_neutral
     assert sim.depth.integral == 0.0
+    assert sim.rhythm.s == 1 and sim.rhythm.phase0 == 0.0
 
 
 def test_viewer_overlay_text_is_ascii():

@@ -328,5 +328,5 @@ def describe(model, data, cfg: FishConfig, info: FishInfo) -> str:
     margin = euler_stability_margin(model, data, cfg)
     lines.append(f"  ω_n·dt = {margin:.3f} (wymagane < 0.5; granica stabilności 2.0)"
                  + ("" if margin < 0.5 else "  <-- UWAGA: za duże!"))
-    lines.append(f"  τ_pump/dt = {cfg.tau_pump / cfg.timestep:.0f} (wymagane ≫ 1)")
+    lines.append(f"  τ_valve/dt = {cfg.tau_valve / cfg.timestep:.0f} (wymagane ≫ 1)")
     return "\n".join(lines)

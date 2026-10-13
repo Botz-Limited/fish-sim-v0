@@ -111,8 +111,10 @@ class FishConfig:
     p_max: float = 50e3            # [Pa] ciśnienie otwarcia zaworu przelewowego; PLACEHOLDER – do identyfikacji z pomiarów
     V0_chamber: float = 30e-6      # [m³] objętość każdej komory przy ogonie prostym (30 ml); PLACEHOLDER – do identyfikacji z pomiarów
     p_pre: float = 0.0             # [Pa] ciśnienie wstępne obu komór (tylko do wykresów p_L, p_R)
-    Q_max: float = 60e-6           # [m³/s] maks. wydatek pompy ogona (60 ml/s); PLACEHOLDER – do identyfikacji z pomiarów
-    tau_pump: float = 0.03         # [s] stała czasowa rozpędzania pompy; PLACEHOLDER – do identyfikacji z pomiarów
+    # Pompa ma STAŁE obroty, kierunek przepływu wybierają zawory kierunkowe (tylko ±1,
+    # bez stanu zamkniętego) – patrz TailHydraulics i TailRhythm.
+    Q_const: float = 60e-6         # [m³/s] stały wydatek pompy ogona (60 ml/s); PLACEHOLDER – do identyfikacji z pomiarów
+    tau_valve: float = 0.02        # [s] przełączenie zaworu + odwrócenie strumienia; PLACEHOLDER – do identyfikacji z pomiarów
     tendon_weight_last: float = 0.4  # [-] waga w_K ostatniego napędzanego przegubu (w_1 = 1, liniowo)
 
     # ------------------------------------------------------------------ rytm ogona (generator objętości)
@@ -121,7 +123,16 @@ class FishConfig:
     tail_freq: float = 2.0          # [Hz] częstotliwość machania (punkt pracy; patrz sweep)
     tail_volume_amp: float = 8e-6   # [m³] amplituda A_V; PLACEHOLDER – do identyfikacji z pomiarów
     tail_volume_bias: float = 0.0   # [m³] V_bias – stałe ugięcie ogona (skręt)
-    K_v: float = 10.0               # [1/s] korekta błędu objętości; K_v·τ_pump < 0.5, żeby pętla nie oscylowała
+    valve_hysteresis: float = 1e-6  # [m³] histereza δ regulatora przekaźnikowego zaworów (1 ml); PLACEHOLDER
+    # Zawór przełącza się najwyżej ~5 razy/s, więc każdy stan trwa co najmniej 0.2 s.
+    valve_min_dwell: float = 0.2    # [s] minimalny czas między przełączeniami zaworu; PLACEHOLDER
+    # Poniżej ~Q_const/(2π·A_V) ≈ 1.19 Hz zawór musiałby przełączać się wiele razy na cykl,
+    # żeby śledzić wolne V_ref (i drgania pobudzają mody ogona). Przy 1.25 Hz dokłada jeszcze
+    # 1–2 przełączenia na cykl i ruch jest nierówny – czyste 2 przełączenia/cykl od 1.5 Hz.
+    tail_freq_min: float = 1.5      # [Hz] najniższa dozwolona częstotliwość machania
+    # Zawór przełącza się 2 razy na cykl, a każdy stan trwa ≥ valve_min_dwell,
+    # więc f ≤ 1/(2·valve_min_dwell) = 2.5 Hz (wyżej zawór gubi przełączenia).
+    tail_freq_max: float = 2.5      # [Hz] najwyższa dozwolona częstotliwość machania
     ramp_time: float = 1.0          # [s] miękki start amplitudy
 
     # ------------------------------------------------------------------ wygląd

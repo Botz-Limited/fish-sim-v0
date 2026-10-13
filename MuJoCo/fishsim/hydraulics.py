@@ -54,15 +54,20 @@ def euler_stability_margin(model, data, cfg) -> float:
 class TailHydraulics:
     """Pompa + dwie komory (L, R) w układzie zamkniętym, jak w SoFi.
 
+    Pompa ma stałe obroty i wydatek Q_const; kierunek wybierają zawory kierunkowe,
+    które mają tylko dwa stany (bez zamkniętego): s = +1 (R -> L) albo s = −1 (L -> R).
+
     Stany:
-      Q        – przepływ pompy z R do L [m³/s] (człon inercyjny I rzędu),
+      Q        – przepływ z R do L [m³/s]; po przełączeniu zaworu dochodzi do s·Q_const
+                 ze stałą czasową τ_valve (przełączenie zaworu + odwrócenie strumienia),
       V_L, V_R – objętości cieczy w komorach [m³]; V_L + V_R = const (układ zamknięty).
-    Wejścia w każdym kroku: komenda pompy u ∈ [−1, 1] i długość tendonu L [rad].
+    Wejścia w każdym kroku: stan zaworów u ∈ {−1, +1} (u = 0: pompa wyłączona)
+    i długość tendonu L [rad].
     Wyjście: siła na tendonie F = A_eff·r_eff·Δp [N·m] (-> data.ctrl).
 
     Integracja: jawny Euler z krokiem MuJoCo. Działa, bo:
-      1) dt ≪ τ_pump (np. 0.002 s vs 0.03 s): człon I rzędu liczony jawnie jest
-         stabilny dla dt < 2·τ_pump, a dokładny dla dt ≪ τ_pump;
+      1) dt ≪ τ_valve (0.002 s vs 0.02 s): człon I rzędu liczony jawnie jest
+         stabilny dla dt < 2·τ_valve, a dokładny dla dt ≪ τ_valve;
       2) sprężyna hydrauliczna (k_h) jest liczona jawnie razem z MuJoCo – stabilna
          dla ω_n·dt < 2, a wymagamy < 0.5 (patrz euler_stability_margin).
     Przestałaby działać przy bardzo sztywnym układzie (małe C_h, np. sama ciecz bez
@@ -105,9 +110,9 @@ class TailHydraulics:
         """
         c = self.cfg
         F = self.force(L)
-        u = float(np.clip(u, -1.0, 1.0))
-        # pompa: rozpędza się do u·Q_max ze stałą czasową τ_pump
-        self.Q += dt * (u * c.Q_max - self.Q) / c.tau_pump
+        u = float(np.sign(u))
+        # zawór: przepływ dochodzi do u·Q_const ze stałą czasową τ_valve
+        self.Q += dt * (u * c.Q_const - self.Q) / c.tau_valve
         # pompa przetacza ciecz z R do L (suma objętości się nie zmienia)
         self.V_L += self.Q * dt
         self.V_R -= self.Q * dt

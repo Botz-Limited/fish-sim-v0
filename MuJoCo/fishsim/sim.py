@@ -33,7 +33,7 @@ class FishSim:
     def __init__(self, cfg: FishConfig | None = None, fluid: bool = True,
                  v_bladder: float | None = None, rhythm: TailRhythm | None = None,
                  depth: DepthController | None = None):
-        """rhythm=None -> pompa ogona stoi (u = 0), ale hydraulika dalej działa jak
+        """rhythm=None -> pompa ogona wyłączona (u = 0), ale hydraulika dalej działa jak
         sprężyna trzymająca ogon w pozycji wynikającej z V_p (układ zamknięty)."""
         self.cfg = cfg or FishConfig()
         self.model, self.info = build_model(self.cfg)
@@ -53,7 +53,7 @@ class FishSim:
         self.hydraulics = TailHydraulics(self.cfg)
         self.rhythm = rhythm
         self.depth = depth
-        self.u = 0.0
+        self.u = 0
         self.tail_joints = [self.model.joint(f"tail{i}").id for i in range(self.cfg.n_segments)]
         self.tail_qpos = [self.model.jnt_qposadr[j] for j in self.tail_joints]
         mujoco.mj_forward(self.model, self.data)
@@ -78,7 +78,7 @@ class FishSim:
         self.bladder = Bladder(self.cfg)
         self.v_bladder_ref = self.bladder.volume
         if self.rhythm is not None:
-            self.rhythm.phase0 = 0.0
+            self.rhythm.reset()
         if self.depth is not None:
             self.depth.integral = 0.0
         mujoco.mj_forward(self.model, self.data)
@@ -117,7 +117,7 @@ class FishSim:
     # ------------------------------------------------------------------ krok i przebieg
     def step(self):
         dt = self.model.opt.timestep
-        self.u = 0.0 if self.rhythm is None else self.rhythm.command(self.time, self.hydraulics.V_p)
+        self.u = 0 if self.rhythm is None else self.rhythm.command(self.time, self.hydraulics.V_p)
         self.data.ctrl[0] = self.hydraulics.step(self.u, self.tail_length(), dt)
         if self.depth is not None:
             # prędkość pionowa kadłuba (freejoint: qvel[0:3] w układzie świata)

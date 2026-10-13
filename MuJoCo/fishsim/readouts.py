@@ -110,6 +110,6 @@ def drive_rows(sim) -> list:
     th = np.degrees([sim.data.qpos[a] for a in sim.tail_qpos])
     return [
         ("tail torque (hydr.)", f"{1e3 * sim.hydraulics.force(L):+6.1f} mN m"),
-        ("pump u / flow Q", f"{sim.u:+5.2f} / {sim.hydraulics.Q * 1e6:+6.1f} ml/s"),
+        ("valve s / flow Q", f"{sim.u:+2d} / {sim.hydraulics.Q * 1e6:+6.1f} ml/s"),
         ("tail joint angles", " ".join(f"{a:+3.0f}" for a in th) + " deg"),
     ]
