@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Start runSofa on :99 with the fish tail scene (auto-animate). Args: MODE [extra env assignments]
+S=/tmp/claude-1000/-home-kslabolepszy-Dokumenty-GitHub-fish-sim-v0/526fd8d3-baf6-4107-a772-d0182433594e/scratchpad
+cd "$S/src/sofa/SOFA"
+source scripts/env.sh
+export FISHSOFA_LEVEL=${FISHSOFA_LEVEL:-coarse}
+export FISHSOFA_MODE=${1:-flap}
+export DISPLAY=:99 WAYLAND_DISPLAY=none-xx XDG_SESSION_TYPE=x11
+exec "$SOFA_ROOT/bin/runSofa" -a -l SofaPython3 fishsofa/scene.py
