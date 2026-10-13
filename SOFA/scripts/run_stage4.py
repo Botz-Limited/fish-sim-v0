@@ -56,11 +56,17 @@ def main():
     plot({dt: r.log for dt, r in runs.items()}, base)
 
 
+def switches_per_cycle(s, f: float, dt: float) -> float:
+    """Valve switches (sign changes of s) per tail cycle."""
+    return np.count_nonzero(np.diff(np.sign(s))) / (len(s) * dt * f)
+
+
 def summary(runs, cfg):
     (dt1, r1), (dt2, r2) = runs.items()
     lines = ["Stage 4 – antagonistic hydraulics in air (coarse, V4, weight on)",
              f"f = {cfg.tail_freq} Hz, A_V = {cfg.tail_volume_amp * 1e6:g} ml, V_prefill = "
-             f"{cfg.V_prefill * 1e6:g} ml, Q_max = {cfg.Q_max * 1e6:g} ml/s, p_max = {cfg.p_max / 1e3:g} kPa", ""]
+             f"{cfg.V_prefill * 1e6:g} ml, Q_const = {cfg.Q_const * 1e6:g} ml/s, tau_valve = {cfg.tau_valve * 1e3:g} ms, "
+             f"δ = {cfg.valve_hysteresis * 1e6:g} ml, p_max = {cfg.p_max / 1e3:g} kPa", ""]
     for dt, r in runs.items():
         L, c = r.log, r.cycles
         m = L["t"] >= cfg.prefill_time + cfg.ramp_time
@@ -74,7 +80,8 @@ def summary(runs, cfg):
                   f"mean angle in the last cycle {np.degrees(c['mean_per_cycle'][-1]):+.3f}°",
                   f"  phase lag of θ relative to −V_ref: {c.get('phase_lag_deg', np.nan):.1f}°",
                   f"  V_p: {L['V_p'][m].min() * 1e6:+.2f} … {L['V_p'][m].max() * 1e6:+.2f} ml "
-                  f"(V_ref ±{cfg.tail_volume_amp * 1e6:g} ml); |u| = 1 in {100 * np.mean(np.abs(L['u'][m]) >= 1):.1f}% of steps",
+                  f"(V_ref ±{cfg.tail_volume_amp * 1e6:g} ml); max |V_p − V_ref| {np.abs(L['V_p'][m] - L['V_ref'][m]).max() * 1e6:.2f} ml; "
+                  f"valve switches per cycle {switches_per_cycle(L['u'][m], cfg.tail_freq, dt):.1f}",
                   f"  p_L, p_R: {min(L['p_L'][m].min(), L['p_R'][m].min()) / 1e3:.1f} … "
                   f"{max(L['p_L'][m].max(), L['p_R'][m].max()) / 1e3:.1f} kPa; |Δp| max {np.abs(dp[m]).max() / 1e3:.1f} kPa; "
                   f"valve open in {int(L['valve_open'].sum())} steps",

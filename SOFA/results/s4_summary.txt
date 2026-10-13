@@ -1,22 +1,22 @@
 Stage 4 – antagonistic hydraulics in air (coarse, V4, weight on)
-f = 2.0 Hz, A_V = 17 ml, V_prefill = 20 ml, Q_max = 250 ml/s, p_max = 50 kPa
+f = 2.0 Hz, A_V = 13 ml, V_prefill = 20 ml, Q_const = 100 ml/s, tau_valve = 20 ms, δ = 1 ml, p_max = 50 kPa
 
-dt = 2 ms: 198 ms/step = 99× slower than real time
-  θ amplitude in successive cycles [°]: 12.67, 12.66, 12.66, 12.66
-  steady cycle: amplitude change in the last cycle 0.00%; mean angle in the last cycle +0.000°
-  phase lag of θ relative to −V_ref: 49.8°
-  V_p: -16.92 … +16.93 ml (V_ref ±17 ml); |u| = 1 in 0.0% of steps
-  p_L, p_R: 50.1 … 56.4 kPa; |Δp| max 5.7 kPa; valve open in 0 steps
-  sum of measured ΔV_L + ΔV_R: 39.9991 … 40.0025 ml (prescribed 40 ml)
+dt = 2 ms: 176 ms/step = 88× slower than real time
+  θ amplitude in successive cycles [°]: 6.60, 7.99, 7.70, 7.59
+  steady cycle: amplitude change in the last cycle 1.41%; mean angle in the last cycle +0.070°
+  phase lag of θ relative to −V_ref: 105.9°
+  V_p: -16.49 … +11.09 ml (V_ref ±13 ml); max |V_p − V_ref| 24.97 ml; valve switches per cycle 2.2
+  p_L, p_R: 50.3 … 54.7 kPa; |Δp| max 3.6 kPa; valve open in 0 steps
+  sum of measured ΔV_L + ΔV_R: 39.9992 … 40.0004 ml (prescribed 40 ml)
   constraint solver: max 30 iterations, max error 2.0e-09
 
-dt = 1 ms: 181 ms/step = 181× slower than real time
-  θ amplitude in successive cycles [°]: 13.35, 13.33, 13.33, 13.33
-  steady cycle: amplitude change in the last cycle 0.00%; mean angle in the last cycle +0.000°
-  phase lag of θ relative to −V_ref: 47.0°
-  V_p: -16.96 … +16.96 ml (V_ref ±17 ml); |u| = 1 in 0.0% of steps
-  p_L, p_R: 50.2 … 56.3 kPa; |Δp| max 5.5 kPa; valve open in 0 steps
-  sum of measured ΔV_L + ΔV_R: 39.9992 … 40.0003 ml (prescribed 40 ml)
+dt = 1 ms: 184 ms/step = 184× slower than real time
+  θ amplitude in successive cycles [°]: 6.95, 8.38, 8.10, 7.95
+  steady cycle: amplitude change in the last cycle 1.89%; mean angle in the last cycle +0.000°
+  phase lag of θ relative to −V_ref: 104.2°
+  V_p: -16.35 … +11.15 ml (V_ref ±13 ml); max |V_p − V_ref| 25.20 ml; valve switches per cycle 2.2
+  p_L, p_R: 50.4 … 54.7 kPa; |Δp| max 3.4 kPa; valve open in 0 steps
+  sum of measured ΔV_L + ΔV_R: 39.9992 … 39.9997 ml (prescribed 40 ml)
   constraint solver: max 28 iterations, max error 2.0e-09
 
-effect of dt: amplitude in the last cycle 12.661° (dt 2 ms) vs 13.334° (dt 1 ms): difference -5.05%
+effect of dt: amplitude in the last cycle 7.589° (dt 2 ms) vs 7.952° (dt 1 ms): difference -4.55%

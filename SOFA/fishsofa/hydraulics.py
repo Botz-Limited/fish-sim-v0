@@ -9,8 +9,10 @@ Antagonistic system (stage 4, spec section 6). Water is practically incompressib
 the pump imposes VOLUME, not pressure: the chambers get valueType="volumeGrowth",
 and SOFA computes the pressure needed for that volume. The rest of this file is pure numpy
 (no SOFA), so it can be tested on its own:
-  TailRhythm     – V_ref(t) and the pump command (port of MuJoCo/fishsim/controllers.py),
-  ClosedLoopPump – first-order pump + relief valve on the pressure difference,
+  TailRhythm     – V_ref(t) (port of MuJoCo/fishsim/controllers.py) and the hysteresis
+                   relay choosing the valve direction s = ±1,
+  ClosedLoopPump – constant-speed pump + directional valves (first-order switching lag)
+                   + relief valve on the pressure difference,
   TailHydraulics – prefill + rhythm + pump -> prescribed volume growth of both chambers.
 """
 from dataclasses import dataclass
@@ -43,52 +45,87 @@ def smooth_ramp(t: float, T: float) -> tuple[float, float, float]:
 
 
 class TailRhythm:
-    """V_ref(t) = a(t)·(A_V·sin(2πft) + V_bias), pump command with feed-forward + P.
+    """V_ref(t) = a(t)·(A_V·sin(2πft) + V_bias) and the valve command (hysteresis relay).
 
     Why volume rather than a sinusoidal pump command: volume is the integral of flow, so
     u = A·sin(ωt) would give a volume amplitude ∝ 1/f (the frequency sweep in stage 6
     would mix two effects), and a constant offset would integrate without bound.
 
-    u = clip((dV_ref/dt + τ_pump·d²V_ref/dt² + K_v·(V_ref − V_p)) / Q_max, −1, 1)
-    When 2πf·A_V > Q_max, the pump saturates (|u| = 1) and the amplitude drops.
-
-    The τ_pump·d²V_ref/dt² term (absent in MuJoCo) inverts the first-order pump lag: without
-    it, at 2 Hz (ωτ = 0.38) the loop overshoots – V_p reached 1.16·A_V
-    (19.7 ml with A_V = 17 ml), and chamber R nearly its rest volume. With it the
-    tracking error is ~1% of A_V (test test_pump_tracks_v_ref).
+    The pump runs at constant speed; directional valves only choose the flow direction,
+    s = +1 (R -> L) or s = −1 (L -> R) – there is no closed valve state. Relay with
+    hysteresis δ = valve_hysteresis, s is kept between steps:
+        e = V_ref − V_p;  e > δ -> s = +1;  e < −δ -> s = −1;  otherwise s unchanged.
+    While 2πf·A_V < Q_const the relay tracks V_ref with a sawtooth (band ±δ plus an
+    overshoot ~Q_const·tau_valve) at the cost of many valve switches per cycle. Above
+    f_track = Q_const/(2π·A_V) tracking ends: the valve switches only at the peaks (2× per
+    cycle), V_p is a triangle with amplitude ≈ Q_const/(4f) (less the tau_valve losses).
     Difference from MuJoCo: here the ramp a(t) also multiplies V_bias (in MuJoCo the bias
     applies immediately), so that a nonzero bias does not cause a volume jump.
+
+    Hardware limits (as in MuJoCo): the valve holds each state for at least valve_min_dwell
+    (≤ 5 switches/s), and the frequency is clamped to [tail_freq_min, tail_freq_max].
+    Below the range tracking would need fast switching the valve cannot do; above it the
+    valve cannot switch twice per cycle. With Q_const = 100 ml/s f_track ≈ 1.2 Hz lies below
+    the range, so the relay switches at the peaks only (2× per cycle; ≈ 2.7× at 1.5 Hz).
     """
 
     def __init__(self, cfg, freq=None, amp=None, bias=None):
         self.cfg = cfg
-        self.freq = cfg.tail_freq if freq is None else freq
+        self.freq = self._clamp(cfg.tail_freq if freq is None else freq)
         self.amp = cfg.tail_volume_amp if amp is None else amp
         self.bias = cfg.tail_volume_bias if bias is None else bias
+        self.reset()
 
-    def v_ref(self, t: float) -> tuple[float, float, float]:
-        """(V_ref, dV_ref/dt, d²V_ref/dt²) [m³, m³/s, m³/s²]; t measured from the start of the rhythm."""
+    def reset(self):
+        """Relay state back to the start value s = +1, phase offset zeroed."""
+        self.s = 1
+        self.t_switch = -np.inf   # [s] time of the last valve switch
+        self.phase0 = 0.0         # [rad] phase offset – keeps the phase continuous when f changes
+
+    def _clamp(self, freq: float) -> float:
+        return float(np.clip(freq, self.cfg.tail_freq_min, self.cfg.tail_freq_max))
+
+    def set_freq(self, freq: float, t: float):
+        """Change the frequency during motion WITHOUT a phase jump (frequency clamped).
+
+        Phase φ(t) = 2π·f·t + φ0; φ0 is chosen so that φ(t) stays continuous."""
+        freq = self._clamp(freq)
+        self.phase0 += 2 * np.pi * (self.freq - freq) * t
+        self.freq = freq
+
+    def v_ref(self, t: float) -> tuple[float, float]:
+        """(V_ref, dV_ref/dt) [m³, m³/s]; t measured from the start of the rhythm."""
         w = 2 * np.pi * self.freq
-        a, da, dda = smooth_ramp(t, self.cfg.ramp_time)
-        s, c = np.sin(w * t), np.cos(w * t)
-        base = self.amp * s + self.bias
-        A = self.amp
-        return (a * base, da * base + a * A * w * c,
-                dda * base + 2 * da * A * w * c - a * A * w * w * s)
+        a, da, _ = smooth_ramp(t, self.cfg.ramp_time)
+        sn, cs = np.sin(w * t + self.phase0), np.cos(w * t + self.phase0)
+        base = self.amp * sn + self.bias
+        return a * base, da * base + a * self.amp * w * cs
 
-    def command(self, t: float, V_p: float) -> float:
-        v, dv, ddv = self.v_ref(t)
-        c = self.cfg
-        u = (dv + c.tau_pump * ddv + c.K_v * (v - V_p)) / c.Q_max
-        return float(np.clip(u, -1.0, 1.0))
+    def command(self, t: float, V_p: float) -> int:
+        """Valve state s ∈ {+1, −1} for the step starting at t (relay with hysteresis,
+        state held for at least valve_min_dwell after each switch)."""
+        if t - self.t_switch < self.cfg.valve_min_dwell:
+            return self.s
+        e = self.v_ref(t)[0] - V_p
+        d = self.cfg.valve_hysteresis
+        s = self.s
+        if e > d:
+            s = 1
+        elif e < -d:
+            s = -1
+        if s != self.s:
+            self.s, self.t_switch = s, t
+        return self.s
 
 
 class ClosedLoopPump:
-    """Pump transferring fluid from R to L in a closed circuit + relief valve.
+    """Constant-speed pump + directional valves in a closed R <-> L circuit + relief valve.
 
-    States: Q – pump flow [m³/s] (first-order lag, dQ/dt = (u·Q_max − Q)/τ_pump),
-            V_p – volume pumped from R to L [m³].
-    Explicit Euler: stable and accurate, since dt ≪ τ_pump (2 ms vs 30 ms).
+    States: Q – flow [m³/s], V_p – volume pumped from R to L [m³].
+    Valve command s ∈ {+1, −1} (R -> L / L -> R); s = 0 only means "pump off" (before the
+    rhythm), never a valve state. Valve switching + reversal of the stream is a first-order
+    lag: dQ/dt = (s·Q_const − Q)/tau_valve.
+    Explicit Euler: stable and accurate, since dt ≪ tau_valve (2 ms vs 20 ms).
 
     The relief valve connects the chambers: in a closed circuit the pump works against
     Δp = p_L − p_R, so the valve looks at Δp, not at the pressure of one chamber. When
@@ -105,9 +142,9 @@ class ClosedLoopPump:
         self.Q_valve = 0.0      # [m³/s], > 0 = from L to R
         self.valve_open = False
 
-    def step(self, u: float, dp: float, dt: float):
+    def step(self, s: int, dp: float, dt: float):
         c = self.cfg
-        self.Q += dt * (float(np.clip(u, -1.0, 1.0)) * c.Q_max - self.Q) / c.tau_pump
+        self.Q += dt * (float(np.sign(s)) * c.Q_const - self.Q) / c.tau_valve
         self.V_p += self.Q * dt
         excess = abs(dp) - c.p_max
         self.valve_open = excess > 0
@@ -120,7 +157,7 @@ class HydraulicsState:
     t: float
     V_ref: float
     V_p: float
-    u: float
+    u: int           # valve state s = ±1 (R -> L / L -> R); 0 = pump off (prefill)
     Q: float
     Q_valve: float
     valve_open: bool
@@ -143,12 +180,17 @@ class TailHydraulics:
         self.rhythm = rhythm or TailRhythm(cfg)
         self.pump = ClosedLoopPump(cfg)
 
+    def reset(self):
+        """Back to the start of the simulation (relay s = +1, pump state zeroed)."""
+        self.rhythm.reset()
+        self.pump = ClosedLoopPump(self.cfg)
+
     def step(self, t: float, dp: float, dt: float) -> HydraulicsState:
         """Step from t to t + dt. dp = p_L − p_R [Pa] from the previous step.
         Returns the state with the prescribed volumes at the end of the step (t + dt)."""
         c = self.cfg
         t_r = t - c.prefill_time
-        u = self.rhythm.command(t_r, self.pump.V_p) if t_r >= 0 else 0.0
+        u = self.rhythm.command(t_r, self.pump.V_p) if t_r >= 0 else 0
         self.pump.step(u, dp, dt)
         prefill = c.V_prefill * smooth_ramp(t + dt, c.prefill_time)[0]
         V_ref = self.rhythm.v_ref(t_r + dt)[0] if t_r + dt >= 0 else 0.0

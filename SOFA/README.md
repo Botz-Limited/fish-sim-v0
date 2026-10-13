@@ -300,10 +300,10 @@ The spec requires < 5%; the test `test_chamber_R_mirrors_L` enforces 1% on the t
 
 ## Stage 4 – antagonistic hydraulics: flapping in air
 
-`scripts/run_stage4.py` (~25 min). Coarse mesh, air, weight on, chambers full of water. Sequence: 0–1 s prefill of both chambers to 20 ml, then the V_ref(t) rhythm with a 1 s ramp, 4.5 s in total. The pump transfers fluid from R to L (`fishsofa/hydraulics.py`), and the SOFA controller (`fishsofa/controller.py`) sets the volume growth of both chambers every step: ΔV_L = prefill + V_p, ΔV_R = prefill − V_p. **+V_p (chamber L) bends the tail towards −Y, to the right. This corresponds to +V_bias in MuJoCo ("turn right").**
+`scripts/run_stage4.py` (~25 min). Coarse mesh, air, weight on, chambers full of water. Sequence: 0–1 s prefill of both chambers to 20 ml, then the V_ref(t) rhythm with a 1 s ramp, 4.5 s in total. A constant-speed pump with directional valves transfers fluid between R and L (`fishsofa/hydraulics.py`, section "Pump and valves" below), and the SOFA controller (`fishsofa/controller.py`) sets the volume growth of both chambers every step: ΔV_L = prefill + V_p, ΔV_R = prefill − V_p. **+V_p (chamber L) bends the tail towards −Y, to the right. This corresponds to +V_bias in MuJoCo ("turn right").**
 
 ### Parameters: why not 1:1 with MuJoCo
-The SOFA chamber is 91 ml, while in MuJoCo `V0_chamber` = 30 ml. A_V = 8 ml from MuJoCo would give ~±3° here. In addition, Q_max = 60 ml/s cannot keep up at 2 Hz (2π·f·A_V is needed), so it would come out even less. The largest motion that fits safely was chosen: **A_V = 17 ml, V_prefill = 20 ml, Q_max = 250 ml/s**. The other values are as in MuJoCo: f = 2 Hz, K_v = 10 1/s, τ_pump = 30 ms, p_max = 50 kPa.
+The SOFA chamber is 91 ml, while in MuJoCo `V0_chamber` = 30 ml. A_V = 8 ml from MuJoCo would give ~±3° here. In addition, a flow of 60 ml/s (MuJoCo `Q_max`) cannot keep up at 2 Hz (2π·f·A_V is needed), so it would come out even less. The largest motion that fits safely was chosen: **A_V = 17 ml, V_prefill = 20 ml, Q_const = 250 ml/s**. Further: f = 2 Hz and p_max = 50 kPa as in MuJoCo; tau_valve = 20 ms and valve_hysteresis δ = 1 ml (all PLACEHOLDER).
 
 **Upper prefill limit: spine buckling.** Filling both chambers elongates the tail lengthwise, and the stiff spine is then compressed. Static measurement on the coarse mesh:
 
@@ -316,9 +316,37 @@ The SOFA chamber is 91 ml, while in MuJoCo `V0_chamber` = 30 ml. A_V = 8 ml from
 
 ±15° would require a prefill > 24 ml, i.e. already in this range. Design conclusion: with construction V4 the prefill limits the amplitude, because the common pressure loads the spine axially.
 
-**Pump lag compensation (change relative to MuJoCo).** The MuJoCo command, u = (dV_ref/dt + K_v·(V_ref − V_p))/Q_max, overshot at 2 Hz: V_p reached 1.16·A_V, i.e. 19.7 ml, and chamber R nearly reached its rest volume. This happened even without pump saturation (Q_max 400 ml/s: 1.17×). The first-order pump has ωτ = 0.38, so feedforward alone lags. The added term τ_pump·d²V_ref/dt² inverts this lag: the tracking error drops to 1.2% of A_V, without saturation (test `test_pump_tracks_v_ref`). **The same problem exists in MuJoCo** (`MuJoCo/fishsim/controllers.py`); I changed nothing there.
+### Pump and valves (model change 13.10.2026)
+
+The pump runs at **constant speed** with constant flow `Q_const`. The flow direction is chosen by directional valves with only two states: s = +1 (R → L) or s = −1 (L → R). There is no closed state; s = 0 means only "pump off" (prefill, before the rhythm). Valve switching plus reversal of the stream is a first-order lag: dQ/dt = (s·Q_const − Q)/tau_valve. The SOFA output stays the same: a commanded volume increment of each chamber.
+
+Control is a **hysteresis relay** (replaces the earlier feed-forward + P command with the τ·d²V_ref/dt² lag compensation; `K_v` is gone). With e = V_ref − V_p: e > δ → s = +1, e < −δ → s = −1, otherwise s is kept. Start (and reset): s = +1. V_ref(t) is unchanged (ramp, bias for turning). The relief valve stays as a separate safety element.
+
+**Valve rate limit (user decision 13.10.2026).** The valve switches at most ~5 times/s, so after every switch the relay holds the state for at least `valve_min_dwell` = 0.2 s, and the tail frequency is clamped to [`tail_freq_min`, `tail_freq_max`] = [1.5, 2.5] Hz (`TailRhythm` clamps, `TailConfig` rejects a `tail_freq` outside the range, since scripts use it as the cycle length). 2.5 Hz = 1/(2·valve_min_dwell): 2 switches per cycle, each state ≥ 0.2 s. 1.5 Hz: below it the valve adds extra switches per cycle and the turn bias becomes jerky. Here f_track = Q_const/(2π·A_V) = 2.34 Hz lies inside the range, so the old tracking regime (sawtooth with 9 switches per cycle at 2 Hz) no longer exists: every valve stroke lasts ≥ 0.2 s and moves up to Q_const·0.2 s = 50 ml.
+
+Offline (pure Python, `_offline` in the tests, Δp = 0, 10 cycles after a 1 s ramp, last 8 cycles):
+
+| f [Hz] | 1.5 | 2.0 | 2.5 |
+|---|---|---|---|
+| valve switches per cycle | 3.25 | 2.5 | 2.0 |
+| V_p amplitude [ml] (V_ref ±17 ml) | 23.0 | 22.5 | 22.2 (ideal triangle Q_const/(4f) = 25) |
+| mean V_p [ml] | −4.6 | −2.4 | −2.0 |
+| max \|V_p\| steady [ml] | 27.2 | 24.7 | 24.2 |
+| max \|V_p\| incl. start [ml] | 43.7 | 43.7 | 43.7 |
+
+> **Open issue: V_p exceeds V_prefill.** Q_const·valve_min_dwell = 50 ml > 2·A_V = 34 ml, so every stroke overshoots V_ref and |V_p| goes beyond V_prefill = 20 ml (the chamber would drop below its rest volume, which is not modeled). The start is worst: s = +1 at t = 0, the relay switches to −1 after ~16 ms and must then hold −Q_const for 0.2 s → V_p ≈ −43 ml. In SOFA (test mesh, 2 Hz, 0.2 s prefill/ramp) the tail then flaps only to one side in the first cycles (θ +1.5 … +31°), |Δp| reaches 26 kPa (relief valve stays closed). Raising `prefill_margin` cannot fix this (it would need V_prefill ≳ 45 ml, far above the ~22 ml buckling limit). Needs a decision on Q_const / A_V / V_prefill (offline, Q_const = 170 ml/s gives a steady max |V_p| ≈ 19 ml but still 29 ml at the start). Tests `test_chamber_never_below_rest_volume` and `test_flapping_both_ways_from_the_start` are marked xfail (strict) until then.
+
+New metric: **valve switches per tail cycle** (sign changes of s; stage 4 summary, stage 6 table and plot). 2 per cycle means switching only at the peaks.
 
 ### Results (`results/s4_air_flapping.png`, `.csv`, `results/s4_summary.txt`)
+
+> **Needs re-running.** The stage 4 and stage 6 results (and stage 5, which uses the same hydraulics) below were computed with the OLD pump model (first-order pump with Q = u·Q_max, feed-forward + P with τ·d²V_ref/dt² compensation). They have not yet been recomputed with the constant-speed pump + valves + relay (+ 0.2 s valve dwell). Commands:
+> ```bash
+> source SOFA/scripts/env.sh && cd SOFA
+> python scripts/run_stage4.py   # ~25 min
+> python scripts/run_stage5.py   # ~30–60 min
+> python scripts/run_stage6.py   # ~30–40 min on 12 threads (5 frequencies 1.5–2.5 Hz)
+> ```
 
 | | dt = 2 ms | dt = 1 ms |
 |---|---|---|
@@ -333,7 +361,7 @@ The SOFA chamber is 91 ml, while in MuJoCo `V0_chamber` = 30 ml. A_V = 8 ml from
 
 Observations:
 - The cycle settles already in the second cycle after the ramp, and the mean angle is 0.000°: with a 20 ml prefill there is no buckling.
-- The angle lags the volume by ~50°, while in statics there would be no lag. The lag is due to the inertia of the tail with water in the chambers, not the pump (V_p coincides with V_ref, bottom panel of the plot).
+- The angle lags the volume by ~50°, while in statics there would be no lag. The lag is due to the inertia of the tail with water in the chambers, not the pump (V_p coincided with V_ref, bottom panel of the plot; old pump model, see the note above the table).
 - The pressure difference is small (±5.7 kPa) against the common pressure of 53 kPa. In the antagonistic system the motion is driven by the difference, and it is still far from 50 kPa.
 
 **Effect of dt (spec, section 5):** at dt = 2 ms the amplitude is 5.1% smaller than at 1 ms. Implicit Euler damps numerically and this damping grows with dt. For stages 5–6 this is a known systematic error (−5% of amplitude). If comparisons are to be quantitative, compute at 1 ms, at the cost of 2× longer run time.
@@ -385,6 +413,8 @@ Observations:
 
 ### a) Frequency 0.5–3 Hz in water (`s6_freq_sweep.png`)
 
+> Old pump model (see the note in stage 4). The sweep script now covers only the valve range 1.5–2.5 Hz (0.25 Hz steps); the points 0.5–1.25 and 2.75–3 Hz below are from the old run and will disappear. After re-running, the table row "pump saturated" becomes "valve switches per cycle" (offline expectation: 3.25 at 1.5 Hz, 2.5 at 2 Hz, 2 at 2.5 Hz).
+
 Same points as `MuJoCo/scripts/sweep_frequency.py` (every 0.25 Hz), same volume amplitude A_V = 17 ml. Protocol: prefill 1 s, 2 run-in cycles (the first is the amplitude ramp), 3 averaging cycles. Step: 1 ms up to 2 Hz, above that 1 ms·2/f.
 
 | f [Hz] | 0.5 | 1.0 | 1.5 | 2.0 | 2.25 | 2.5 | 3.0 |
@@ -393,13 +423,13 @@ Same points as `MuJoCo/scripts/sweep_frequency.py` (every 0.25 Hz), same volume 
 | phase lag [°] | 17 | 40 | 61 | 77 | 84 | 91 | 106 |
 | thrust [mN] | 1.5 | 19.6 | 45.9 | 63.2 | **67.9** | 62.8 | 47.0 |
 | \|Δp\| max [kPa] | 1.7 | 3.5 | 4.9 | 5.7 | 5.9 | 5.9 | 5.4 |
-| pump saturated [% of time] | 0 | 0 | 0 | 0 | 18 | 36 | 53 |
+| pump saturated [% of time] (old model) | 0 | 0 | 0 | 0 | 18 | 36 | 53 |
 
 What the plot shows:
 - **Amplitude decreases with f over the whole range.** In water the tail has no resonance: drag grows with the square of velocity and damps it more strongly than in air (where the natural frequency is ~3 Hz, stage 1). At low f the angle approaches the quasi-static one (~12°, compare stage 2) and barely lags the volume.
-- **Thrust peaks at ~2.25 Hz.** It rises because fin velocity rises (drag ~ v²), and falls because the amplitude decreases and from 2.25 Hz the pump saturates: the required peak flow 2π·f·A_V (240 ml/s at 2.25 Hz, plus pump lag compensation) exceeds Q_max = 250 ml/s.
-- **The valve opens nowhere:** |Δp| ≤ 6 kPa versus p_max = 50 kPa. With this construction the limit is pump capacity, not pressure.
-- **Comparison with MuJoCo** (`MuJoCo/results/s5_sweep.png`, rescaled dashed line on the plot, shape only): MuJoCo has an amplitude peak at 1.5 Hz, SOFA has no peak. Reasons: MuJoCo models a swimming fish with added mass and passive resonance (`passive_resonance_hz`), while here the tail is clamped, with drag only, which at this stiffness damps the resonance completely. The drop above 2 Hz (pump saturation) looks similar in both.
+- **Thrust peaks at ~2.25 Hz.** It rises because fin velocity rises (drag ~ v²), and falls because the amplitude decreases and, with the old pump model, from 2.25 Hz the pump could no longer deliver the peak flow 2π·f·A_V (240 ml/s at 2.25 Hz, plus lag compensation) with Q_max = 250 ml/s. In the new model the same limit is the end of tracking: above f_track = Q_const/(2π·A_V) = 2.34 Hz the valve switches only at the peaks and the volume amplitude drops to ≈ Q_const/(4f).
+- **The valve opens nowhere:** |Δp| ≤ 6 kPa versus p_max = 50 kPa. With this construction the limit is pump flow Q_const, not pressure.
+- **Comparison with MuJoCo** (`MuJoCo/results/s5_sweep.png`, rescaled dashed line on the plot, shape only): MuJoCo has an amplitude peak at 1.5 Hz, SOFA has no peak. Reasons: MuJoCo models a swimming fish with added mass and passive resonance (`passive_resonance_hz`), while here the tail is clamped, with drag only, which at this stiffness damps the resonance completely. The drop above 2 Hz (end of volume tracking) looks similar in both.
 - **Drag stability:** max(c·dt/m) is 0.52 at 1.75 Hz and 0.54 at 2 Hz (dt 1 ms), everywhere else < 0.5. Stage 5 measured the effect of such an exceedance: at dt/2 amplitude +1.4%, thrust +5%. A better rule for the future: dt = 1 ms·min(1, 1.6/f).
 
 ### b) Silicone Young's modulus ×0.5 / ×1 / ×2 (`s6_young_sweep.png`)

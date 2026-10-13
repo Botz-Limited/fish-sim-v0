@@ -1,21 +1,21 @@
 Stage 5 – water vs air (coarse, V4, antagonistic system, same V_ref rhythm)
-f = 2.0 Hz, A_V = 17 ml, V_prefill = 20 ml, C_n = 1.0, C_t = 0.01 (PLACEHOLDER)
+f = 2.0 Hz, A_V = 13 ml, V_prefill = 20 ml, C_n = 1.0, C_t = 0.01 (PLACEHOLDER)
 
-air_1ms: 344 ms/step = 344× slower than real time
-  θ amplitude in successive cycles [°]: 13.35, 13.33, 13.33, 13.33
-  steady cycle: ±13.33°, change in the last cycle 0.00%, phase lag relative to −V_ref 47.0°, |Δp| max 5.5 kPa
+air_1ms: 521 ms/step = 521× slower than real time
+  θ amplitude in successive cycles [°]: 6.95, 8.38, 8.10, 7.95
+  steady cycle: ±7.95°, change in the last cycle 1.89%, phase lag relative to −V_ref 104.2°, |Δp| max 2.8 kPa
 
-water_1ms: 361 ms/step = 361× slower than real time
-  θ amplitude in successive cycles [°]: 7.22, 7.22, 7.22, 7.22
-  steady cycle: ±7.22°, change in the last cycle 0.00%, phase lag relative to −V_ref 77.2°, |Δp| max 5.7 kPa
-  thrust (mean F_x, last 2 cycles): +63.17 mN; lateral force ±737 mN; mean drag power -120 mW
-  explicit drag stability: max(c·dt/m) = 0.536 (required < 0.5)
+water_1ms: 521 ms/step = 521× slower than real time
+  θ amplitude in successive cycles [°]: 3.96, 5.37, 5.08, 4.91
+  steady cycle: ±4.91°, change in the last cycle 3.24%, phase lag relative to −V_ref 128.3°, |Δp| max 3.5 kPa
+  thrust (mean F_x, last 2 cycles): +14.69 mN; lateral force ±364 mN; mean drag power -39 mW
+  explicit drag stability: max(c·dt/m) = 0.366 (required < 0.5)
 
-water_0.5ms: 408 ms/step = 815× slower than real time
-  θ amplitude in successive cycles [°]: 7.32, 7.32, 7.32, 7.32
-  steady cycle: ±7.32°, change in the last cycle 0.00%, phase lag relative to −V_ref 76.7°, |Δp| max 5.6 kPa
-  thrust (mean F_x, last 2 cycles): +66.66 mN; lateral force ±755 mN; mean drag power -125 mW
-  explicit drag stability: max(c·dt/m) = 0.272 (required < 0.5)
+water_0.5ms: 357 ms/step = 714× slower than real time
+  θ amplitude in successive cycles [°]: 4.06, 5.46, 5.11, 4.99
+  steady cycle: ±4.99°, change in the last cycle 2.37%, phase lag relative to −V_ref 127.8°, |Δp| max 3.4 kPa
+  thrust (mean F_x, last 2 cycles): +15.47 mN; lateral force ±371 mN; mean drag power -41 mW
+  explicit drag stability: max(c·dt/m) = 0.185 (required < 0.5)
 
-water/air: amplitude 0.54×, phase +30.1°
-water, dt 1 ms vs 0.5 ms: amplitude -1.39%, thrust -5.2%
+water/air: amplitude 0.62×, phase +24.1°
+water, dt 1 ms vs 0.5 ms: amplitude -1.52%, thrust -5.0%

@@ -6,10 +6,11 @@ Usage:  source scripts/env.sh && python scripts/run_stage6.py   (~1 h, up to 10 
 Each point is a separate simulation (coarse mesh), all run in parallel
 (fishsofa/parallel.py, one simulation = one core):
 
-1. Frequency 0.5–3 Hz in 0.25 Hz steps (the same points as MuJoCo/scripts/sweep_frequency.py),
-   in water. Protocol (spec, stage 6): 1 s prefill, then 2 run-in cycles (the first is the
-   amplitude ramp) and 3 averaging cycles. Step: dt = 1 ms up to 2 Hz, above that 1 ms·2/f,
-   because the fin velocity grows with f, and with it max(c·dt/m) of the explicit drag (stage 5).
+1. Frequency tail_freq_min … tail_freq_max (1.5–2.5 Hz, valve switching limit) in 0.25 Hz steps
+   (the same points as MuJoCo/scripts/sweep_frequency.py), in water. Protocol (spec, stage 6):
+   1 s prefill, then 2 run-in cycles (the first is the amplitude ramp) and 3 averaging cycles.
+   Step: dt = 1 ms up to 2 Hz, above that 1 ms·2/f, because the fin velocity grows with f, and
+   with it max(c·dt/m) of the explicit drag (stage 5).
 2. Silicone Young's modulus ×0.5, ×1, ×2:
    a) quasi-static, volume control (as stage 2: chamber L, R vented, g = 0),
    b) for contrast, quasi-static PRESSURE control (valueType="pressure"),
@@ -41,12 +42,13 @@ RESULTS = os.path.join(PROJECT_DIR, "results")
 MUJOCO_SWEEP = os.path.join(os.path.dirname(PROJECT_DIR), "MuJoCo", "results", "s5_sweep.csv")
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 BLUE, ORANGE, GREEN = "#2a78d6", "#eb6834", "#1baf7a"   # dataviz palette, fixed order
-FREQS = [round(f, 2) for f in np.arange(0.5, 3.0 + 1e-9, 0.25)]
+_C = TailConfig()
+FREQS = [round(f, 2) for f in np.arange(_C.tail_freq_min, _C.tail_freq_max + 1e-9, 0.25)]
 E_FACTORS = (0.5, 1.0, 2.0)
 QS_VOLUMES = [10e-6, 20e-6, 30e-6, 40e-6]   # [m³] volume mode
 QS_PRESSURES = [2e3, 4e3, 6e3, 8e3]          # [Pa] pressure mode
 N_WARMUP, N_AVG = 2, 3                      # run-in cycles (incl. ramp) and averaging cycles
-FREQ_COLS = ("f", "dt_ms", "amp_deg", "phase_deg", "thrust_mN", "dp_max_kPa", "valve_frac", "pump_sat_frac",
+FREQ_COLS = ("f", "dt_ms", "amp_deg", "phase_deg", "thrust_mN", "dp_max_kPa", "valve_frac", "valve_switches",
              "stability_max", "ms_per_step")
 
 
@@ -116,7 +118,8 @@ def _call(fn, kw):
 
 def freq_metrics(f: float, r) -> dict:
     """Metrics over the last N_AVG cycles: angle amplitude, thrust (mean F_x), max |Δp|,
-    fraction of time with the valve open and with the pump saturated (|u| = 1)."""
+    fraction of time with the relief valve open and directional-valve switches per cycle
+    (sign changes of s; 2 = switching only at the peaks, i.e. V_p no longer tracks V_ref)."""
     L, cfg = r.log, flap_cfg(f)
     T = 1.0 / f
     t1 = L["t"][-1] + r.dt
@@ -129,7 +132,7 @@ def freq_metrics(f: float, r) -> dict:
             "phase_deg": r.cycles.get("phase_lag_deg", np.nan),
             "thrust_mN": 1e3 * float(L["F_x"][m].mean()),
             "dp_max_kPa": float(np.abs(L["p_L"][m] - L["p_R"][m]).max() / 1e3),
-            "valve_frac": float(L["valve_open"][m].mean()), "pump_sat_frac": float(np.mean(np.abs(L["u"][m]) >= 1)),
+            "valve_frac": float(L["valve_open"][m].mean()), "valve_switches": np.count_nonzero(np.diff(L["u"][m])) / N_AVG,
             "stability_max": float(np.nanmax(L["stability"])), "ms_per_step": r.ms_per_step,
             "amp_change": abs(amps[-1] / amps[-2] - 1)}
 
@@ -155,11 +158,11 @@ def summary(freq_rows, young_rows, wall_min=np.nan, cpu_min=np.nan) -> str:
     lines = ["Stage 6 – sweeps (coarse, V4, water for dynamics)",
              f"compute time of the whole sweep: {wall_min:.0f} min (wall clock), dynamic simulations total "
              f"{cpu_min:.0f} min CPU – in parallel {cpu_min / wall_min:.1f}× faster than sequentially", "",
-             "a) frequency (A_V = 17 ml, 2 run-in cycles + 3 averaging cycles):",
-             "   f [Hz]  dt [ms]  amplitude [°]  phase [°]  thrust [mN]  |Δp| max [kPa]  valve [%]  pump saturated [%]  max(c·dt/m)"]
+             "a) frequency (A_V = 13 ml, 2 run-in cycles + 3 averaging cycles):",
+             "   f [Hz]  dt [ms]  amplitude [°]  phase [°]  thrust [mN]  |Δp| max [kPa]  valve [%]  switches/cycle  max(c·dt/m)"]
     for r in freq_rows:
         lines.append(f"   {r['f']:5.2f}  {r['dt_ms']:6.3f}  {r['amp_deg']:12.2f}  {r['phase_deg']:8.1f}  {r['thrust_mN']:9.2f}"
-                     f"  {r['dp_max_kPa']:14.1f}  {100 * r['valve_frac']:9.1f}  {100 * r['pump_sat_frac']:18.1f}"
+                     f"  {r['dp_max_kPa']:14.1f}  {100 * r['valve_frac']:9.1f}  {r.get('valve_switches', np.nan):14.1f}"
                      f"  {r['stability_max']:11.3f}")
     lines += ["", "b) silicone Young's modulus (×0.5 / ×1 / ×2):"]
     for variant, desc in (("qs_volume", "quasi-static, volume control (chamber L, g = 0)"),
@@ -188,6 +191,12 @@ def _style(ax):
 def _rc():
     plt.rcParams.update({"font.size": 10, "axes.edgecolor": GRID, "axes.labelcolor": INK2,
                          "xtick.color": INK2, "ytick.color": INK2, "axes.titlecolor": INK})
+
+
+def _f_track() -> float:
+    """Above f_track = Q_const/(2π·A_V) the relay no longer tracks V_ref (switching only at peaks)."""
+    c = TailConfig()
+    return c.Q_const / (2 * np.pi * c.tail_volume_amp)
 
 
 def plot_freq(rows):
@@ -220,12 +229,21 @@ def plot_freq(rows):
     c.set_ylabel("max |Δp| [kPa]")
     c.set_title("Pressure difference between the chambers", loc="left", fontsize=10)
 
-    d.plot(f, 100 * get("valve_frac"), "o-", color=ORANGE, linewidth=2, label="valve open")
-    d.plot(f, 100 * get("pump_sat_frac"), "o-", color=BLUE, linewidth=2, label="pump saturated |u| = 1")
-    d.set_ylabel("fraction of time [%]")
-    d.set_title("Hydraulic limits", loc="left", fontsize=10)
-    d.legend(frameon=False, labelcolor=INK, fontsize=9)
-    fig.suptitle("Stage 6a – frequency sweep in water (coarse mesh, V4, A_V = 17 ml, Q_max = 250 ml/s, "
+    d.plot(f, 100 * get("valve_frac"), "o-", color=ORANGE, linewidth=2, label="relief valve open [% of time]")
+    d.set_ylabel("relief valve open [% of time]")
+    d2 = d.twinx()
+    d2.plot(f, [r.get("valve_switches", np.nan) for r in rows], "o-", color=BLUE, linewidth=2,
+            label="directional valve switches per cycle")
+    d2.axhline(2, color=INK2, linewidth=0.8, linestyle=":")
+    d2.set_ylabel("valve switches per cycle", color=INK2)
+    d2.tick_params(colors=INK2)
+    d.axvline(_f_track(), color=INK2, linewidth=1, linestyle="--")
+    d.text(_f_track(), 0, " f_track", color=INK2, va="bottom", fontsize=9)
+    d.set_title("Hydraulic limits (2 switches/cycle = switching only at the peaks)", loc="left", fontsize=10)
+    h1, l1 = d.get_legend_handles_labels()
+    h2, l2 = d2.get_legend_handles_labels()
+    d.legend(h1 + h2, l1 + l2, frameon=False, labelcolor=INK, fontsize=9)
+    fig.suptitle("Stage 6a – frequency sweep in water (coarse mesh, V4, A_V = 13 ml, Q_const = 100 ml/s, "
                  "parameters PLACEHOLDER)", x=0.01, ha="left", color=INK, fontsize=11)
     fig.savefig(os.path.join(RESULTS, "s6_freq_sweep.png"), dpi=150, facecolor="white")
     plt.close(fig)

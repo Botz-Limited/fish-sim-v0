@@ -71,15 +71,27 @@ class TailConfig:
     tail_freq: float = 2.0          # [Hz] as in MuJoCo
     # Deliberate deviation from MuJoCo (decision in stage 4): the SOFA chamber holds 91 ml, not 30 ml
     # like V0_chamber in MuJoCo, so the MuJoCo A_V = 8 ml would give only ~±3° here (README).
-    # 17 ml is the largest amplitude with margin at V_prefill = 20 ml (see V_prefill).
-    tail_volume_amp: float = 17e-6  # [m³] A_V; PLACEHOLDER – to be identified from measurements
+    # 13 ml: with Q_const = 100 ml/s (7.7·A_V) the strokes reach ≈ ±16.5 ml, below V_prefill − margin = 18 ml.
+    tail_volume_amp: float = 13e-6  # [m³] A_V; PLACEHOLDER – to be identified from measurements
     tail_volume_bias: float = 0.0   # [m³] V_bias – constant tail deflection (turning)
-    K_v: float = 10.0               # [1/s] volume error correction; K_v·τ_pump < 0.5 (as in MuJoCo)
     ramp_time: float = 1.0          # [s] soft start of the amplitude (after the prefill)
-    # The pump must deliver a peak flow of 2π·f·A_V = 214 ml/s, otherwise it saturates and the
-    # amplitude drops (lesson from stage 6). MuJoCo has 60 ml/s – too little for A_V = 17 ml.
-    Q_max: float = 250e-6           # [m³/s] PLACEHOLDER – to be identified from measurements
-    tau_pump: float = 0.03          # [s] pump time constant, as in MuJoCo; PLACEHOLDER – to be identified from measurements
+    # Constant-speed pump + directional valves (s = ±1, no closed state), hysteresis relay
+    # (hydraulics.TailRhythm). V_p tracks V_ref only while 2π·f·A_V < Q_const; above
+    # f_track = Q_const/(2π·A_V) the valve switches only at the peaks and the amplitude drops
+    # to ≈ Q_const/(4f). Decision (13.10.2026): Q_const = 7.5·A_V on every branch (MuJoCo ratio
+    # 60/8) -> f_track ≈ 1.2 Hz < tail_freq_min, so the relay switches twice per cycle.
+    Q_const: float = 100e-6         # [m³/s] pump flow (replaces Q_max); PLACEHOLDER – to be identified from measurements
+    tau_valve: float = 0.02         # [s] valve switching + stream reversal (replaces tau_pump); PLACEHOLDER – to be identified from measurements
+    valve_hysteresis: float = 1e-6  # [m³] δ – relay hysteresis on V_ref − V_p; PLACEHOLDER – to be identified from measurements
+    # The valve switches at most ~5 times/s, so every valve state lasts at least 0.2 s.
+    valve_min_dwell: float = 0.2    # [s] minimum time between valve switches; PLACEHOLDER – to be identified from measurements
+    # Lowest allowed flapping frequency (all demos). Above f_track ≈ 1.2 Hz the relay switches
+    # exactly twice per cycle.
+    # User decision (13.10.2026): 1.5 Hz, not 1.25 Hz – at 1.25 Hz the valve adds extra switches
+    # per cycle and the turn bias is jerky from cycle to cycle.
+    tail_freq_min: float = 1.5      # [Hz]
+    # 2 switches per cycle with every state ≥ valve_min_dwell -> f ≤ 1/(2·valve_min_dwell) = 2.5 Hz.
+    tail_freq_max: float = 2.5      # [Hz]
     p_max: float = 50e3             # [Pa] relief valve on |p_L − p_R|, as in MuJoCo; PLACEHOLDER – to be identified from measurements
     # Flow through the open valve: Q_valve = valve_conductance·(|Δp| − p_max). Value
     # chosen so that the valve is "soft" and stable with explicit pressure readout
@@ -184,6 +196,12 @@ class TailConfig:
         s = self.scale_at(-x_end)
         if self.ry0 * s - self.wall_thickness <= self.septum_thickness / 2:
             raise ValueError("wall + septum do not fit in the cross-section at the chamber end")
+        # tail_freq is also used directly (cycle length in scripts and analysis), so a value
+        # outside the valve range is an error here, not a silent clamp as in TailRhythm.
+        if not self.tail_freq_min <= self.tail_freq <= self.tail_freq_max:
+            raise ValueError("tail_freq outside [tail_freq_min, tail_freq_max] (valve switching limit)")
+        if self.tail_freq_max > 1 / (2 * self.valve_min_dwell) + 1e-12:
+            raise ValueError("tail_freq_max > 1/(2·valve_min_dwell): the valve cannot switch twice per cycle")
         if self.V_prefill <= abs(self.tail_volume_bias) + self.tail_volume_amp + self.prefill_margin:
             raise ValueError("V_prefill too small: the chamber would drop below its rest volume "
                              "(need V_prefill > |V_bias| + A_V + prefill_margin)")

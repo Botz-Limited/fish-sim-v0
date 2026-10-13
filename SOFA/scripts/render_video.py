@@ -142,7 +142,7 @@ def main():
         axt.spines[s].set_visible(False)
     axt.legend(frameon=False, loc="upper left", ncol=2)
     cursor = axt.axvline(0, color=INK, linewidth=1.5)
-    fig.text(0.03, 0.95, "Soft robotic fish tail (SOFA, FEM): chamber L ↔ R, 2 Hz rhythm, A_V = 17 ml",
+    fig.text(0.03, 0.95, "Soft robotic fish tail (SOFA, FEM): chamber L ↔ R, 2 Hz rhythm, A_V = 13 ml",
              fontsize=20, color=INK, fontweight="bold")
     status = fig.text(0.03, 0.915, "", fontsize=14, color=INK2)
     ms = {env: float(recs[env]["dt"]) for env, _, _ in RUNS}
