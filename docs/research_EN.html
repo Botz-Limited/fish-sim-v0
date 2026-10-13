@@ -343,9 +343,9 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li><b>Body.</b> The hull is an ellipsoid on a free joint. The tail is five ellipsoids on hinge joints with springs and dampers, a pseudo-rigid-body approximation of the silicone. The caudal fin is a flat ellipsoid on the last segment.</li>
     <li><b>Water.</b> MuJoCo's built-in ellipsoid model gives blunt and slender drag, angular drag, Kutta lift and Magnus force for each part. There is no flow field.</li>
-    <li><b>Added mass, corrected.</b> MuJoCo applies only the gyroscopic part of the added-mass force: the source (<code>engine_passive.c</code>) omits the acceleration term that the docs show. On its own that part pushed the fish backwards (4.5 cm/s instead of 22 cm/s). The demo switches it off and adds the added mass as joint <code>armature</code> instead.</li>
+    <li><b>Added mass, corrected.</b> MuJoCo applies only the gyroscopic part of the added-mass force: the source (<code>engine_passive.c</code>) omits the acceleration term that the docs show. On its own that part slowed the fish down (4.5 cm/s instead of 22 cm/s). The demo switches it off and adds the added mass as joint <code>armature</code> instead.</li>
     <li><b>Buoyancy.</b> MuJoCo does not compute buoyancy. The demo applies it to each body, with the centre of buoyancy fixed in the hull frame so that tilting produces a righting moment. The hull mass is solved for neutral buoyancy at a half-full bladder.</li>
-    <li><b>Hydraulics.</b> A Python model runs before every physics step: a first-order pump, Δp = (V_p − A·r·L)/C_h clipped at ±50 kPa, and a tendon force F = A·r·Δp spread over the three actuated joints with weights from 1 to 0.4.</li>
+    <li><b>Hydraulics.</b> A Python model runs before every physics step: a first-order pump, Δp = (V_p − A·r·θ_w)/C_h, where θ_w = Σ wᵢ·θᵢ is the weighted bend angle of the three joints (in rad), clipped at ±50 kPa, and a tendon force F = A·r·Δp spread over the three actuated joints with weights from 1 to 0.4.</li>
     <li><b>Control.</b> A volume rhythm generator for the tail and a cascade depth PID that sets the bladder volume, followed by a rate-limited ballast pump.</li>
   </ul>
 
@@ -369,7 +369,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <tbody>
       <tr><td>s1 straight swim</td><td>CSV + PNG: speed, five joint angles, p_L, p_R, Δp, tendon force, pump command</td><td>≈22 cm/s at 2 Hz after ≈2 s</td></tr>
       <tr><td>s2 water on/off</td><td>speed with water, without water, with MuJoCo's default added mass</td><td>22 / 0 / 4.5 cm/s</td></tr>
-      <tr><td>s3 turning</td><td>XY trajectories for V_bias from −3 to +3 ml</td><td>±3 ml: 6.3°/s, radius ≈1.6 m</td></tr>
+      <tr><td>s3 turning</td><td>XY trajectories for V_bias from −3 to +3 ml</td><td>±3 ml: 6.3°/s at ≈21 cm/s, radius ≈1.9 m</td></tr>
       <tr><td>s4 depth steps</td><td>depth, setpoint, bladder volume, pitch</td><td>1 m in ≈35 s swimming, ≈6 s hovering; overshoot ≈3 cm</td></tr>
       <tr><td>s5 frequency sweep</td><td>speed, amplitudes, pump saturation for 0.5–3 Hz</td><td>peak 23.6 cm/s at 1.5 Hz</td></tr>
       <tr><td>s6 righting</td><td>roll, pitch and depth after a 30° roll</td><td>upright in ≈0.3 s</td></tr>
@@ -645,14 +645,14 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>s2 p–V curve</td><td>pressure and tip angle vs chamber volume, mesh convergence</td><td>50 ml: 16.1 kPa and 15.4° (fine mesh)</td></tr>
       <tr><td>s3 symmetry</td><td>left vs right chamber</td><td>error ≤ 0.75 % in angle</td></tr>
       <tr><td>s4 flapping in air</td><td>angle, pressures, volume conservation, solver iterations</td><td>±12.7° at 2 Hz, |Δp| ≤ 5.7 kPa</td></tr>
-      <tr><td>s5 water vs air</td><td>amplitude, phase, tethered thrust, lateral force, drag power</td><td>±7.3° in water (0.55× air); thrust 66.7 mN</td></tr>
+      <tr><td>s5 water vs air</td><td>amplitude, phase, tethered thrust, lateral force, drag power</td><td>±7.3° in water (0.57× air); thrust 66.7 mN (stage s5; the s6 sweep gives 63 mN at 2 Hz)</td></tr>
       <tr><td>s6 sweeps, video</td><td>frequency and Young's modulus sweeps; <code>flapping.mp4</code> 1080p60</td><td>max thrust 67.9 mN at 2.25 Hz</td></tr>
     </tbody>
   </table></div>
 
   <figure>
-    <img src="img/sofa_freq_sweep.png" alt="SOFA frequency sweep in water: tip angle falls from 11.8° at 0.5 Hz to 4.3° at 3 Hz; tethered thrust peaks near 68 mN at 2.25 Hz; pressure difference stays below 6 kPa; pump saturates above 2 Hz." loading="lazy">
-    <figcaption>Stage 6 in water. Amplitude falls steadily with frequency (no resonance in water), thrust peaks at 2.25 Hz, and above 2 Hz the pump saturates. The thrust comes from a drag model and is qualitative.</figcaption>
+    <img src="img/sofa_freq_sweep.png" alt="SOFA frequency sweep in water: tip angle falls from 11.8° at 0.5 Hz to 4.3° at 3 Hz; tethered thrust peaks near 68 mN at 2.25 Hz; pressure difference stays below 6 kPa; pump saturates above ≈2.3 Hz." loading="lazy">
+    <figcaption>Stage 6 in water. Amplitude falls steadily with frequency (no resonance in water), thrust peaks at 2.25 Hz, and above ≈2.3 Hz (Q_max/(2π·A_V) ≈ 2.34 Hz) the pump saturates. The thrust comes from a drag model and is qualitative.</figcaption>
   </figure>
 
   <h3>Demo stages</h3>
@@ -669,7 +669,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <h3>Limitations</h3>
   <ul>
     <li>No flow and no reactive force, so the thrust is qualitative. The tail is clamped; the fish does not swim.</li>
-    <li>Linear tetrahedra lock in thin walls, which overestimates pressure by 15–25 %. The material is corotational linear, not hyperelastic.</li>
+    <li>Linear tetrahedra lock in thin walls, which overestimates pressure by 15–27 % (depending on the mesh pair compared). The material is corotational linear, not hyperelastic.</li>
     <li>Slow: explicit drag limits the step to 0.5 ms in water. In our tests SOFA master (v26.12-dev, unreleased) left a fibre-stiffened chamber vibrating or diverging, so the demo stays on v26.06 (details in <code>SOFA/README.md</code>; no upstream issue filed).</li>
     <li>Exporting equivalent joint stiffnesses to MuJoCo (stage 7) was not done.</li>
   </ul>
@@ -685,9 +685,9 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <dl class="facts">
     <div><dt>Method</dt><dd>Partitioned FSI: finite volumes + nonlinear FEM, implicit coupling</dd></div>
     <div><dt>Interface</dt><dd>OpenFOAM dictionaries, CalculiX <code>.inp</code>, preCICE XML; Bash and Python tools</dd></div>
-    <div><dt>Tested versions</dt><dd>OpenFOAM v2606, CalculiX 2.20 (2.23 exists; the preCICE adapter v2.20.2 targets 2.20), preCICE 3.4.1</dd></div>
+    <div><dt>Tested versions</dt><dd>OpenFOAM v2606 (the video was recomputed in v2512), CalculiX 2.20 (2.23 exists; the preCICE adapter v2.20.2 targets 2.20), preCICE 3.4.1</dd></div>
     <div><dt>Install</dt><dd><code>setup.sh</code>, ≈1.5 h, mostly built from source</dd></div>
-    <div><dt>Speed</dt><dd>0.6–1 s per 2.5 ms window; stages 4–6 take 3 h 47 min</dd></div>
+    <div><dt>Speed</dt><dd>0.6–1 s per 2.5 ms window; stages 4–6 take 3 h 47 min in total (some cases ran in parallel, so the per-stage times add up to more)</dd></div>
     <div><dt>Licence*</dt><dd>GPL-3.0 (OpenFOAM), GPL-2.0+ (CalculiX), LGPL-3.0 (preCICE)</dd></div>
   </dl>
 
@@ -764,7 +764,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li>2D: no tip vortices, and forces are per metre of span. Laminar flow at Re ≈ 4·10⁴.</li>
     <li>Fixed head, so no free swimming or recoil. Actuation is by pressure, not volume. No material damping.</li>
-    <li>Mesh deformation limits the tip amplitude to ≈15 % of L. Two uniform chambers make a standing wave and a blunt tip, so the tail produces net drag.</li>
+    <li>Mesh deformation limits the tip amplitude to ≈15–20 % of L (24 mm = 16 % L in E1, 28.3 mm ≈ 19 % L in E4). Two uniform chambers make a standing wave and a blunt tip, so the tail produces net drag.</li>
     <li>Slow and the most complex of the six to install.</li>
   </ul>
 </section>
@@ -833,8 +833,8 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <thead><tr><th>Output</th><th>Content</th><th>Example value</th></tr></thead>
     <tbody>
       <tr><td>Time series (.mat)</td><td>every variable: p_L, p_R, flows, currents, motor speed, θ, thrust, speed, depth, ballast volume</td><td>valve opens at ≈51 kPa (HydraulicsStep)</td></tr>
-      <tr><td>Energy budget</td><td>loss per component, mechanical output, stored energy, balance error</td><td>1.8 W at 1 Hz → ≈9.2 h on 16.3 Wh</td></tr>
-      <tr><td>Swimming</td><td>surge speed, thrust, battery power vs frequency</td><td>best 8.5 cm/s at 0.5 Hz; 16.6 W at 4 Hz</td></tr>
+      <tr><td>Energy budget</td><td>loss per component, mechanical output, stored energy, balance error</td><td>1.8 W at 1 Hz → ≈9.1 h on 16.3 Wh</td></tr>
+      <tr><td>Swimming</td><td>surge speed, thrust, battery power vs frequency</td><td>best 8.5 cm/s at 0.5 Hz; 16.6 W at 4 Hz (different scenarios from the 6.4 cm/s at 1.5 Hz and 7.3 cm/s at 2 Hz, so not one series)</td></tr>
       <tr><td>Depth control</td><td>depth, piston position, current</td><td>3 cm/s descent, 6 % overshoot, 5 mm error</td></tr>
       <tr><td>FMU</td><td><code>TailDrive.fmu</code> (linux64, 1.8 MB) + comparison with OpenModelica</td><td>difference 0.016 % of amplitude</td></tr>
       <tr><td>Calibration reports</td><td>fitted parameters with 1σ uncertainty and correlation matrix</td><td>e.g. hull C_d 0.402 ± 0.9 % (synthetic data)</td></tr>
@@ -958,7 +958,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td><span class="dot mj"></span> MuJoCo</td><td>2 ms, <code>implicitfast</code>; stiffest mode ω_n·dt ≈ 0.05 (rule: &lt; 0.5)</td><td>5 tail segments (from the design, not from convergence)</td></tr>
       <tr><td><span class="dot sf"></span> Stonefish</td><td>0.5 ms: explicit joint springs need ω·dt &lt; 2, and 2 ms exploded; 4000 Hz gives the same speed</td><td>physics mesh of 320 triangles per body</td></tr>
       <tr><td><span class="dot pe"></span> PyElastica</td><td>dt &lt; min(Δl/c, Δl²/(r·c)) ≈ 19 µs, computed automatically</td><td>n = 50 elements: ≈1 % error against beam theory</td></tr>
-      <tr><td><span class="dot so"></span> SOFA</td><td>2 ms in air; 0.5 ms in water, from the explicit drag rule c·dt/m &lt; 0.5</td><td>coarse/medium/fine; coarse overestimates pressure by 20–27 % against fine</td></tr>
+      <tr><td><span class="dot so"></span> SOFA</td><td>2 ms in air; 0.5 ms in water, from the explicit drag rule c·dt/m &lt; 0.5</td><td>coarse/medium/fine; coarse overestimates pressure by 20–27 % against fine (15–27 % in Limitations: different mesh pairs)</td></tr>
       <tr><td><span class="dot of"></span> OpenFOAM FSI</td><td>2.5 ms, identical in OpenFOAM, CalculiX and the preCICE window</td><td>three meshes: 1.0 % drag change between the two finest; 1.5× domain changes drag by 3.8 %</td></tr>
       <tr><td><span class="dot om"></span> OpenModelica</td><td>variable step (DASSL), tolerance 10⁻⁶</td><td>none; <code>nominal</code> attributes scale the variables</td></tr>
     </tbody>

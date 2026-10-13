@@ -343,9 +343,9 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li><b>Ciało.</b> Kadłub to elipsoida na przegubie swobodnym. Ogon to pięć elipsoid na zawiasach ze sprężynami i tłumikami, czyli przybliżenie silikonu modelem pseudo-sztywnym. Płetwa ogonowa to płaska elipsoida na ostatnim segmencie.</li>
     <li><b>Woda.</b> Wbudowany model elipsoidalny MuJoCo daje opór czołowy i boczny, opór obrotowy, siłę nośną Kutty i siłę Magnusa dla każdej części. Nie ma pola przepływu.</li>
-    <li><b>Masa dodana, poprawiona.</b> MuJoCo stosuje tylko żyroskopową część siły masy dodanej: kod źródłowy (<code>engine_passive.c</code>) pomija człon z przyspieszeniem, który pokazuje dokumentacja. Sama ta część pchała rybę do tyłu (4,5 cm/s zamiast 22 cm/s). Demo ją wyłącza i dodaje masę dodaną jako <code>armature</code> przegubów.</li>
+    <li><b>Masa dodana, poprawiona.</b> MuJoCo stosuje tylko żyroskopową część siły masy dodanej: kod źródłowy (<code>engine_passive.c</code>) pomija człon z przyspieszeniem, który pokazuje dokumentacja. Sama ta część hamowała rybę (4,5 cm/s zamiast 22 cm/s). Demo ją wyłącza i dodaje masę dodaną jako <code>armature</code> przegubów.</li>
     <li><b>Wyporność.</b> MuJoCo nie liczy wyporu. Demo przykłada go do każdej bryły, ze środkiem wyporu stałym w układzie kadłuba, więc przechył daje moment prostujący. Masa kadłuba jest wyliczana z neutralnej pływalności przy pęcherzu wypełnionym do połowy.</li>
-    <li><b>Hydraulika.</b> Model w Pythonie działa przed każdym krokiem fizyki: pompa pierwszego rzędu, Δp = (V_p − A·r·L)/C_h obcięte do ±50 kPa i siła cięgna F = A·r·Δp rozłożona na trzy napędzane przeguby z wagami od 1 do 0,4.</li>
+    <li><b>Hydraulika.</b> Model w Pythonie działa przed każdym krokiem fizyki: pompa pierwszego rzędu, Δp = (V_p − A·r·θ_w)/C_h, gdzie θ_w = Σ wᵢ·θᵢ to ważony kąt zgięcia trzech przegubów (w rad), obcięte do ±50 kPa, i siła cięgna F = A·r·Δp rozłożona na trzy napędzane przeguby z wagami od 1 do 0,4.</li>
     <li><b>Sterowanie.</b> Objętościowy generator rytmu dla ogona i kaskadowy PID głębokości ustawiający objętość pęcherza, za nim pompa balastu z ograniczeniem wydajności.</li>
   </ul>
 
@@ -369,7 +369,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <tbody>
       <tr><td>s1 pływanie prosto</td><td>CSV + PNG: prędkość, pięć kątów przegubów, p_L, p_R, Δp, siła cięgna, sterowanie pompy</td><td>≈22 cm/s przy 2 Hz po ≈2 s</td></tr>
       <tr><td>s2 woda wł./wył.</td><td>prędkość z wodą, bez wody, z domyślną masą dodaną MuJoCo</td><td>22 / 0 / 4,5 cm/s</td></tr>
-      <tr><td>s3 skręt</td><td>trajektorie XY dla V_bias od −3 do +3 ml</td><td>±3 ml: 6,3°/s, promień ≈1,6 m</td></tr>
+      <tr><td>s3 skręt</td><td>trajektorie XY dla V_bias od −3 do +3 ml</td><td>±3 ml: 6,3°/s przy ≈21 cm/s, promień ≈1,9 m</td></tr>
       <tr><td>s4 skoki głębokości</td><td>głębokość, wartość zadana, objętość pęcherza, pochylenie</td><td>1 m w ≈35 s płynąc, ≈6 s w zawisie; przeregulowanie ≈3 cm</td></tr>
       <tr><td>s5 przegląd częstotliwości</td><td>prędkość, amplitudy, nasycenie pompy dla 0,5–3 Hz</td><td>maksimum 23,6 cm/s przy 1,5 Hz</td></tr>
       <tr><td>s6 prostowanie</td><td>przechył, pochylenie i głębokość po przechyle 30°</td><td>pion w ≈0,3 s</td></tr>
@@ -645,14 +645,14 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>s2 krzywa p–V</td><td>ciśnienie i kąt końca vs objętość komory, zbieżność siatki</td><td>50 ml: 16,1 kPa i 15,4° (siatka dokładna)</td></tr>
       <tr><td>s3 symetria</td><td>komora lewa vs prawa</td><td>błąd ≤ 0,75 % w kącie</td></tr>
       <tr><td>s4 machanie w powietrzu</td><td>kąt, ciśnienia, zachowanie objętości, iteracje solvera</td><td>±12,7° przy 2 Hz, |Δp| ≤ 5,7 kPa</td></tr>
-      <tr><td>s5 woda vs powietrze</td><td>amplituda, faza, ciąg na uwięzi, siła boczna, moc oporu</td><td>±7,3° w wodzie (0,55× powietrza); ciąg 66,7 mN</td></tr>
+      <tr><td>s5 woda vs powietrze</td><td>amplituda, faza, ciąg na uwięzi, siła boczna, moc oporu</td><td>±7,3° w wodzie (0,57× powietrza); ciąg 66,7 mN (etap s5; przegląd s6 daje 63 mN przy 2 Hz)</td></tr>
       <tr><td>s6 przeglądy, wideo</td><td>przeglądy częstotliwości i modułu Younga; <code>flapping.mp4</code> 1080p60</td><td>maks. ciąg 67,9 mN przy 2,25 Hz</td></tr>
     </tbody>
   </table></div>
 
   <figure>
-    <img src="img/sofa_freq_sweep.png" alt="Przegląd częstotliwości SOFA w wodzie: kąt końca spada z 11,8° przy 0,5 Hz do 4,3° przy 3 Hz; ciąg na uwięzi ma maksimum ok. 68 mN przy 2,25 Hz; różnica ciśnień poniżej 6 kPa; pompa nasyca się powyżej 2 Hz." loading="lazy">
-    <figcaption>Etap 6 w wodzie. Amplituda maleje równomiernie z częstotliwością (brak rezonansu w wodzie), ciąg ma maksimum przy 2,25 Hz, a powyżej 2 Hz pompa się nasyca. Ciąg pochodzi z modelu oporu i jest jakościowy.</figcaption>
+    <img src="img/sofa_freq_sweep.png" alt="Przegląd częstotliwości SOFA w wodzie: kąt końca spada z 11,8° przy 0,5 Hz do 4,3° przy 3 Hz; ciąg na uwięzi ma maksimum ok. 68 mN przy 2,25 Hz; różnica ciśnień poniżej 6 kPa; pompa nasyca się powyżej ≈2,3 Hz." loading="lazy">
+    <figcaption>Etap 6 w wodzie. Amplituda maleje równomiernie z częstotliwością (brak rezonansu w wodzie), ciąg ma maksimum przy 2,25 Hz, a powyżej ≈2,3 Hz (Q_max/(2π·A_V) ≈ 2,34 Hz) pompa się nasyca. Ciąg pochodzi z modelu oporu i jest jakościowy.</figcaption>
   </figure>
 
   <h3>Etapy dema</h3>
@@ -669,7 +669,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <h3>Ograniczenia</h3>
   <ul>
     <li>Brak przepływu i siły reakcyjnej, więc ciąg jest jakościowy. Ogon jest utwierdzony; ryba nie pływa.</li>
-    <li>Liniowe czworościany blokują się w cienkich ściankach, co zawyża ciśnienie o 15–25 %. Materiał jest korotacyjny liniowy, nie hipersprężysty.</li>
+    <li>Liniowe czworościany blokują się w cienkich ściankach, co zawyża ciśnienie o 15–27 % (zależnie od pary porównywanych siatek). Materiał jest korotacyjny liniowy, nie hipersprężysty.</li>
     <li>Wolno: jawny opór ogranicza krok do 0,5 ms w wodzie. W naszych testach SOFA master (v26.12-dev, niewydany) dawał drgającą lub rozbiegającą się komorę ze sztywnymi włóknami, więc demo zostaje na v26.06 (szczegóły w <code>SOFA/README.md</code>; zgłoszenia upstream brak).</li>
     <li>Eksport równoważnych sztywności przegubów do MuJoCo (etap 7) nie został wykonany.</li>
   </ul>
@@ -685,9 +685,9 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <dl class="facts">
     <div><dt>Metoda</dt><dd>Podzielona FSI: objętości skończone + nieliniowa MES, sprzężenie niejawne</dd></div>
     <div><dt>Interfejs</dt><dd>Słowniki OpenFOAM, <code>.inp</code> CalculiX, XML preCICE; narzędzia w Bash i Pythonie</dd></div>
-    <div><dt>Testowane wersje</dt><dd>OpenFOAM v2606, CalculiX 2.20 (istnieje 2.23; adapter preCICE v2.20.2 obsługuje 2.20), preCICE 3.4.1</dd></div>
+    <div><dt>Testowane wersje</dt><dd>OpenFOAM v2606 (film policzono ponownie w v2512), CalculiX 2.20 (istnieje 2.23; adapter preCICE v2.20.2 obsługuje 2.20), preCICE 3.4.1</dd></div>
     <div><dt>Instalacja</dt><dd><code>setup.sh</code>, ≈1,5 h, głównie budowa ze źródeł</dd></div>
-    <div><dt>Szybkość</dt><dd>0,6–1 s na okno 2,5 ms; etapy 4–6 trwają 3 h 47 min</dd></div>
+    <div><dt>Szybkość</dt><dd>0,6–1 s na okno 2,5 ms; etapy 4–6 trwają 3 h 47 min łącznie (część przypadków liczono równolegle, więc czasy z listy etapów sumują się do więcej)</dd></div>
     <div><dt>Licencja*</dt><dd>GPL-3.0 (OpenFOAM), GPL-2.0+ (CalculiX), LGPL-3.0 (preCICE)</dd></div>
   </dl>
 
@@ -764,7 +764,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li>2D: brak wirów krańcowych, a siły są na metr rozpiętości. Przepływ laminarny przy Re ≈ 4·10⁴.</li>
     <li>Nieruchoma głowa, więc brak swobodnego pływania i odrzutu. Napęd ciśnieniem, nie objętością. Brak tłumienia materiałowego.</li>
-    <li>Odkształcanie siatki ogranicza amplitudę końca do ≈15 % L. Dwie jednorodne komory dają falę stojącą i tępy koniec, więc ogon generuje opór wypadkowy.</li>
+    <li>Odkształcanie siatki ogranicza amplitudę końca do ≈15–20 % L (24 mm = 16 % L w E1, 28,3 mm ≈ 19 % L w E4). Dwie jednorodne komory dają falę stojącą i tępy koniec, więc ogon generuje opór wypadkowy.</li>
     <li>Wolne i najtrudniejsze w instalacji z sześciu.</li>
   </ul>
 </section>
@@ -833,8 +833,8 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <thead><tr><th>Wynik</th><th>Zawartość</th><th>Przykładowa wartość</th></tr></thead>
     <tbody>
       <tr><td>Przebiegi czasowe (.mat)</td><td>każda zmienna: p_L, p_R, przepływy, prądy, prędkość silnika, θ, ciąg, prędkość, głębokość, objętość balastu</td><td>zawór otwiera się przy ≈51 kPa (HydraulicsStep)</td></tr>
-      <tr><td>Bilans energii</td><td>strata na każdym komponencie, moc mechaniczna, energia zmagazynowana, błąd bilansu</td><td>1,8 W przy 1 Hz → ≈9,2 h na 16,3 Wh</td></tr>
-      <tr><td>Pływanie</td><td>prędkość postępowa, ciąg, moc baterii vs częstotliwość</td><td>najlepiej 8,5 cm/s przy 0,5 Hz; 16,6 W przy 4 Hz</td></tr>
+      <tr><td>Bilans energii</td><td>strata na każdym komponencie, moc mechaniczna, energia zmagazynowana, błąd bilansu</td><td>1,8 W przy 1 Hz → ≈9,1 h na 16,3 Wh</td></tr>
+      <tr><td>Pływanie</td><td>prędkość postępowa, ciąg, moc baterii vs częstotliwość</td><td>najlepiej 8,5 cm/s przy 0,5 Hz; 16,6 W przy 4 Hz (inne scenariusze niż 6,4 cm/s przy 1,5 Hz i 7,3 cm/s przy 2 Hz, więc nie tworzą jednego ciągu)</td></tr>
       <tr><td>Regulacja głębokości</td><td>głębokość, położenie tłoka, prąd</td><td>zanurzanie 3 cm/s, przeregulowanie 6 %, błąd 5 mm</td></tr>
       <tr><td>FMU</td><td><code>TailDrive.fmu</code> (linux64, 1,8 MB) + porównanie z OpenModelica</td><td>różnica 0,016 % amplitudy</td></tr>
       <tr><td>Raporty kalibracji</td><td>dopasowane parametry z niepewnością 1σ i macierzą korelacji</td><td>np. C_d kadłuba 0,402 ± 0,9 % (dane syntetyczne)</td></tr>
@@ -958,7 +958,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td><span class="dot mj"></span> MuJoCo</td><td>2 ms, <code>implicitfast</code>; najsztywniejszy mod ω_n·dt ≈ 0,05 (warunek: &lt; 0,5)</td><td>5 segmentów ogona (z konstrukcji, nie z testu zbieżności)</td></tr>
       <tr><td><span class="dot sf"></span> Stonefish</td><td>0,5 ms: jawne sprężyny przegubów wymagają ω·dt &lt; 2, a 2 ms eksplodowało; 4000 Hz daje tę samą prędkość</td><td>siatka fizyczna 320 trójkątów na bryłę</td></tr>
       <tr><td><span class="dot pe"></span> PyElastica</td><td>dt &lt; min(Δl/c, Δl²/(r·c)) ≈ 19 µs, liczony automatycznie</td><td>n = 50 elementów: błąd ≈1 % względem teorii belek</td></tr>
-      <tr><td><span class="dot so"></span> SOFA</td><td>2 ms w powietrzu; 0,5 ms w wodzie, z warunku jawnego oporu c·dt/m &lt; 0,5</td><td>coarse/medium/fine; zgrubna zawyża ciśnienie o 20–27 % względem dokładnej</td></tr>
+      <tr><td><span class="dot so"></span> SOFA</td><td>2 ms w powietrzu; 0,5 ms w wodzie, z warunku jawnego oporu c·dt/m &lt; 0,5</td><td>coarse/medium/fine; zgrubna zawyża ciśnienie o 20–27 % względem dokładnej (w Ograniczeniach 15–27 %: różne pary siatek)</td></tr>
       <tr><td><span class="dot of"></span> OpenFOAM FSI</td><td>2,5 ms, ten sam w OpenFOAM, CalculiX i oknie preCICE</td><td>trzy siatki: 1,0 % zmiany oporu między dwiema najgęstszymi; domena 1,5× zmienia opór o 3,8 %</td></tr>
       <tr><td><span class="dot om"></span> OpenModelica</td><td>zmienny krok (DASSL), tolerancja 10⁻⁶</td><td>brak; atrybuty <code>nominal</code> skalują zmienne</td></tr>
     </tbody>
