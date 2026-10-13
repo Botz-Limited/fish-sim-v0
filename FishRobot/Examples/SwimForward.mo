@@ -1,7 +1,7 @@
 within FishRobot.Examples;
 model SwimForward "Scenariusz 7: machanie ogonem -> ciąg płetwy -> pływanie do przodu"
   extends Modelica.Icons.Example;
-  FishRobot.Control.CPG cpg(A=0.8, f=1.0)
+  FishRobot.Control.CPG cpg(A_V=4e-6, f=1.5)
     annotation (Placement(transformation(extent={{-80,-10},{-60,10}})));
   FishRobot.Subsystems.TailDrive drive
     annotation (Placement(transformation(extent={{-40,-10},{-20,10}})));
@@ -24,13 +24,14 @@ equation
   der(E_wake) = fin.P_wake;
   der(E_drag) = surge.P_drag;
   connect(cpg.y, drive.u) annotation (Line(points={{-59,0},{-42,0}}, color={0,0,127}));
+  connect(drive.V_p, cpg.V_p) annotation (Line(points={{11,-10},{20,-10},{20,-20},{-70,-20},{-70,0},{-62,0}}, color={0,0,127}));
   connect(drive.flange_tail, fin.flange) annotation (Line(points={{-30,-10},{-30,-40},{0,-40}}));
   connect(fin.T, surge.T) annotation (Line(points={{21,-40},{48,-40}}, color={0,0,127}));
   connect(surge.U, fin.U) annotation (Line(points={{71,-36},{80,-36},{80,-70},{10,-70},{10,-52}}, color={0,0,127}));
   annotation (
     experiment(StopTime=120, Interval=0.01, Tolerance=1e-6),
     Documentation(info="<html>
-<p><b>Scenariusz 7.</b> CPG 1 Hz, amplituda komendy 0,8. Ogon napędzany pompą obraca płetwę
+<p><b>Scenariusz 7.</b> CPG 1,5 Hz (<code>tail_freq_min</code>), zadana amplituda objętości 4 ml (regulator przekaźnikowy + zawory 3/2). Ogon napędzany pompą obraca płetwę
 (<code>LighthillFin</code>), płetwa daje ciąg, a ciąg rozpędza rybę (<code>SurgeDynamics</code>).
 Płetwa hamuje ogon momentem przez złącze mechaniczne, więc im szybciej ryba płynie, tym więcej mocy
 pobiera z napędu.</p>

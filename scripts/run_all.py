@@ -27,11 +27,19 @@ def plot_hydraulics_step(sol, title="HydraulicsStep: pump command ramp, tail loc
 def plot_tail_flapping(sol):
     t = sol["time"]
     plotting.panels(t, [
-        ("command u [-]", [(sol["cpg.y"], "u")]),
+        ("valve direction s [-]", [(sol["cpg.y"], "s (+1: R→L)")]),
+        ("pumped volume [ml]", [(sol["cpg.V_ref"] * 1e6, "V_ref"), (sol["drive.V_p"] * 1e6, "V_p")]),
         ("tail angle [°]", [(np.degrees(sol["drive.theta"]), "θ")]),
         ("gauge pressure [kPa]", [(sol["drive.p_L"] / 1e3, "chamber L"), (sol["drive.p_R"] / 1e3, "chamber R")]),
         ("current [A]", [(sol["drive.i_motor"], "motor"), (sol["drive.battery.i"], "battery")]),
-    ], "TailFlapping: 1 Hz sine, tail free", "tail_flapping.png")
+    ], "TailFlapping: 1.5 Hz, V_ref amplitude 4 ml, relay (min dwell 0.2 s) + 2×3/2 valves, tail free", "tail_flapping.png")
+    n = sol["drive.n_switch"]
+    ts = np.unique(sol["cpg.t_switch"])
+    ts = ts[ts >= 0]
+    f = sol["cpg.f_eff"][0]
+    print(f"  przełączenia zaworów: {n[-1]:.0f} w {t[-1]:.0f} s, "
+          f"{(n[-1] - np.interp(t[-1] - 2 / f, t, n)) / 2:.2f} na cykl (ostatnie 2 okresy), "
+          f"min odstęp {np.diff(ts).min():.3f} s")
 
 
 def plot_relief_valve_demo(sol):
@@ -39,12 +47,12 @@ def plot_relief_valve_demo(sol):
     dp = (sol["drive.p_L"] - sol["drive.p_R"]) / 1e3
     plotting.panels(t, [
         ("tail angle [°]", [(np.degrees(sol["drive.theta"]), "θ")]),
-        ("p_L − p_R [kPa]", [(dp, "Δp"), (np.full_like(t, sol["drive.reliefLR.p_set"][0] / 1e3), "p_set"),
-                             (np.full_like(t, -sol["drive.reliefLR.p_set"][0] / 1e3), "−p_set")]),
+        ("p_L − p_R [kPa]", [(dp, "Δp"), (np.full_like(t, sol["drive.reliefPS.p_set"][0] / 1e3), "p_set"),
+                             (np.full_like(t, -sol["drive.reliefPS.p_set"][0] / 1e3), "−p_set")]),
         ("flow [ml/s]", [(sol["drive.pump.V_flow"] * 1e6, "pump"),
-                             ((sol["drive.reliefLR.V_flow"] - sol["drive.reliefRL.V_flow"]) * 1e6, "valves")]),
-        ("energy [J]", [(sol["E_pump_hyd"], "delivered by pump"), (sol["E_relief"], "lost in valves")]),
-    ], "ReliefValveDemo: A = 1 at 0.25 Hz – relief valve opens", "relief_valve_demo.png")
+                             ((sol["drive.reliefPS.V_flow"] - sol["drive.reliefSP.V_flow"]) * 1e6, "relief valves")]),
+        ("energy [J]", [(sol["E_pump_hyd"], "delivered by pump"), (sol["E_relief"], "lost in relief valves")]),
+    ], "ReliefValveDemo: 1.5 Hz, 4 ml around bias 14 ml (hard turn) – relief valve opens", "relief_valve_demo.png")
 
 
 LOSSES = [
@@ -55,6 +63,7 @@ LOSSES = [
     ("drive.E_loss_pump_mech", "pump: friction (η_m)"),
     ("drive.E_loss_pipes", "pipes"),
     ("drive.E_loss_relief", "relief valves"),
+    ("drive.E_loss_valves", "directional valves 3/2"),
     ("drive.E_loss_tail", "tail: water and material"),
 ]
 
@@ -66,7 +75,7 @@ def plot_energy_budget(sol):
     runtime_h = sol["t_runtime"][-1] / 3600
     p_mean = sol["P_battery_mean"][-1]
     plotting.hbar([label for _, label in LOSSES], [sol[k][-1] for k, _ in LOSSES],
-                  f"EnergyBudget: where the battery energy goes (60 s, 1 Hz) – total {e_bat:.1f} J",
+                  f"EnergyBudget: where the battery energy goes (60 s, 1.5 Hz) – total {e_bat:.1f} J",
                   "energy_budget.png",
                   note=(f"Mean battery power {p_mean:.2f} W → estimated tail drive runtime "
                         f"{runtime_h:.1f} h (capacity {sol['capacity_Wh'][-1]:.1f} Wh – placeholder).  "
@@ -100,7 +109,7 @@ def plot_swim_forward(sol):
         ("energy past the tail [mJ]", [(sol["drive.E_mech_out"] * 1e3, "delivered to fin"),
                                     (sol["E_drag"] * 1e3, "work against drag (useful)"),
                                     (sol["E_wake"] * 1e3, "vortex wake")]),
-    ], "SwimForward: CPG 1 Hz, A = 0.8 – fin thrust and forward swimming (thrust model: placeholder)",
+    ], "SwimForward: CPG 1.5 Hz, V_ref 4 ml – fin thrust and forward swimming (thrust model: placeholder)",
         "swim_forward.png")
     e_bat, e_drag = sol["drive.E_battery"][-1], sol["E_drag"][-1]
     print(f"  U_końc = {sol['surge.U'][-1] * 100:.1f} cm/s, droga {sol['surge.x'][-1]:.2f} m; "
@@ -117,11 +126,12 @@ PLOTS = {
         lambda sol: plot_hydraulics_step(sol, "HydraulicsMSLFluid: the same circuit on Modelica.Fluid",
                                          "hydraulics_msl_fluid.png")),
     "FishRobot.Examples.TailFlapping": (
-        ["time", "cpg.y", "drive.theta", "drive.p_L", "drive.p_R", "drive.i_motor", "drive.battery.i"],
+        ["time", "cpg.y", "cpg.V_ref", "drive.V_p", "drive.n_switch", "drive.theta", "drive.p_L", "drive.p_R",
+         "drive.i_motor", "drive.battery.i", "cpg.t_switch", "cpg.f_eff"],
         plot_tail_flapping),
     "FishRobot.Examples.ReliefValveDemo": (
-        ["time", "drive.theta", "drive.p_L", "drive.p_R", "drive.reliefLR.p_set", "drive.pump.V_flow",
-         "drive.reliefLR.V_flow", "drive.reliefRL.V_flow", "E_pump_hyd", "E_relief"],
+        ["time", "drive.theta", "drive.p_L", "drive.p_R", "drive.reliefPS.p_set", "drive.pump.V_flow",
+         "drive.reliefPS.V_flow", "drive.reliefSP.V_flow", "E_pump_hyd", "E_relief"],
         plot_relief_valve_demo),
     "FishRobot.Examples.EnergyBudget": (
         ["time", "drive.E_battery", "drive.E_stored", "drive.E_stored0", "drive.E_balance_error", "t_runtime",

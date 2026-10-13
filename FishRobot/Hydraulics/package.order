@@ -1,6 +1,7 @@
 Pipe
 Chamber
 ReliefValve
+DirectionalValve
 GearPump
 Reservoir
 VolumeFlowSource

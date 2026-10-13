@@ -1,7 +1,8 @@
 """Eksport podukładu napędu ogona jako FMU 2.0 Co-Simulation -> results/fmu/TailDrive.fmu.
 
 Eksportowany model: FishRobot.Subsystems.TailDriveFMU (bateria + mostek H + silnik + pompa + przewody
-+ komory + zawory + ogon). Wejście: u. Wyjścia: theta, w_tail, tau_tail, p_L, p_R, i_motor.
++ zawory 3/2 + komory + zawory przelewowe + ogon). Wejście: u (kierunek zaworów ±1).
+Wyjścia: theta, w_tail, tau_tail, p_L, p_R, i_motor, V_p.
 
 Solver wewnątrz FMU: CVODE (flaga --fmiFlags=s:cvode). Domyślnie OpenModelica wkłada do FMU CS
 jawną metodę Eulera z krokiem równym krokowi komunikacji. Przy sztywnej hydraulice (sztywne komory,

@@ -9,6 +9,8 @@ DCMotorNoLoad
 GearPumpCharacteristic
 TailStaticEnergy
 TailDriveDirection
+TailBlocked
+ValveDwell
 BallastStatics
 SurgeTerminalVelocity
 FinPrescribedMotion

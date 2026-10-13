@@ -54,6 +54,10 @@ equation
     Documentation(info="<html>
 <p>Pompa wyporowa: każdy obrót wału przenosi stałą objętość <code>D_rev</code> z <code>port_a</code> do
 <code>port_b</code>. Przy dodatnich obrotach ciecz płynie a &rarr; b, przy ujemnych odwrotnie.</p>
+<p>W napędzie ogona (<code>Subsystems.TailDrive</code>) pompa kręci się zawsze w tę samą stronę ze stałą prędkością
+(silnik na pełnym napięciu), więc daje prawie stały wydatek <code>Q_const &asymp; D·&omega;</code>; kierunek przepływu
+do komór wybierają zawory <code>DirectionalValve</code>. Odwracanie obrotów wykorzystują tylko stanowiska
+komponentów (<code>Examples.HydraulicsStep</code>).</p>
 <pre>  V_flow = D·&omega; - k_leak·&Delta;p           (&Delta;p = p_b - p_a)
   &tau;      = D·&Delta;p + &tau;_fric
   &tau;_fric = D·|&Delta;p|·(1/&eta;_m - 1)·sgn(&omega;)</pre>

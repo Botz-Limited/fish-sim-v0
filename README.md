@@ -1,6 +1,6 @@
 # fish-sim-v0 – system model of a robotic fish in OpenModelica
 
-A simplified, **educational and uncalibrated** model of a robotic fish in Modelica: DC motor → pump → pipes → chambers → tail, plus ballast and forward motion. Specification: [`SPEC_fish_openmodelica_demo.md`](SPEC_fish_openmodelica_demo.md). All design parameters are placeholders to be identified.
+A simplified, **educational and uncalibrated** model of a robotic fish in Modelica: DC motor → constant-speed pump → two 3/2 directional valves → pipes → chambers → tail, plus ballast and forward motion. Specification: [`SPEC_fish_openmodelica_demo.md`](SPEC_fish_openmodelica_demo.md). All design parameters are placeholders to be identified.
 
 ## Progress
 
@@ -16,6 +16,7 @@ A simplified, **educational and uncalibrated** model of a robotic fish in Modeli
 | 8 | `TailDriveFMU` → FMU 2.0 CS (`export_fmu.py`), FMPy loop and comparison with OpenModelica (`fmu_demo.py`) | done |
 | 9 | (optional) `HydraulicsFluid` on `Modelica.Fluid` connectors → `HydraulicsMSLFluid`, comparison (`compare_fluid.py`) | done |
 | 10 | Calibration: `FishRobot.Calibration` test benches and `calibrate.py` for steps 2–11 of the calibration plan | done, verified on synthetic measurements |
+| 11 | Tail drive with a **constant-speed pump + 2× 3/2 directional valves** (`DirectionalValve`), relay controller in `CPG` with 0.2 s minimum valve dwell and frequency range 1.5–2.5 Hz, tests `TailBlocked`, `ValveDwell`, calibration bench `DirectionalValveBench` | done |
 
 ## Versions
 
@@ -40,8 +41,8 @@ setup/install_user.sh     # no sudo: .venv from requirements.txt + MSL 4.1.0 via
 .venv/bin/python scripts/check_tests.py          # all models from Tests/ and Examples/
 .venv/bin/python scripts/check_tests.py Pipe     # only models with "Pipe" in the name
 .venv/bin/python scripts/run_all.py              # all scenarios from Examples/ -> results/examples/
-.venv/bin/python scripts/sweep.py               # frequency sweep 0.25–4 Hz -> results/sweep/
-.venv/bin/python scripts/sweep.py --A 0.5 --n 30   # different command amplitude, denser grid
+.venv/bin/python scripts/sweep.py               # frequency sweep 1.5–2.5 Hz (tail_freq_min…tail_freq_max) -> results/sweep/
+.venv/bin/python scripts/sweep.py --A-ml 2 --n 30   # different V_ref amplitude [ml], denser grid
 .venv/bin/python scripts/sweep.py --swim        # swimming speed vs frequency -> results/sweep/swim_sweep.*
 .venv/bin/python scripts/export_fmu.py          # tail drive FMU -> results/fmu/TailDrive.fmu
 .venv/bin/python scripts/fmu_demo.py            # FMU in an FMPy loop vs OpenModelica -> results/fmu/fmu_vs_om.png
@@ -52,6 +53,7 @@ setup/install_user.sh     # no sudo: .venv from requirements.txt + MSL 4.1.0 via
 .venv/bin/python scripts/calibrate.py pipe [--data punkty.csv --l 0.2]   # pipe identification from Δp(Q)
 .venv/bin/python scripts/calibrate.py chamber [--data cykle.csv --V-rest 5e-6]   # chamber p–V curve -> CSV for Chamber
 .venv/bin/python scripts/calibrate.py valve [--data punkty.csv]   # relief valve from Q(Δp), with poppet hysteresis
+.venv/bin/python scripts/calibrate.py dirvalve [--data przelaczenie.csv --dp 5e3]   # 3/2 valve: Q_nom, tau_valve
 .venv/bin/python scripts/calibrate.py tail-static [--data punkty.csv --k small]   # tail D_tail and k
 .venv/bin/python scripts/calibrate.py tail-dynamic [--data-air a.csv --data-water w.csv]   # J, c, J_added, c_h
 .venv/bin/python scripts/calibrate.py thrust [--data punkty.csv --noise-abs 1e-4 --noise-rel 0.05]   # fin C_T
@@ -89,9 +91,42 @@ Their product `p·V_flow` is power in watts, so the energy balance follows direc
 
 The same circuit built on `Modelica.Fluid` and a comparison of both versions is described in [Modelica.Fluid instead of the custom package](#modelicafluid-instead-of-the-custom-package-stage-9).
 
-**Direction convention:** pump command `u > 0` ⇒ the shaft turns in the positive direction (`ω > 0`) ⇒ the pump pushes water from chamber R to chamber L ⇒ `p_L > p_R`. In stage 4 the same sign gives a positive tail angle.
+**Direction convention:** in the component benches (`HydraulicsStep`, `HydraulicsMSLFluid`) the pump is reversible: command `u > 0` ⇒ the shaft turns in the positive direction (`ω > 0`) ⇒ the pump pushes water from chamber R to chamber L ⇒ `p_L > p_R`. In `TailDrive` the pump always turns the same way and the valves choose the direction: `u > 0` (valve state `s = +1`) ⇒ R → L ⇒ `p_L > p_R` ⇒ positive tail angle.
 
 **Flow sign convention:** `V_flow > 0` means flow **into** the component through the given port. In two-port elements `V_flow` (without a port prefix) is the flow from `port_a` to `port_b`, and `dp = port_a.p − port_b.p`.
+
+## Tail drive: constant-speed pump + directional valves (stage 11)
+
+The first version reversed the pump: the H-bridge drove the motor with `u·U_bat` and a sine command, so the rotor accelerated and braked twice per flapping period. Now `Subsystems.TailDrive` works like a small industrial hydraulic unit:
+
+```
+battery → H-bridge (on/off only) → DC motor at constant voltage → gear pump (one direction, P = outlet, S = inlet)
+          P ──┬── valveL (3/2): A_L = chamber L ── P or S
+              └── valveR (3/2): A_R = chamber R ── P or S
+          relief valves P ⇄ S (antiparallel)
+```
+
+- **Constant flow `Q_const`.** The motor always gets the full battery voltage, so the pump delivers roughly `Q_const ≈ D·U_nom/k` (35 ml/s at no load; 33–34 ml/s in operation with the placeholders). `Q_const` replaces the old "maximum pump flow" `Q_max`: the pump can no longer be throttled, only redirected. `calibrate.py pump` reports `Q_const` from the identified motor and pump.
+- **Two 3/2 valves instead of a 4/2 valve** (`Hydraulics.DirectionalValve`). Each chamber has its own valve: energized = chamber connected to the pump outlet P, de-energized = connected to the pump inlet S. They are driven in opposition, so the circuit has exactly two states, `s = +1` (R → L) and `s = −1` (L → R). There is **no closed state**; `u = 0` means only "pump off" (motor not powered, valves stay where they were). The spool travels its full stroke in `tau_valve = 0.02 s` and the orifices open smoothly (`3x² − 2x³`). Mid-stroke both paths are partly open (negative overlap), so the pump never dead-heads during switching. The orifice is turbulent, `Q = Q_nom·√(Δp/dp_nom)` (`Q_nom` = 40 ml/s at 3 kPa, placeholder).
+- **Relay controller** (`Control.CPG`). The CPG generates a volume setpoint `V_ref = ramp·(A_V·sin 2πf_eff·t + bias_V)` (default `A_V` = 4 ml) and a relay with hysteresis `δ = 1 ml` compares it with the pumped volume `V_p` (`TailDrive.V_p`, integral of the pipe flows R → L): `e > δ` ⇒ `s = +1`, `e < −δ` ⇒ `s = −1`, otherwise `s` is kept (start `s = +1`). The old feed-forward sine command is gone.
+- **Valve rate limit: minimum dwell 0.2 s** (`CPG.valve_min_dwell`, placeholder). The real valve switches at most about 5 times per second, so the relay keeps each state for at least 0.2 s: a discrete `t_switch` stores the time of the last switch, and the `when` condition `time − pre(t_switch) ≥ valve_min_dwell and (e beyond −δ / +δ, opposite to the current state)` switches the valves and sets `t_switch = time`. If the error leaves the band during the lock-out, the switch happens exactly when the lock-out ends. After a switch the condition is false at once (new state, lock-out restarted), so there is no event chattering: `TailFlapping` (5 s) has 33 state events for 21 switches (each switch plus the end of its lock-out, which often coincides with the next switch). The shortest gap between switches is exactly 0.200 s in every model (test `ValveDwell`).
+- **Frequency range `[tail_freq_min, tail_freq_max]` = [1.5, 2.5] Hz** (`CPG` parameters; user decision, the same for all models, sweeps and checks). `tail_freq_max = 1/(2·valve_min_dwell)`: 2 switches per cycle with each state ≥ 0.2 s. `tail_freq_min = 1.5 Hz` lies just above `f_track = Q_const/(2π·A_V)` ≈ 1.41 Hz (no-load `Q_const` = 35.3 ml/s, `A_V` = 4 ml); below it the relay would have to switch many times per cycle to track `V_ref`, which the valve cannot do and which shakes the tail. The requested `f` is clamped to `f_eff = min(max(f, tail_freq_min), tail_freq_max)` (an initial-equation assertion warns when it is clamped), and another assertion requires `tail_freq_max ≤ 1/(2·valve_min_dwell)`. Default `f` is 1.5 Hz.
+- **Relief valves** sit between the pump outlet and inlet. With the tail blocked the whole `Q_const` must escape through them, so their nominal flow was raised to 40 ml/s (`V_flow_relief > Q_const`). Test `TailBlocked`: pump Δp stays at 54 kPa (limit `p_set + dp_open` = 55 kPa) and the relief valve passes all 32 ml/s.
+
+**Operation in the allowed range** (`sweep.py`, `A_V` = 4 ml, free tail):
+
+| f [Hz] | 1.5 | 1.75 | 2.0 | 2.25 | 2.5 |
+|---|---|---|---|---|---|
+| valve switches per cycle | 2.7 | 2.0 | 2.0 | 2.0 | 2.0 |
+| shortest gap between switches [s] | 0.200 | 0.200 | 0.200 | 0.200 | 0.200 |
+| `V_p` amplitude [ml] (triangle `Q_const/(4f)`) | 5.07 (5.89) | 4.64 (5.05) | 4.04 (4.42) | 3.57 (3.93) | 3.19 (3.53) |
+| tail amplitude [°] | 8.3 | 7.4 | 6.2 | 5.8 | 5.6 |
+| peak \|Δp\| [kPa] | 13.7 | 12.7 | 10.2 | 8.4 | 7.9 |
+
+- **The valves switch at the peaks** (about 2 per cycle). In a half-period the pump moves at most `Q_const/(2f)`, so the volume is a triangle of amplitude ≈ `Q_const/(4f)` minus the loss during `tau_valve` and the speed drop under load (0.86–0.92 of the ideal triangle), and the tail amplitude falls as `1/f`.
+- **At 1.5 Hz there are still 2.7 switches per cycle**: 2πf·A_V = 37.7 ml/s is only just above the real (loaded) pump flow of about 33 ml/s, so near a peak the pump sometimes catches `V_ref` again and the relay adds a third switch 0.2 s later. From 1.75 Hz up it is exactly 2.
+- **Below the range the relay would track** `V_ref` with a sawtooth (before the dwell limit: 9.3 switches per cycle at 1 Hz, 50 at 0.25 Hz), every switch reversing the full pump flow within 20 ms and exciting the tail near its natural frequency (5.8 Hz). That ripple was a large part of the earlier thrust and speed figures (17.6 cm/s at 1 Hz, see scenario 7); the dwell limit and the frequency range remove it.
+- **Metric: valve switches per tail cycle** (`TailDrive.n_switch`; reported by `check_tests.py`, `run_all.py` and `sweep.py`). It sets valve wear and solenoid energy (not modelled).
 
 ## What the test plots show (stages 1–3)
 
@@ -117,12 +152,12 @@ The same circuit built on `Modelica.Fluid` and a comparison of both versions is 
 
 - **`hydraulics_msl_fluid.png`** (scenario 8, optional) – the same run as `hydraulics_step.png`, computed with `Modelica.Fluid` components. By eye the plots are identical. The differences are shown in `results/fluid/fluid_vs_own.png` (section below).
 
-- **`tail_flapping.png`** (scenario 2) – 1 Hz sine, free tail:
-  - The tail angle lags the command, because the pump first has to move the fluid.
-  - Chamber pressures change in antiphase.
-  - Battery current has twice the frequency and is negative at times. In each half-period the motor first accelerates and then brakes, returning energy to the battery.
-  - The amplitude grows over 2 periods, because the CPG starts with a gentle ramp.
-- **`relief_valve_demo.png`** (scenario 4) – full command at 0.25 Hz. The pressure difference reaches ±`p_set`, the valves open and the tail angle peaks flatten (about ±31°). The bottom panel shows that about 43% of the hydraulic energy delivered by the pump turns into heat in the valves. The rest is mainly pipe friction, because at full command the flow is turbulent.
+- **`tail_flapping.png`** (scenario 2) – 1.5 Hz (`tail_freq_min`), `V_ref` amplitude 4 ml, free tail:
+  - The valve direction `s` switches 2–3 times per cycle (21 switches in 5 s), never sooner than 0.2 s after the previous switch; `V_p` is a triangle of amplitude about 4.7–5.1 ml: the 4 ml sine at 1.5 Hz changes faster than the pump can follow, so the relay no longer tracks it.
+  - The tail angle (about ±8°) follows the stroke without the relay ripple of the earlier, undwelled relay.
+  - Motor current is almost constant (about 0.2–0.3 A) after a 7 A inrush peak at `t = 0`: the motor is switched on at full voltage and never reverses.
+  - The setpoint grows over 2 periods (`n_ramp`), so the tail does not start from a deflected position. Peak Δp is 13.7 kPa; the relief valves stay closed also at start-up.
+- **`relief_valve_demo.png`** (scenario 4) – 1.5 Hz, `V_ref` amplitude 4 ml around a bias of 14 ml (hard turn). In the allowed frequency range the stroke is limited to about `Q_const/(2f)` whatever `A_V` is (`A_V` = 20 ml gives the same motion as 4 ml), so a too-large amplitude no longer opens the relief valve; only a large bias (or the start) can. Here the tail swings between about 12° and 30°, Δp reaches 52 kPa, the relief valve opens in every cycle and about 37% of the hydraulic energy delivered by the pump (3.8 of 10.4 J in 10 s) turns into heat. With a constant-flow pump the setpoint must stay within what the chambers accept below `p_set`, because the pump cannot be throttled.
 
 - **`depth_control.png`** (scenario 6) – depth setpoint steps −0.5 → −1.5 → −1.0 m:
   - To go deeper, the controller first shrinks the bladder (the fish gets heavier), and before the target enlarges it again to brake. The fish descends at a constant speed of about 3 cm/s, because the setpoint filter turns the step into a ramp.
@@ -130,10 +165,10 @@ The same circuit built on `Modelica.Fluid` and a comparison of both versions is 
   - The feedforward is deliberately inaccurate (5.5 ml instead of 6 ml). The integral term removes the difference, but slowly (`Ti = 120 s`): at −1.5 m the fish hangs 2–4 cm too low for about 50 s.
   - The syringe motor draws current only while the piston moves (peaks about 0.2 A). Holding depth with a rigid hull costs nothing.
 
-- **`swim_forward.png`** (scenario 7) – CPG 1 Hz, command amplitude 0.8, 120 s:
-  - Thrust pulses at twice the frequency, because the fin pushes in both stroke directions. It drops to zero at times, when the tail reverses.
-  - Speed rises slowly and settles at about 6.4 cm/s, when mean thrust (about 3 mN) equals hull drag. The time constant is about 20 s, because with small thrust the drag takes a long time to catch up.
-  - Of the 216 J drawn from the battery, the fin gets only about 40 mJ, and useful work (against hull drag) is about 20 mJ, i.e. 0.01%. The rest is tail drive losses, described in scenario 5.
+- **`swim_forward.png`** (scenario 7) – CPG 1.5 Hz, `V_ref` amplitude 4 ml, 120 s:
+  - Thrust pulses with twice the stroke frequency; the valves switch 2.7 times per cycle (481 switches in 120 s).
+  - Speed settles at about 14.3 cm/s (6.4 cm/s with the old reversing pump). The earlier 17.6 cm/s at 1 Hz was partly a chatter artifact: the relay then switched about 9 times per cycle and the tail ripple near its natural frequency produced thrust of its own with the placeholder fin model.
+  - Of the 215 J drawn from the battery, the fin gets about 0.51 J and useful work (against hull drag) is about 0.24 J, i.e. 0.11%. The rest is tail drive losses, described in scenario 5.
 
 ## Swimming forward (scenario 7)
 
@@ -147,17 +182,21 @@ The parameters `s_fin` and `C_T` are placeholders. They must be determined from 
 
 **Energy consistency.** The fin does not add thrust "out of thin air". It takes power `P_fin = τ·θ̇` from the tail through the mechanical connector `TailDrive.flange_tail`, and at every instant `P_fin = T·U + P_wake`, where `P_wake = ½·m_a·U·w² ≥ 0` is the energy left in the vortex wake. The balance of the whole robot (battery → drive losses → wake → hull drag → kinetic energy) closes with an error of about 1e-6. For a sine, fin efficiency is `½·(1 − (U/Lω)²)`, i.e. at most 50%. With U ≪ L·ω it is close to 50%.
 
-**`swim_sweep.png`** (`sweep.py --swim`, `A = 1`, 0.25–4 Hz, 150 s per point):
+**`swim_sweep.png`** (`sweep.py --swim`, `A_V` = 4 ml, 1.5–2.5 Hz in 0.25 Hz steps, 150 s per point):
 
-| f [Hz] | U [cm/s] | θ [°] | θ·f [°·Hz] | P_bat [W] |
-|---|---|---|---|---|
-| 0.25 | 7.6 | 31.1 | 7.8 | 1.1 |
-| 0.5 | 8.5 | 16.9 | 8.5 | 1.25 |
-| 1 | 8.0 | 7.7 | 7.7 | 2.9 |
-| 2 | 7.3 | 3.4 | 6.9 | 7.9 |
-| 4 | 6.6 | 1.6 | 6.2 | 16.6 |
+| f [Hz] | U [cm/s] | θ [°] | θ·f [°·Hz] | P_bat [W] | switches per cycle |
+|---|---|---|---|---|---|
+| 1.5 | 14.3 | 8.1 | 12.2 | 1.77 | 2.7 |
+| 1.75 | 13.7 | 7.3 | 12.8 | 1.78 | 2.0 |
+| 2.0 | 13.3 | 6.2 | 12.5 | 1.76 | 2.0 |
+| 2.25 | 13.9 | 5.8 | 13.0 | 1.76 | 2.0 |
+| 2.5 | 14.9 | 5.4 | 13.4 | 1.76 | 2.0 |
 
-**Lesson: faster flapping does not speed up the fish when the pump is the limit.** Mean thrust grows with the square of the trailing-edge speed, i.e. with (θ·f)². Above about 0.5 Hz the pump moves a fixed volume per half-period, so θ·f is almost constant (see scenario 3). Thrust and speed stand still or even drop slightly, while battery power rises 15 times, because the motor reverses the rotor ever more often. Below 0.5 Hz the relief valve is the limit: the amplitude stops growing, so θ·f and speed drop. With placeholder parameters the optimum is about 0.5 Hz. To swim faster you need more pump flow or a larger `D_tail`, not a higher frequency.
+With the reversing pump (`A = 1`) the earlier sweep gave 6.6–8.5 cm/s at 1.1–16.6 W.
+
+**Lesson 1: with a constant-flow pump the battery power does not depend on frequency** (1.76–1.78 W). The motor never reverses, so the rotor's kinetic energy is no longer re-built twice per period.
+
+**Lesson 2: in the allowed range speed is almost flat (13.3–14.9 cm/s).** The pump limits the stroke volume to `Q_const/(2f)`, so θ·f – and with it the trailing-edge speed – stays nearly constant. Before the valve dwell limit the low-frequency points were faster (19.7 cm/s at 0.25 Hz, 17.5 cm/s at 1 Hz) only because the relay switched up to 50 times per cycle and shook the tail near its natural frequency; a real valve cannot do that. The shallow minimum at 2 Hz and the rise towards 2.5 Hz follow θ·f (12.2 → 13.4 °·Hz); the cause was not investigated, and with placeholder tail and fin parameters it should not be read as a design optimum.
 
 ## Ballast and heave (scenario 6)
 
@@ -175,47 +214,48 @@ The `TailDrive` subsystem integrates each loss separately (`E_loss_*`) and compu
 
 The H-bridge is lossless. Ambient pressure power cancels out in a closed circuit, because volume circulates rather than disappears. Energy delivered by the tail axle to the outside (e.g. to the fin in scenario 7) is counted by a separate term `E_mech_out`; when nothing is connected it is zero.
 
-**`energy_budget.png`** – 60 s of flapping at 1 Hz and command amplitude 0.8. The estimated run time of the tail drive alone is about 9.2 h at 1.8 W with a placeholder 16.3 Wh battery.
+**`energy_budget.png`** – 60 s of flapping at 1.5 Hz, `V_ref` amplitude 4 ml. Battery energy 108.7 J (1.81 W), estimated run time of the tail drive alone about 9.0 h with a placeholder 16.3 Wh battery; 241 valve switches (2.7 per cycle). For comparison, the reversing pump at command amplitude 0.8 and 1 Hz drew 106.7 J (1.78 W):
 
-| Item | Share |
-|---|---|
-| motor: winding R·i² | 78.5% |
-| pipes | 9.3% |
-| motor: bearings | 8.4% |
-| pump: friction | 2.7% |
-| battery | 0.8% |
-| tail (water and material) | 0.1% |
+| Item | Reversing pump | Constant pump + 3/2 valves |
+|---|---|---|
+| motor: winding R·i² | 83.7 J (78.5%) | 4.8 J (4.4%) |
+| pipes | 9.9 J (9.3%) | 45.8 J (42.1%) |
+| motor: bearings | 9.0 J (8.4%) | 30.6 J (28.2%) |
+| pump: friction (η_m) | 2.9 J (2.7%) | 14.4 J (13.2%) |
+| directional valves 3/2 | – | 9.0 J (8.3%) |
+| tail (water and material) | 0.13 J (0.1%) | 1.4 J (1.3%) |
+| pump: leakage | 0.17 J (0.2%) | 1.0 J (0.9%) |
+| battery | 0.83 J (0.8%) | 0.24 J (0.2%) |
+| relief valves | 0.02 J | 0.14 J (0.1%) |
+| tail amplitude | ±6.1° | ±8.2° |
 
-**Lesson: with a reversing pump, energy is eaten by reversing the rotor, not by the water.** At about 550 rad/s the rotor holds about 0.8 J of kinetic energy. Twice per period the motor has to dissipate it and build it up again, and the braking and accelerating current heats the winding. Check: with 10 times lower rotor inertia, battery energy drops more than 4 times, and the winding share from 79% to 4%, at the same tail amplitude. Design conclusions to verify with real parameters:
+**Lesson: the total stays the same, but the losses move from reversing the rotor to pushing the full flow all the time.** The rotor no longer reverses, so the winding loss drops 18 times. But the pump is always loaded: it delivers the full `Q_const` ≈ 33 ml/s every instant (the reversing pump averaged about 2/π of its peak 26 ml/s), the motor spins at about 715 rad/s all the time (bearing loss `b·ω²` ≈ 0.5 W even with the tail at rest), and the full flow is turbulent in the 4 mm pipes and the valve orifices. Pipes + valves + pump friction now take 64%. Design conclusions to verify with real parameters:
 
-- a low-inertia motor (e.g. coreless),
-- a gearbox and a slower motor, because kinetic energy grows with ω²,
-- a unidirectional pump with a directional valve instead of reversing the pump.
+- with a constant-flow pump, the circuit resistance at `Q_const` sets the idle cost: wider pipes and larger valve orifices pay off directly,
+- size `Q_const` to the highest frequency × amplitude actually needed (`Q_const ≈ 2π·f_max·A_V`), not larger, because it is paid for at every frequency,
+- switch the motor off (`u = 0`) when the tail is not flapping; unlike the reversing drive, standing still is not free.
 
 ## Frequency sweep (`results/sweep/`, scenario 3)
 
-`frequency_sweep.png` and `frequency_sweep.csv` show full command (`A = 1`) at frequencies 0.25–4 Hz. The range starts at 0.25 Hz rather than 0.5 Hz as in the specification, so that the valve-limited region is visible with placeholder parameters.
+`frequency_sweep.png` and `frequency_sweep.csv` show `A_V` = 4 ml at 1.5–2.5 Hz in 0.25 Hz steps, i.e. `tail_freq_min`…`tail_freq_max` (table in [Tail drive](#tail-drive-constant-speed-pump--directional-valves-stage-11)). Panels include valve switches per cycle; the CSV also has the shortest gap between switches and the `V_p` amplitude. `sweep.py` reads the clamped `cpg.f_eff`, so a `--fmin`/`--fmax` outside the range only repeats the end points.
 
-**Lesson: two different bandwidth limits.**
+**Lesson: in the allowed range pump flow sets the amplitude.**
 
-- **Low frequencies (≤ about 0.4 Hz): the valve is the limit.** The pump has enough time to build up `p_set`. The valve opens (more than 20% of pump flow goes through the valves), and tail amplitude is limited by pressure: `θ ≈ D_tail·p_set / k_total`.
-- **Higher frequencies: pump flow is the limit.** In a half-period the pump moves at most `Q_max/(2f)`, so amplitude falls as `1/f` (the product θ·f is almost constant). The valves stay closed.
-- **Current rises with frequency even though amplitude falls.** The motor has to reverse the rotor ever more often, and much of the rotor's kinetic energy at each reversal turns into heat in the winding (`R·i²`). Fast flapping with a small pump is therefore inefficient. A larger pump or a gearbox would be better.
+- In a half-period the pump moves at most `Q_const/(2f)`, the volume is a triangle of amplitude ≈ `Q_const/(4f)` and the amplitude falls as `1/f` (8.3° at 1.5 Hz, 5.6° at 2.5 Hz). The valves switch at the peaks (2 per cycle; 2.7 at 1.5 Hz).
+- The relief valves stay closed (0.2% of pump flow, i.e. leakage below `p_set`). With the stroke capped at `Q_const/(2f)`, a large `A_V` can no longer push the chambers to `p_set`; only a large `bias_V` can (scenario 4).
+- **Current does not depend on frequency** (battery about 0.24 A at every `f`): the motor runs at constant speed and constant flow; only the share of flow that moves the tail changes.
 
-**CPG ramp and the pump as an integrator.** The pump integrates flow into volume. A sine switched on from zero would therefore give a volume offset `(1 − cos ωt)/ω`, and the tail would flap around a deflected position for many periods, because the offset leaks away only through pump leakage. That is why the CPG ramps up gently over 2 periods (`n_ramp`).
+**CPG ramp and the pump as an integrator.** The pump integrates flow into volume. A sine setpoint switched on from zero would give a volume offset `(1 − cos ωt)/ω`, and the tail would flap around a deflected position. That is why the CPG still ramps the setpoint up gently over 2 periods (`n_ramp`); the relay then follows the ramped setpoint.
 
 ## FMU (stage 8)
 
-`export_fmu.py` exports `Subsystems.TailDriveFMU` as an **FMU 2.0 Co-Simulation**: battery, H-bridge, motor, pump, pipes, chambers, valves and tail. The input is the command `u`, and the outputs are `theta`, `w_tail`, `tau_tail`, `p_L`, `p_R` and `i_motor`. `TailDriveFMU` is a thin wrapper around `TailDrive`. The mechanical connector `flange_tail` (angle and torque as a flow variable) cannot be exposed as a plain FMU input or output, so it stays inside, unconnected.
+`export_fmu.py` exports `Subsystems.TailDriveFMU` as an **FMU 2.0 Co-Simulation**: battery, H-bridge, motor, pump, 3/2 valves, pipes, chambers, relief valves and tail. The input is the valve direction `u = ±1` (0 = pump off), and the outputs are `theta`, `w_tail`, `tau_tail`, `p_L`, `p_R`, `i_motor` and the pumped volume `V_p` (feedback for an external relay controller). `TailDriveFMU` is a thin wrapper around `TailDrive`. The mechanical connector `flange_tail` (angle and torque as a flow variable) cannot be exposed as a plain FMU input or output, so it stays inside, unconnected.
 
 **Solver in the FMU: CVODE** (`--fmiFlags=s:cvode`). By default OpenModelica puts explicit Euler with a step equal to the communication step into a CS FMU. With stiff hydraulics and a 2 ms step such an FMU fails after about 0.1 s. CVODE chooses its own steps within each communication step, and the sundials libraries are packed into the FMU (1.8 MB).
 
-`fmu_demo.py` runs the FMU in a Python loop via FMPy (`FMU2Slave`) with a 2 ms step. Python computes the CPG command with the same formula as `Control.CPG`. The result is compared with the `TailFlapping` scenario computed in OpenModelica (`fmu_vs_om.png`):
+`fmu_demo.py` runs the FMU in a Python loop via FMPy (`FMU2Slave`) with a 2 ms step. Python computes `V_ref` and the relay with hysteresis and the 0.2 s minimum dwell with the same formulas as `Control.CPG`, using the FMU output `V_p`, and feeds the valve direction back as `u`. The result is compared with the `TailFlapping` scenario (1.5 Hz) computed in OpenModelica (`fmu_vs_om.png`): tail amplitude 8.27° vs 8.34° (0.9%), RMS angle 3.5% apart, 2.7 vs 2.7 valve switches per cycle.
 
-- command sampled **at mid-step** `u(t + h/2)`: max angle difference 0.016% of amplitude,
-- command sampled **at the start of the step** `u(t)`: 0.62% of amplitude.
-
-**Lesson: in co-simulation the input is constant over a communication step** (ZOH). Sampled at the start of the step it lags by h/2 = 1 ms on average, and at 1 Hz this gives a phase error of order 2π·f·h/2 ≈ 0.6%. Sampling at mid-step removes this delay. When coupling two simulators there is no such trick, because the input comes from the other simulator. Then the step has to be chosen for the fastest dynamics of the coupling.
+**Lesson: a relay in co-simulation can only switch at communication points.** In OpenModelica the relay switches exactly at the event `|e| = δ`; in the FMU loop up to 2 ms later (about `Q_const·h` ≈ 0.07 ml). Each switch then happens slightly differently, and because the relay excites the tail resonance the two runs drift apart in phase (pointwise difference up to about 75% of the amplitude). That is why the demo compares statistics over the last 3 periods (amplitude, RMS, switches per cycle, limit 5%) instead of the pointwise difference used with the old smooth sine command (0.016%). With a bang-bang controller outside the FMU, the communication step limits the switching resolution; putting the relay inside the FMU (or a step ≪ `δ/Q_const` = 30 ms) avoids it.
 
 **The FMU works only on the system it was built on.** It contains compiled binaries (`binaries/linux64`, glibc and sundials from this machine). On another system it has to be rebuilt (`export_fmu.py`).
 
@@ -274,8 +314,8 @@ The model answers questions like "are the pump and battery sufficient" and "wher
 - **Placeholder thrust.** `Propulsion.LighthillFin` is Lighthill's reactive theory for a rigid fin with an empirical coefficient `C_T`. It has no flow separation, no finite-length vortex wake and no effect of fin shape. The speed figures show trends, not design values.
 - **No coupling between motions.** Forward motion (`SurgeDynamics`), heave (`VerticalDynamics`) and rotation are independent. Tail flapping does not deflect the hull (no yaw or recoil), ballast does not change drag or trim, and swimming speed produces no lift.
 - **No spatial hydrodynamics.** Hull drag is `½·ρ·C_d·A·U²` with constant `C_d`, and added mass is constant. There is no flow around the body, no waves, no pool walls and no currents.
-- **Lumped-parameter hydraulics.** Water is incompressible and at constant temperature. Chambers have a static p–V curve without hysteresis or silicone viscoelasticity. The pipe has laminar and turbulent friction, but the transition between them (Re 2000–4000) is only an interpolation, and unsteady (oscillating) flow is computed with the steady-state characteristic. Valves have no poppet dynamics.
-- **Simplified electrics.** The battery is a voltage source with internal resistance, with no voltage drop as it discharges. The H-bridge is ideal (averaged PWM, no switching losses). The motor has no magnetic saturation or winding temperature.
+- **Lumped-parameter hydraulics.** Water is incompressible and at constant temperature. Chambers have a static p–V curve without hysteresis or silicone viscoelasticity. The pipe has laminar and turbulent friction, but the transition between them (Re 2000–4000) is only an interpolation, and unsteady (oscillating) flow is computed with the steady-state characteristic. Relief valves have no poppet dynamics. Directional valves have a kinematic spool (constant travel time `tau_valve`), but no solenoid electrics, solenoid energy, flow forces or water hammer at switching; the pump line has no volume of its own.
+- **Simplified electrics.** The battery is a voltage source with internal resistance, with no voltage drop as it discharges. The H-bridge is ideal (averaged PWM, no switching losses); in `TailDrive` it is only an on/off switch (`reversible = false`) and the motor starts directly at full voltage (7 A inrush peak, no soft start). The motor has no magnetic saturation or winding temperature.
 - **Unidentified parameters.** All values marked `PLACEHOLDER` in the code are order-of-magnitude estimates. With the current parameters the motor is, for example, heavily oversized for the pump (scenario 1).
 
 ## Calibration plan
@@ -290,6 +330,7 @@ Parameters are best identified from the energy source towards the water. Each st
 | 4 | Pipes | pressure drop at several flows (two pressure sensors); check at what flow the characteristic stops being linear | `l`, `d`, `zeta`, `roughness` (and whether the turbulent transition matches `Re_lam`, `Re_turb`) |
 | 5 | Chambers | quasi-static filling with a syringe and a pressure sensor, tail blocked; several fill–empty cycles (hysteresis) | p–V curve (`table` or CSV file), `V_prefill` |
 | 6 | Relief valves | opening pressure and flow above it (pump into a closed circuit) | `p_set`, `dp_open`, `V_flow_nominal` |
+| 6b | Directional valves 3/2 | flow from port A at a constant supply Δp while the coil is switched on and off | `Q_nom` (`dp_nom` fixed), `tau_valve` |
 | 7 | Tail (static) | torque on the blocked tail (force gauge on an arm) vs pressure difference; angle of the free tail vs pressure difference | `D_tail` (from torque), `k` (from angle) |
 | 8 | Tail (dynamic) | free vibration after deflection: in air (`J`, `c`), then in water (`J_added`, `c_h`) | `J`, `c`, `J_added`, `c_h` |
 | 9 | Thrust | tethered thrust (force gauge) at several frequencies and amplitudes; ideally also with flow in a tunnel | `C_T`, `s_fin`, `L_tail` |
@@ -341,6 +382,8 @@ The bench model is used here only to generate a synthetic measurement: 3 voltage
 
 **Lesson: sensor error does not average out.** `eta_m` has a fixed error of −0.33%, even without any noise. It comes from the motor parameters from step 2 (`b` came out 1.2% too small there), and the same torque error is present at every operating point. More points reduce only the part of the uncertainty that comes from scatter (0.63%), while the part from the motor (0.36%) remains. That is why the script reports both parts separately and accounts for the correlation of `k` and `b` from step 2. Motor friction `b·ω` is from 15% (at the highest Δp) to over 80% (valve open) of the torque from current, so an accurate `b` matters more here than step 2 alone would suggest. A second trap: viscous pump friction (proportional to ω) would be indistinguishable from the motor's `b`, because on this bench they always occur together. If the real pump has such friction, it will show up as a constant torque at `Δp ≈ 0` in the right-hand plot.
 
+**Constant flow `Q_const`.** In the tail drive the motor always runs at the full battery voltage, so the step also reports `Q_const` from the fitted motor and pump (synthetic data: 32.5 ml/s at 7.4 V and 10 kPa, ω = 571 rad/s). This number sets the tracking limit `f_track = Q_const/(2π·A_V)`.
+
 Leakage is the least accurate (about 4%): at 85 kPa it is only 2.5 ml/s against about 30 ml/s of displacement, and the flow meter noise is 0.1 ml/s. More points at high Δp and low speed, where leakage is a larger share of the flow, help.
 
 ### Pipe identification (step 4): `calibrate.py pipe`
@@ -379,7 +422,7 @@ Synthetic measurement: the "true" chamber is softer than the placeholder at firs
 
 **Lesson: the tips of the loop do not lie on the skeleton curve.** At the syringe reversal point both branches meet, because the hysteresis needs some volume to "switch over". Nodes at the very ends of the stroke gave an error of 4.8% of the range. That is why the table ends 1 ml before the reversal points (`--margin`), and beyond that `Chamber` extends the curve linearly, which with rising stiffness underestimates pressure. The syringe stroke must therefore be planned with a margin beyond the chamber's working range in the robot.
 
-**Does the lack of hysteresis in the model matter?** In the `EnergyBudget` scenario the chambers work between 6 and 10 ml, i.e. 1–5 ml above rest, at 2–12 kPa. The synthetic chamber loses about 3.9 mJ in such a cycle. For two chambers at 1 Hz that is about 8 mW, i.e. about 0.4% of the tail drive power (1.8 W). That is more than the tail losses in the balance (0.1%), but less than the pipes and bearings. Real silicone may have a wider loop, so this number has to be recomputed from the measurement. If it turns out significant, `Chamber` has to be extended with viscoelastic damping.
+**Does the lack of hysteresis in the model matter?** In the `EnergyBudget` scenario the chambers work between 6 and 10 ml, i.e. 1–5 ml above rest, at 2–12 kPa. The synthetic chamber loses about 3.9 mJ in such a cycle. For two chambers at 1 Hz that is about 8 mW, i.e. about 0.4% of the tail drive power (1.8 W). That is less than the tail losses in the balance (2.5% with the relay drive), and much less than the pipes and bearings. Real silicone may have a wider loop, so this number has to be recomputed from the measurement. If it turns out significant, `Chamber` has to be extended with viscoelastic damping.
 
 ### Relief valve (step 6): `calibrate.py valve`
 
@@ -398,6 +441,12 @@ Synthetic measurement: a valve with a weaker spring (`p_set` = 46 kPa instead of
 Hysteresis determined from the difference of the branches: 1.89 kPa against the true 2 kPa.
 
 **Lesson: residuals show what the model cannot do.** In the joint fit the residuals form two bands of opposite sign (bottom panel of the plot). The noise estimated from the residuals comes out at 1.9 ml/s, almost 40 times the flow meter noise. It is not noise but the hysteresis, which a model with a single `p_set` lacks. The uncertainty of the joint `p_set` (±0.72 kPa) is therefore 7 times larger than that of either branch alone, but it is an honest measure: that is how far the model departs from the valve. With a 2 kPa hysteresis (4% of `p_set`) a single `p_set` from the middle is enough for the energy balance. If the valve is meant to limit chamber pressure with a margin, the opening branch is what matters. `dp_smooth` is poorly determined (±51%), because it depends on only a few points right at the opening. It affects only the shape of the knee of the characteristic, though. Its "tail" below `p_set` acts in the model as additional leakage (about 0.2 ml/s at 35 kPa), so a separately measured closed-valve leakage (`G_leak`, e.g. collecting drops for a few minutes) makes sense only if it is larger.
+
+### Directional valve (step 6b): `calibrate.py dirvalve`
+
+A pressurized reservoir feeds port P (`--dp`, default 5 kPa), T and A drain to open reservoirs, and a fast flow meter sits on A (`FishRobot.Calibration.DirectionalValveBench`). The coil is switched on at 0.02 s and off at 0.07 s. The plateau gives `Q_nom` (only the ratio `Q_nom/√dp_nom` is visible, so `dp_nom` stays fixed, as `dp_open` for the relief valve), and the shape of the rise and fall gives the switching time `tau_valve`. The measurement file is a CSV with columns `time [s], Q [m³/s]`.
+
+Synthetic measurement: a valve with a smaller orifice (`Q_nom` = 32 ml/s instead of 40) and a slower solenoid (28 ms instead of 20), flow meter noise 0.2 ml/s, 500 samples. Result (`results/calibration/dirvalve_fit.{txt,png}`): `Q_nom` −0.04% ± 0.03%, `tau_valve` −0.05% ± 0.05%, correlation 0.13, residual RMS 1.00 noise units. The two parameters shape different parts of the record (plateau vs edges), so a single on/off cycle is enough. On a real valve the edges also contain solenoid delay and flow forces, which the kinematic spool model lumps into `tau_valve`.
 
 ### Tail, static (step 7): `calibrate.py tail-static`
 
@@ -439,7 +488,7 @@ Synthetic measurement: a fin with `C_T = 0.6` and a speed penalty 1.5 times larg
 | `C_T`, tethered only | 0.600 (0.0%) | 3.6% | 3.6% |
 | speed penalty `b/a` | 1.50 | 0.12 | 0.14 |
 
-**Lesson: a model of the wrong form gives a biased parameter, but it does not always matter.** `C_T` from all points is biased, because the model describes the drop of thrust with speed incorrectly. `C_T` from the tether alone does not have this problem, but has a larger spread. The script writes the tethered `C_T` into the model, because the robot swims slowly: at 1 Hz the trailing edge moves at about 63 cm/s, while the robot swims at 6 cm/s. The speed penalty there is about 1% of thrust, and a 50% error in it changes thrust by about 0.5%. It matters only for the maximum speed: thrust vanishes at `L·ω/√1.5` ≈ 51 cm/s instead of 63 cm/s. The form test detects `b/a = 1.5` (above 3σ) in only 74% of repetitions. It is decided by the few points with large `U²/(L·ω)²`, i.e. at low frequency and high flow speed (right-hand plot), not by the number of points.
+**Lesson: a model of the wrong form gives a biased parameter, but it does not always matter.** `C_T` from all points is biased, because the model describes the drop of thrust with speed incorrectly. `C_T` from the tether alone does not have this problem, but has a larger spread. The script writes the tethered `C_T` into the model, because the robot swims slowly: at 1 Hz the trailing edge moves at about 63 cm/s, while the robot swims at 6–18 cm/s. The speed penalty there is about 1% of thrust, and a 50% error in it changes thrust by about 0.5%. It matters only for the maximum speed: thrust vanishes at `L·ω/√1.5` ≈ 51 cm/s instead of 63 cm/s. The form test detects `b/a = 1.5` (above 3σ) in only 74% of repetitions. It is decided by the few points with large `U²/(L·ω)²`, i.e. at low frequency and high flow speed (right-hand plot), not by the number of points.
 
 ### Hull (step 10): `calibrate.py hull`
 

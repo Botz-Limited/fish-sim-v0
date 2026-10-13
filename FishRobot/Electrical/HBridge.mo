@@ -1,6 +1,9 @@
 within FishRobot.Electrical;
 model HBridge "Idealny mostek H: v_mot = u·v_bat, bez strat (wspólny biegun ujemny)"
-  Modelica.Blocks.Interfaces.RealInput u "Komenda wypełnienia PWM, u ∈ [-1, 1]"
+  parameter Boolean reversible = true
+    "= false: mostek nie odwraca napięcia (u przycinane do [0, 1]) – sam wyłącznik/PWM silnika jednokierunkowego"
+    annotation (Evaluate=true, choices(checkBox=true));
+  Modelica.Blocks.Interfaces.RealInput u "Komenda wypełnienia PWM, u ∈ [-1, 1] (u ∈ [0, 1] gdy reversible = false)"
     annotation (Placement(transformation(extent={{-20,-20},{20,20}}, rotation=-90, origin={0,120})));
   Modelica.Electrical.Analog.Interfaces.PositivePin bat "Do bieguna + baterii"
     annotation (Placement(transformation(extent={{-110,30},{-90,50}})));
@@ -9,14 +12,14 @@ model HBridge "Idealny mostek H: v_mot = u·v_bat, bez strat (wspólny biegun uj
   Modelica.Electrical.Analog.Interfaces.NegativePin n "Wspólny biegun ujemny (bateria i silnik)"
     annotation (Placement(transformation(extent={{-10,-110},{10,-90}})));
 
-  Real u_lim "Komenda po nasyceniu do [-1, 1]";
+  Real u_lim "Komenda po nasyceniu do [-1, 1] (albo [0, 1])";
   Modelica.Units.SI.Voltage v_bat "Napięcie zasilania";
   Modelica.Units.SI.Voltage v_mot "Napięcie podawane na silnik";
   Modelica.Units.SI.Current i_mot "Prąd płynący do silnika";
   Modelica.Units.SI.Current i_bat "Prąd pobierany z baterii";
 equation
   // noEvent: nasycenie jest ciągłe, więc nie potrzebuje zdarzeń (oszczędzamy restarty solvera).
-  u_lim = noEvent(max(-1, min(1, u)));
+  u_lim = noEvent(max(if reversible then -1 else 0, min(1, u)));
   v_bat = bat.v - n.v;
   v_mot = mot.v - n.v;
   i_mot = -mot.i;
@@ -44,5 +47,8 @@ a bateria tylko 0,3 A – mostek działa jak przetwornica obniżająca napięcie
 Przy hamowaniu (<code>u·i_mot &lt; 0</code>) energia wraca do baterii.</p>
 <p>Wersja z <b>wspólnym biegunem ujemnym</b> (3 piny) pozwala użyć jednej masy dla całego obwodu.
 Ujemne <code>u</code> daje ujemne <code>v_mot</code>, czyli odwrotny kierunek obrotów.</p>
+<p><code>reversible = false</code>: mostek nie odwraca napięcia (ujemne <code>u</code> daje 0). Tak pracuje w
+<code>Subsystems.TailDrive</code>: silnik pompy kręci się zawsze w jedną stronę, a kierunek przepływu wybierają
+zawory rozdzielające; mostek służy tam tylko jako wyłącznik (<code>u = 1</code> – pełne napięcie, <code>u = 0</code> – stop).</p>
 </html>"));
 end HBridge;

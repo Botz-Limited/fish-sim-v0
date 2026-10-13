@@ -41,5 +41,10 @@ mierzymy <code>i, w, &Delta;p, Q</code>. Równania pompy są liniowe w szukanych
   k·i - b·w    = D·&Delta;p/&eta;_m          -> &eta;_m (tryb pompy, &Delta;p &gt; 0)</pre>
 <p>Lewa strona drugiego równania to moment na wale policzony z prądu silnika. Dlatego silnik trzeba
 zidentyfikować wcześniej, a jego niepewność (zwłaszcza <code>b</code>) przenosi się na <code>&eta;_m</code>.</p>
+<p><b>Wydatek stały <code>Q_const</code>:</b> w napędzie ogona (<code>Subsystems.TailDrive</code>) silnik pracuje
+cały czas na pełnym napięciu baterii, a kierunek wybierają zawory 3/2. Punkt pracy przy <code>U = U_nom</code>
+baterii i typowym <code>&Delta;p</code> (kilka–kilkanaście kPa) daje więc wprost <code>Q_const</code>, który
+wyznacza granicę śledzenia regulatora <code>f_track = Q_const/(2&pi;·A_V)</code>.
+<code>calibrate.py pump</code> liczy go z dopasowanych parametrów silnika i pompy.</p>
 </html>"));
 end PumpBench;

@@ -171,21 +171,79 @@ def check_tail_direction(sol):
             ("V_L + V_R = const z ruchomym ogonem (< 1e-9)", drift < 1e-9, f"max dryf {drift:.1e}")]
 
 
+def switches_per_cycle(sol, periods=2):
+    """Przełączenia zaworów na cykl ogona, liczone w ostatnich `periods` okresach."""
+    t, n, f = sol["time"], sol["drive.n_switch"], sol["cpg.f_eff"][0]
+    t0 = t[-1] - periods / f
+    return (n[-1] - np.interp(t0, t, n)) / periods
+
+
+def min_switch_gap(t_switch):
+    """Najkrótszy odstęp między przełączeniami zaworów (z kolejnych wartości t_switch regulatora)."""
+    ts = np.unique(t_switch)
+    ts = ts[ts >= 0]  # wartość startowa t_switch jest ujemna
+    return np.diff(ts).min() if len(ts) > 1 else np.inf
+
+
+def dwell_check(sol, prefix="cpg"):
+    gap, dwell = min_switch_gap(sol[f"{prefix}.t_switch"]), sol[f"{prefix}.valve_min_dwell"][0]
+    return (f"{prefix}: odstęp między przełączeniami zaworów ≥ valve_min_dwell", gap >= dwell - 1e-9,
+            f"min {gap:.4f} s, granica {dwell:.2f} s")
+
+
 def check_flapping(sol, expect_relief):
     vt = sol["drive.chamberL.V"] + sol["drive.chamberR.V"]
     drift = np.max(np.abs(vt - vt[0])) / vt[0]
-    q_relief = np.max(np.abs(sol["drive.reliefLR.V_flow"] - sol["drive.reliefRL.V_flow"]))
+    q_relief = np.max(np.abs(sol["drive.reliefPS.V_flow"] - sol["drive.reliefSP.V_flow"]))
     q_pump = np.max(np.abs(sol["drive.pump.V_flow"]))
     frac = q_relief / q_pump
+    n_cyc = switches_per_cycle(sol)
+    out = [("V_L + V_R = const (< 1e-9)", drift < 1e-9, f"max dryf {drift:.1e}"), dwell_check(sol)]
     if expect_relief:
-        relief = ("zawór się otwiera (przepływ > 5% przepływu pompy)", frac > 0.05, f"{frac:.1%}")
+        out.append(("zawór się otwiera (przepływ > 5% przepływu pompy)", frac > 0.05, f"{frac:.1%}"))
+        out.append(("zawory przełączają się co najmniej 2 razy na cykl", n_cyc >= 2, f"{n_cyc:.1f} przełączeń/cykl"))
     else:
-        relief = ("zawór zamknięty (przepływ < 1% przepływu pompy)", frac < 0.01, f"{frac:.2%}")
-    return [("V_L + V_R = const (< 1e-9)", drift < 1e-9, f"max dryf {drift:.1e}"), relief]
+        out.append(("zawór zamknięty (przepływ < 1% przepływu pompy)", frac < 0.01, f"{frac:.2%}"))
+        # W zakresie [tail_freq_min, tail_freq_max] zawór przełącza się ok. 2 razy na cykl, a V_p to trójkąt
+        # o amplitudzie ≤ Q_const/(4f) (mniej o spadek obrotów, przeciek i tau_valve).
+        t, f = sol["time"], sol["cpg.f_eff"][0]
+        late = t > t[-1] - 2 / f
+        amp = np.ptp(sol["drive.V_p"][late]) / 2
+        tri = sol["drive.Q_const"][0] / (4 * f)
+        out.append(("amplituda V_p w (0,7; 1]·Q_const/(4f)", 0.7 * tri < amp <= tri,
+                    f"{amp * 1e6:.2f} ml vs Q_const/(4f) = {tri * 1e6:.2f} ml; {n_cyc:.2f} przełączeń/cykl"))
+    return out
 
 
-FLAP_VARS = ["time", "drive.chamberL.V", "drive.chamberR.V", "drive.reliefLR.V_flow", "drive.reliefRL.V_flow",
-             "drive.pump.V_flow"]
+def check_valve_dwell(sol):
+    out = [dwell_check(sol, p) for p in ("cpgMin", "cpgMid", "cpgMax")]
+    f_min, f_max = sol["cpgMin.tail_freq_min"][0], sol["cpgMin.tail_freq_max"][0]
+    dwell = sol["cpgMin.valve_min_dwell"][0]
+    out.append(("f = 0,5 Hz -> tail_freq_min, f = 3 Hz -> tail_freq_max, f = 2 Hz bez zmian",
+                sol["cpgMin.f_eff"][0] == f_min and sol["cpgMax.f_eff"][0] == f_max and sol["cpgMid.f_eff"][0] == 2.0,
+                f"f_eff = {sol['cpgMin.f_eff'][0]:g} / {sol['cpgMid.f_eff'][0]:g} / {sol['cpgMax.f_eff'][0]:g} Hz"))
+    out.append(("tail_freq_max ≤ 1/(2·valve_min_dwell)", f_max <= 1 / (2 * dwell) + 1e-12,
+                f"{f_max:g} ≤ {1 / (2 * dwell):g} Hz"))
+    for p, d in (("cpgMin", "driveMin"), ("cpgMid", "driveMid"), ("cpgMax", "driveMax")):
+        t, n, f = sol["time"], sol[f"{d}.n_switch"], sol[f"{p}.f_eff"][0]
+        sw = (n[-1] - np.interp(t[-1] - 4 / f, t, n)) / 4
+        out.append((f"{p}: przełączenia na cykl ≤ 3 (f = {f:g} Hz)", sw <= 3, f"{sw:.2f}"))
+    return out
+
+
+FLAP_VARS = ["time", "drive.chamberL.V", "drive.chamberR.V", "drive.reliefPS.V_flow", "drive.reliefSP.V_flow",
+             "drive.pump.V_flow", "drive.n_switch", "cpg.f_eff", "cpg.t_switch", "cpg.valve_min_dwell",
+             "drive.V_p", "drive.Q_const"]
+
+
+def check_tail_blocked(sol):
+    dp = sol["drive.pump.dp_pump"]
+    limit = sol["drive.reliefPS.p_set"][0] + sol["drive.reliefPS.dp_open"][0]
+    q_err = abs(sol["drive.reliefPS.V_flow"][-1] - sol["drive.pump.V_flow"][-1]) / sol["drive.pump.V_flow"][-1]
+    return [("Δp pompy ≤ p_set + dp_open", dp.max() <= limit,
+             f"max {dp.max() / 1e3:.2f} kPa, granica {limit / 1e3:.1f} kPa"),
+            ("zawór przelewowy przejmuje cały wydatek pompy (< 2%)", q_err < 0.02,
+             f"różnica {q_err:.1%}, Q_pompy = {sol['drive.pump.V_flow'][-1] * 1e6:.1f} ml/s")]
 
 def check_ballast_statics(sol):
     t = sol["time"]
@@ -239,7 +297,7 @@ def check_fin_prescribed(sol):
 
 def check_swim_forward(sol):
     t, u = sol["time"], sol["surge.U"]
-    f = sol["cpg.f"][0]
+    f = sol["cpg.f_eff"][0]
     last, prev = t >= t[-1] - 3 / f, (t >= t[-1] - 6 / f) & (t < t[-1] - 3 / f)
     u_last, u_prev = np.mean(u[last]), np.mean(u[prev])
     u_bound = sol["fin.L_tail"][0] * 2 * np.pi * f
@@ -288,6 +346,12 @@ CHECKS = {
                                          check_tail_static_energy),
     "FishRobot.Tests.TailDriveDirection": (["time", "drive.theta", "drive.p_L", "drive.p_R", "drive.tau_tail",
                                             "V_total"], check_tail_direction),
+    "FishRobot.Tests.TailBlocked": (["time", "drive.pump.dp_pump", "drive.pump.V_flow", "drive.reliefPS.V_flow",
+                                     "drive.reliefPS.p_set", "drive.reliefPS.dp_open"], check_tail_blocked),
+    "FishRobot.Tests.ValveDwell": (["time"] + [f"{p}.{k}" for p in ("cpgMin", "cpgMid", "cpgMax")
+                                               for k in ("t_switch", "valve_min_dwell", "f_eff")]
+                                   + ["cpgMin.tail_freq_min", "cpgMin.tail_freq_max"]
+                                   + [f"{d}.n_switch" for d in ("driveMin", "driveMid", "driveMax")], check_valve_dwell),
     "FishRobot.Examples.TailFlapping": (FLAP_VARS, lambda s: check_flapping(s, expect_relief=False)),
     "FishRobot.Examples.ReliefValveDemo": (FLAP_VARS, lambda s: check_flapping(s, expect_relief=True)),
     "FishRobot.Tests.BallastStatics": (["time", "fishNeutral.v_z", "fishLight.v_z", "fishHeavy.v_z", "fishNeutral.z",
@@ -297,7 +361,7 @@ CHECKS = {
     "FishRobot.Tests.SurgeTerminalVelocity": (["time", "surge.U", "U_analytic", "U_ss"], check_surge_terminal),
     "FishRobot.Tests.FinPrescribedMotion": (["time", "I_T", "T_mean_analytic", "E_thrust", "E_fin", "eta_analytic",
                                              "E_balance_error"], check_fin_prescribed),
-    "FishRobot.Examples.SwimForward": (["time", "surge.U", "cpg.f", "fin.L_tail", "drive.E_battery", "E_system_error",
+    "FishRobot.Examples.SwimForward": (["time", "surge.U", "cpg.f_eff", "fin.L_tail", "drive.E_battery", "E_system_error",
                                         "E_fin_error", "drive.E_mech_out", "E_thrust"], check_swim_forward),
     "FishRobot.Tests.ReliefValveLimit": (["time", "chamber.p_gauge", "source.V_flow", "valve.V_flow",
                                           "valve.p_set", "valve.dp_open"], check_relief_valve),

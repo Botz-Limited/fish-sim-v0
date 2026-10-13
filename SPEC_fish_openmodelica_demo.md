@@ -35,11 +35,11 @@ fish_modelica_demo/
   FishRobot/                    # Modelica package (directory structure: package.mo + package.order)
     package.mo
     Interfaces/                 # HydraulicPort connector, base 2-port classes
-    Hydraulics/                 # GearPump, Chamber, Pipe, ReliefValve, CheckValve (optional), Reservoir
+    Hydraulics/                 # GearPump, DirectionalValve (3/2), Chamber, Pipe, ReliefValve, Reservoir
     Tail/                       # TailEquivalent (1 DOF, rotational)
     Buoyancy/                   # BallastSyringe, VerticalDynamics
     Propulsion/                 # SurgeDynamics (1D forward motion)
-    Control/                    # CPG (sine), DepthPID with anti-windup
+    Control/                    # CPG (volume setpoint + relay with min. valve dwell), DepthPID with anti-windup
     Examples/                   # scenario models (each with annotation experiment(...))
     Tests/                      # small component test models
   scripts/
@@ -55,14 +55,16 @@ fish_modelica_demo/
 
 ### 3.1 Electrics and pump drive (MSL)
 - Battery as a voltage source with internal resistance (placeholder), H-bridge as an ideal controlled voltage source `u·U_bat`, `u ∈ [−1, 1]`.
+- **Tail drive (user decision, constant pump + valves):** in `TailDrive` the motor always gets the full battery voltage and never reverses (`HBridge(reversible=false)`, used only as an on/off switch, `|u|`). The pump therefore delivers an approximately constant flow `Q_const ≈ D·U_nom/k` (placeholder ≈ 35 ml/s at no load); flow direction is chosen only by the valves (§3.2).
 - DC motor from MSL (e.g. `Modelica.Electrical.Machines` or an R-L circuit + `Modelica.Electrical.Analog.Basic.RotationalEMF` + rotor inertia). Pick the simpler option and justify it.
 
 ### 3.2 Hydraulics (`FishHydraulics`, own)
-- `GearPump`: positive displacement, reversible. `V_flow = D·ω − k_leak·Δp`, torque `τ = D·Δp/η_m`. MSL rotational connector on the shaft side.
+- `GearPump`: positive displacement. `V_flow = D·ω − k_leak·Δp`, torque `τ = D·Δp/η_m`. MSL rotational connector on the shaft side. In `TailDrive` it turns at constant speed in one direction (outlet P, inlet S).
+- `DirectionalValve`: 3/2 directional valve (ports P, T, A), one per chamber, driven in opposition: `s = +1` connects chamber L to P and R to S (flow R → L), `s = −1` the reverse. No closed position. Spool travel time `tau_valve` (placeholder 0.02 s), smooth orifice opening, turbulent orifice `Q = Q_nom·√(Δp/dp_nom)`.
 - `Chamber`: silicone chamber with **nonlinear compliance** `p = f(V)` from a table (`Modelica.Blocks.Tables.CombiTable1Ds`). Make the placeholder table so that it can be replaced by a p–V curve from the SOFA demo or from a measurement. Output: volume `V` (for the tail model).
 - `Pipe`: laminar-turbulent pressure loss (`Δp = R_lam·V_flow + R_turb·|V_flow|·V_flow`, regularized), optionally the inertance of the liquid column.
 - `ReliefValve`: relief valve with a smooth characteristic (no hard switching), opening pressure `p_set`.
-- Closed circuit as in SoFi (MIT): the pump moves water between chamber L and R. The chambers start pre-filled (`V_prefill`).
+- Closed circuit as in SoFi (MIT): the pump moves water between chamber L and R through the two 3/2 valves. The chambers start pre-filled (`V_prefill`). Antiparallel relief valves between P and S must pass the whole `Q_const` when the tail is blocked (`V_flow_relief > Q_const`).
 
 ### 3.3 Tail (`TailEquivalent`, 1 DOF)
 - Equivalent rotational motion of the tail angle θ: `(J + J_added)·θ̈ = τ_hyd − k·θ − c·θ̇ − c_h·|θ̇|·θ̇`.
@@ -80,7 +82,9 @@ fish_modelica_demo/
 - Optionally: compressibility of the hull/air with depth (`V_hull` changing with pressure) as a lesson in why uncompensated ballast is vertically unstable. If you add it, make it switchable.
 
 ### 3.6 Control (`Control`)
-- CPG: `u(t) = A·sin(2π f t) + bias` with saturation and a start-up ramp.
+- CPG (relay controller for the constant-flow drive): volume setpoint `V_ref = ramp·(A_V·sin(2π f_eff t) + bias_V)` (start-up ramp `3x² − 2x³` over `n_ramp` periods), error `e = V_ref − V_p` with `V_p` the pumped volume R → L (`TailDrive.V_p`). Relay with hysteresis `δ` (placeholder 1 ml): `e > δ` ⇒ `s = +1`, `e < −δ` ⇒ `s = −1`, otherwise keep `s` (start `s = +1`). Output `y = s` (or 0 = pump off).
+- **Valve rate limit (user decision):** the valve switches at most ~5 times/s, so every valve state lasts at least `valve_min_dwell = 0.2 s` (placeholder). Implementation: discrete `t_switch` (time of last switch); the relay may switch only when `time − pre(t_switch) ≥ valve_min_dwell`, and then sets `t_switch = time`. If the error leaves the band during the lock-out, the switch happens when the lock-out ends. Events must be clean (no chattering).
+- **Frequency range (user decision):** `f` is clamped to `[tail_freq_min, tail_freq_max] = [1.5, 2.5] Hz` (`f_eff`, warning assertion when clamped). `tail_freq_max = 1/(2·valve_min_dwell)` (2 switches per cycle, asserted); `tail_freq_min = 1.5 Hz` for all models, sweeps and checks — just above `f_track = Q_const/(2π·A_V)` ≈ 1.41 Hz, below which the relay would need many switches per cycle to track `V_ref`.
 - `DepthPID`: `z_ref → syringe motor speed`, anti-windup, saturation. You may use `Modelica.Blocks.Continuous.LimPID` and describe its parameters.
 
 ## 4. Energy balance (key feature of the demo)
@@ -90,17 +94,17 @@ Add power and energy variables (integrals) to the scenario model: energy from th
 ## 5. Scenarios (`Examples/`)
 
 1. `HydraulicsStep`: step (ramp) of the pump command, tail locked → pressures, flow, motor current.
-2. `TailFlapping`: sine command, tail free → tail angle, pressures, current.
-3. `FrequencySweep` (via `sweep.py`): f = 0.5…4 Hz → tail amplitude, peak pressure, mean current. **Lesson**: where the bandwidth is limited by the pump flow and where by the relief valve.
-4. `ReliefValveDemo`: command amplitude too large → the valve opens, the energy loss is visible.
+2. `TailFlapping`: CPG + relay at 1.5 Hz, `A_V` = 4 ml, tail free → valve direction, `V_ref`/`V_p`, tail angle, pressures, current.
+3. `FrequencySweep` (via `sweep.py`): f = `tail_freq_min`…`tail_freq_max` (1.5…2.5 Hz, step 0.25) → tail amplitude, `V_p` amplitude, peak pressure, mean current, valve switches per cycle, shortest gap between switches. **Lesson**: with constant pump flow the stroke is limited to ≈ `Q_const/(2f)`.
+4. `ReliefValveDemo`: setpoint bias too large (hard turn, `bias_V` = 14 ml at 1.5 Hz) → the relief valve opens every cycle, the energy loss is visible. (In the allowed frequency range a large `A_V` alone cannot open it, because the stroke is capped at ≈ `Q_const/(2f)`.)
 5. `EnergyBudget`: 60 s of swimming → pie/bar chart of the energy breakdown + estimated battery run time (capacity is a placeholder).
 6. `DepthControl`: steps of the depth setpoint (−0.5 → −1.5 → −1.0 m) → depth, bladder volume, syringe motor current.
-7. `SwimForward`: CPG + surge → steady speed vs frequency (with an explicit caveat about the thrust model).
+7. `SwimForward`: CPG (1.5 Hz) + surge → steady speed; `sweep.py --swim` gives speed vs frequency over 1.5…2.5 Hz (with an explicit caveat about the thrust model).
 8. **(Optional)** `HydraulicsMSLFluid`: the stage 1 circuit built from `Modelica.Fluid` + `Modelica.Media.Water.ConstantPropertyLiquidWater`, comparison of results and complexity.
 
 ## 6. FMU
 
-- `export_fmu.py`: export the "H-bridge + motor + pump + chambers + tail" subsystem as an **FMU 2.0 Co-Simulation** (input: command `u`; outputs: tail angle and speed, torque, `p_L`, `p_R`, current).
+- `export_fmu.py`: export the "H-bridge + motor + pump + chambers + tail" subsystem as an **FMU 2.0 Co-Simulation** (input: valve direction `u = ±1`, 0 = pump off; outputs: tail angle and speed, torque, `p_L`, `p_R`, current, pumped volume `V_p`). The relay (with the same minimum dwell) runs outside the FMU.
 - `fmu_demo.py`: run the FMU through **FMPy** in a Python loop with a 2 ms step and compare with the OpenModelica result (they should match).
 - Note in the README: the FMU contains compiled binaries and **only works on the system it was built on**. Describe how to plug it into the MuJoCo demo in the future (torque from the FMU → joint actuator), but do not implement the hookup itself unless the user asks.
 
@@ -124,8 +128,12 @@ Add power and energy variables (integrals) to the scenario model: energy from th
 - Valve: pressure does not exceed `p_set` by more than the assumed characteristic tolerance.
 - Ballast statics: at neutral `V_b` ż → 0; larger `V_b` → ascent.
 - Energy balance closed < 1%.
-- FMU vs OpenModelica: tail angle difference < 1% of the amplitude.
-- Directions: positive pump command → positive tail angle (convention described in the README).
+- FMU vs OpenModelica: tail angle amplitude and RMS within 5% over the last 3 periods (the external relay switches only at communication points, so pointwise comparison is meaningless).
+- Valve dwell (`Tests.ValveDwell`, `TailFlapping`, `ReliefValveDemo`): shortest gap between valve switches ≥ `valve_min_dwell` − 1e-9 for f = `tail_freq_min`, 2.0 Hz and `tail_freq_max`.
+- Frequency clamp (`Tests.ValveDwell`): f = 0.5 Hz → `tail_freq_min`, f = 3 Hz → `tail_freq_max`, f = 2 Hz unchanged, and `tail_freq_max ≤ 1/(2·valve_min_dwell)`.
+- `TailFlapping`: relief valves closed, `V_p` amplitude within (0.7, 1]·`Q_const/(4f)`.
+- `TailBlocked`: with the tail locked the relief valve takes the whole pump flow and pump Δp ≤ `p_set + dp_open`.
+- Directions: positive valve command (R → L) → positive tail angle (convention described in the README).
 
 ## 9. README – mandatory sections
 

@@ -23,6 +23,7 @@ szkieletowej, a wynik zapisywany jako CSV dla Chamber(tableOnFile=true) i sprawd
   .venv/bin/python scripts/calibrate.py pipe [--data punkty.csv --l 0.2]
   .venv/bin/python scripts/calibrate.py chamber [--data cykle.csv --V-rest 5e-6]
   .venv/bin/python scripts/calibrate.py valve [--data punkty.csv]
+  .venv/bin/python scripts/calibrate.py dirvalve [--data przelaczenie.csv --dp 5e3]
   .venv/bin/python scripts/calibrate.py tail-static [--data punkty.csv --k small]
   .venv/bin/python scripts/calibrate.py tail-dynamic [--data-air a.csv --data-water w.csv]
   .venv/bin/python scripts/calibrate.py thrust [--data punkty.csv --noise-abs 1e-4 --noise-rel 0.05]
@@ -31,6 +32,10 @@ szkieletowej, a wynik zapisywany jako CSV dla Chamber(tableOnFile=true) i sprawd
 
 Krok 6, zawór przelewowy (calibrate.py valve): charakterystyka Q(Δp) przy rosnącym i malejącym przepływie,
 dopasowanie jak w kroku 4, osobno dla obu gałęzi (histereza grzybka) i wspólnie.
+
+Krok 6b, zawór rozdzielający 3/2 (calibrate.py dirvalve): przepływ z wyjścia A przy stałym Δp zasilania,
+cewka załączana i wyłączana (DirectionalValveBench). Dopasowanie symulacji jak w kroku 2: stan ustalony daje
+Q_nom, a kształt narastania i opadania przepływu – czas przełączenia tau_valve.
 
 Krok 7, ogon statycznie (calibrate.py tail-static): moment na zablokowanym ogonie i kąt swobodnego ogona
 przy zadanym Δp; regresja liniowa daje D_tail i k, test członu Δp³ wykrywa nieliniową sztywność.
@@ -50,7 +55,7 @@ i na głębokościach (V_air0), wynurzanie VerticalStep po skoku pęcherza (m_ad
 Pliki pomiaru: CSV z nagłówkiem; silnik: time [s], i [A], w [rad/s]; pompa: U [V], i [A], w [rad/s],
 dp [Pa], Q [m³/s];
 przewód: Q [m³/s], dp [Pa]; komora (w kolejności czasu): dV [m³], p [Pa];
-zawór: dp [Pa], Q [m³/s], up (1 = przepływ rośnie);
+zawór: dp [Pa], Q [m³/s], up (1 = przepływ rośnie); zawór 3/2: time [s], Q [m³/s];
 ogon statycznie: dp_blocked [Pa], tau [N·m], dp_free [Pa], theta [rad]; ogon dynamicznie: time [s], theta [rad];
 ciąg: Theta [rad], f [Hz], U [m/s], T [N];
 kadłub: holowanie U [m/s], F [N]; wybieg time [s], x [m];
@@ -334,6 +339,21 @@ def pump_plot(U, meas, extra, title, name):
     return plotting.save(fig, name, "calibration")
 
 
+def q_const_line(values, motor, U=7.4, R_int=0.05, dp=10e3):
+    """Wydatek stały Q_const napędu ogona: silnik na pełnym napięciu baterii, pompa przy typowym Δp.
+
+    Stan ustalony: U = (R + R_int)·i + k·ω,  k·i = b·ω + D·Δp/η_m  ->  ω, potem Q = D·ω − k_leak·Δp.
+    """
+    m = dict(zip(motor["names"], motor["values"]))
+    R, k, b = m["motor.R"] + R_int, m["motor.k"], m["motor.b"]
+    D = values["pump.D_rev"] / (2 * np.pi)
+    c = D / values["pump.eta_m"]
+    w = (U - R * c * dp / k) / (k + R * b / k)
+    q = D * w - values["pump.k_leak"] * dp
+    return (f"Q_const (wydatek stały napędu ogona) przy U = {U:g} V, R_int = {R_int:g} Ω, Δp = {dp / 1e3:g} kPa: "
+            f"{q * 1e6:.1f} ml/s (ω = {w:.0f} rad/s)")
+
+
 def pump_main(args):
     motor_file = OUT / "motor_params.json"
     if not motor_file.exists():
@@ -351,6 +371,7 @@ def pump_main(args):
                    delimiter=",", header="U,i,w,dp,Q", comments="", fmt="%.6g")
     values, rel, extra = pump_fit(meas, motor)
     text = pump_report(values, rel, extra, truth)
+    text += "\n" + q_const_line(values, motor)
     print(text)
     (OUT / "pump_fit.txt").write_text(text + "\n")
     src = "synthetic data" if truth else args.data
@@ -660,6 +681,43 @@ def valve_main(args):
     ax_r.set_xlabel("Δp [kPa]")
     fig.align_ylabels((ax, ax_r))
     print(plotting.save(fig, "valve_fit.png", "calibration"))
+
+
+# --- Krok 6b: zawór rozdzielający 3/2 ---------------------------------------------------------------
+
+DIRVALVE = {
+    "model": "FishRobot.Calibration.DirectionalValveBench",
+    "params": {"valve.Q_nom": (4e-5, "m³/s"), "valve.tau_valve": (0.02, "s")},
+    "signals": {"Q": ("m³/s", "flow from A")},
+    # „prawdziwy” zawór: mniejsza kryza i wolniejszy elektromagnes niż w placeholderach
+    "true": {"valve.Q_nom": 3.2e-5, "valve.tau_valve": 0.028},
+    "noise": {"Q": 2e-7},  # szybki przepływomierz 0,2 ml/s
+    "component": "FishRobot.Hydraulics.DirectionalValve valve",
+}
+
+
+def dirvalve_main(args):
+    exp = DIRVALVE
+    setup = {"dp_test": args.dp}
+    work_dir = om_fast.compile_model(exp["model"])
+    if args.data:
+        data = np.genfromtxt(args.data, delimiter=",", names=True)
+        t, meas, truth = data["time"], {"Q": data["Q"]}, None
+    else:
+        t, meas = synthetic_data(work_dir, exp, setup, t_end=0.1, dt=2e-4, seed=7)
+        truth = exp["true"]
+        np.savetxt(OUT / "dirvalve_synthetic.csv", np.column_stack([t, meas["Q"]]), delimiter=",",
+                   header="time,Q", comments="", fmt="%.6g")
+    p_fit, sigma, cov, res, noise = fit(work_dir, exp, t, meas, setup)
+    text = report(exp, p_fit, sigma, cov, res, noise, truth)
+    print(text)
+    (OUT / "dirvalve_fit.txt").write_text(text + "\n")
+    sim_fit = simulate(work_dir, exp, p_fit, "fit", setup, t)
+    sim_start = simulate(work_dir, exp, [v for v, _ in exp["params"].values()], "start", setup, t)
+    src = "synthetic data" if truth else args.data
+    print(plot(exp, t, meas, sim_fit, sim_start,
+               f"Directional valve 3/2 calibration: coil on/off at Δp = {args.dp / 1e3:g} kPa ({src})",
+               "dirvalve_fit.png"))
 
 
 # --- Krok 7: ogon statycznie ------------------------------------------------------------------------
@@ -1223,6 +1281,9 @@ def main():
                    help="odstęp węzłów od punktów zawrócenia strzykawki [m³] (czubki pętli histerezy)")
     v = sub.add_parser("valve", help="krok 6: zawór przelewowy z charakterystyki Q(Δp)")
     v.add_argument("--data", help="CSV z punktami (dp [Pa], Q [m³/s], up: 1 przy rosnącym przepływie, 0 przy malejącym)")
+    dv = sub.add_parser("dirvalve", help="krok 6b: zawór 3/2 – Q_nom i tau_valve z przełączenia przy stałym Δp")
+    dv.add_argument("--data", help="CSV (time [s], Q [m³/s]); cewka załączana w 0,02 s i wyłączana w 0,07 s")
+    dv.add_argument("--dp", type=float, default=5e3, help="nadciśnienie zasilania P [Pa]")
     ts = sub.add_parser("tail-static", help="krok 7: D_tail i k z momentu i kąta przy zadanym Δp")
     ts.add_argument("--data", help="CSV (dp_blocked, tau, dp_free, theta) w jednostkach SI; bez tej opcji: syntetyczny")
     ts.add_argument("--k", choices=["line", "small"], default="line",
@@ -1253,7 +1314,7 @@ def main():
     bl.add_argument("--dV", type=float, default=BALLAST["vertical"]["dV"], help="skok pęcherza [m³]")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
-    {"motor": motor_main, "pump": pump_main, "pipe": pipe_main, "chamber": chamber_main, "valve": valve_main,
+    {"motor": motor_main, "pump": pump_main, "pipe": pipe_main, "chamber": chamber_main, "valve": valve_main, "dirvalve": dirvalve_main,
      "tail-static": tail_static_main, "tail-dynamic": tail_dynamic_main, "thrust": thrust_main, "hull": hull_main, "ballast": ballast_main}[args.step](args)
 
 

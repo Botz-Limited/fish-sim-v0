@@ -3,6 +3,7 @@ PumpBench
 PipeBench
 ChamberBench
 ValveBench
+DirectionalValveBench
 TailDecay
 ThrustBench
 CoastDown
