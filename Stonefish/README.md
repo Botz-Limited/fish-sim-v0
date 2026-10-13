@@ -9,7 +9,7 @@ Specification: [SPEC_fish_stonefish_demo.md](SPEC_fish_stonefish_demo.md) (in Po
 
 **Key findings** (details below):
 
-1. Stonefish hydrodynamics "from geometry" alone **produces no thrust** for a flapping tail (0.3 cm/s). The force on each face acts along the relative water velocity (pure drag, no lift), and the default friction is ~250× too large for such a small object. After adding fin lift (custom model, [src/FinLift.cpp](src/FinLift.cpp)) and friction from boundary layer theory, the fish swims at 34 cm/s.
+1. Stonefish hydrodynamics "from geometry" alone **produces no thrust** for a flapping tail (0.2 cm/s). The force on each face acts along the relative water velocity (pure drag, no lift), and the default friction is ~250× too large for such a small object. After adding fin lift (custom model, [src/FinLift.cpp](src/FinLift.cpp)) and friction from boundary layer theory, the fish swims at 34 cm/s.
 2. Stonefish 1.5 has several undocumented pitfalls that corrupt results without any message: wrongly computed velocities in a branched link tree, compound bodies without added moment of inertia, ocean currents disabled by default, gravity overwritten after the constructor, and a servo without a working torque mode. The list with symptoms is in the [Stonefish 1.5 pitfalls](#stonefish-15-pitfalls) section.
 3. The depth controller works on a **noisy pressure sensor** through a low-pass filter. The MuJoCo gains produced a limit cycle here, while gains derived from a model of the vertical motion work (3 cm overshoot).
 
@@ -112,7 +112,7 @@ build/fish_gui config/s1_hover.json --out /tmp/log.csv   # optionally with a log
 |---|---|
 | Space | start/stop the tail (CPG) |
 | ← / → | turn: V_bias −/+ 0.5 ml (max ±4 ml), disables the heading controller |
-| ↑ / ↓ | tail frequency ±0.25 Hz, without a phase jump |
+| ↑ / ↓ | tail frequency ±0.25 Hz, without a phase jump, limited to `rhythm.freq_min` … `rhythm.freq_max` (1.5–2.5 Hz) |
 | PgUp / PgDn | depth setpoint −/+ 0.25 m (shallower/deeper), enables the depth controller |
 | W S A D Q Z, mouse | camera (library keys); the camera is attached to the fish head |
 | H / C / K / Esc | panel / message console / key list / exit |
@@ -120,7 +120,7 @@ build/fish_gui config/s1_hover.json --out /tmp/log.csv   # optionally with a log
 The overlay in the top right corner (time, speed, true and sensor depth, f, V_bias, p_L/p_R, water in VBS, heading) is in English and ASCII, because the interface font does not have to contain non-ASCII (e.g. Polish) characters.
 
 Below the state, the overlay shows the **drive and the forces** (`FishSimManager::Status()`):
-- DRIVE: torque from the hydraulics [mN·m], pump command u and flow Q, angles of the tail joints;
+- DRIVE: torque from the hydraulics [mN·m], valve state s (±1, 0 = pump off) and flow Q, number of valve switches since the start, angles of the tail joints;
 - WATER FORCES [mN] in the head frame (`fwd` + = forward, `side` + = right): drag (pressure + skin friction, as Stonefish computed it in the last step) on the head, the tail segments and the fin, the fin lift from `FinLift`, the total, and the fin angle of attack.
 
 The library "Fluid Forces" view is on from the start: lines at each body for buoyancy (blue), quadratic drag (magenta) and linear drag (cyan). Text scales with the window height (×1.5 at 1440 px). `--speed 0.5` runs the GUI in slow motion (2× slower than real time).
@@ -160,10 +160,10 @@ Stonefish/
   tools/run_scenarios.py     # all console runs -> results/logs/ -> plots
   tools/plot_logs.py         # CSV -> PNG + plot data (CSV) + results/summary.json
   src/FishSimManager.*       # loads the scenario, control loop, CSV log
-  src/Hydraulics.*           # first-order pump + L/R chambers + relief valve (ODE)
+  src/Hydraulics.*           # constant-speed pump + directional valves + L/R chambers + relief valve (ODE)
   src/TailDriver.*           # hydraulic force -> joint torques + silicone elasticity
   src/FinLift.*              # fin lift (missing in Stonefish)
-  src/Controllers.*          # CPG, filter, depth PID (VBS), heading PI
+  src/Controllers.*          # CPG + valve relay, filter, depth PID (VBS), heading PI
   src/Config.*, AppArgs.h    # JSON loading, command line
   src/main_gui.cpp, main_console.cpp
   tests/run_tests.sh, unit_tests.cpp, check_logs.py
@@ -188,7 +188,7 @@ Stonefish/
 
 **NED coordinate frame** (Stonefish): X forward, Y to the right, **Z down**, i.e. depth = +z. The meshes are exported already in this frame, and the origin of each link's frame lies on its joint.
 
-**Why this time step (0.5 ms, 2000 Hz).** At 2 ms (the MuJoCo step) the explicitly computed −k·θ springs made the simulation explode within a fraction of a second (θ = −30 rad). Light, short segments (Seg4: 36 g, I_zz ≈ 6·10⁻⁶ kg·m²) between two springs have natural vibrations with ω·dt > 2, and the explicit scheme is stable only for ω·dt < 2. At 1000 Hz everything is stable, 2000 Hz gives a ×2 margin. The swimming speed at 4000 Hz is the same (34.08 cm/s), so the result does not depend on the step.
+**Why this time step (0.5 ms, 2000 Hz).** At 2 ms (the MuJoCo step) the explicitly computed −k·θ springs made the simulation explode within a fraction of a second (θ = −30 rad). Light, short segments (Seg4: 36 g, I_zz ≈ 6·10⁻⁶ kg·m²) between two springs have natural vibrations with ω·dt > 2, and the explicit scheme is stable only for ω·dt < 2. At 1000 Hz everything is stable, 2000 Hz gives a ×2 margin. The swimming speed at 4000 Hz is the same (34.4 cm/s), so the result does not depend on the step.
 
 ## How Stonefish computes water forces from geometry
 
@@ -203,7 +203,7 @@ According to the documentation ([docs/theory.rst](https://github.com/patrykciesl
 
 ## Thrust diagnosis – why the fish did not swim at first
 
-SPEC §1.7: *"If the fish does not swim forward, do not mask it with blind tuning. Diagnose it."* The first version (everything library defaults) swam at **0.3 cm/s**. Step-by-step diagnosis:
+SPEC §1.7: *"If the fish does not swim forward, do not mask it with blind tuning. Diagnose it."* The first version (everything library defaults) swam at **0.2 cm/s**. Step-by-step diagnosis:
 
 1. **Fin orientation** – correct: thin in Y, tall in Z. Stonefish computed an added mass of 528 g in the Y axis and 11 g in the X axis for it, i.e. it "sees" a flat plate set sideways.
 2. **Body physics type** – `submerged` (buoyancy + drag + added mass). `floating` has no added mass, `surface` has no water forces.
@@ -212,10 +212,10 @@ SPEC §1.7: *"If the fish does not swim forward, do not mask it with blind tunin
 
 | Variant (CPG 2 Hz, 15 s) | Speed | What follows |
 |---|---|---|
-| Stonefish default (no lift, library friction) | **0.3 cm/s** | drag "along the velocity" has no forward component for a fin moving sideways |
-| + fin lift | 1.5 cm/s | thrust of 0.097 N is eaten up by **friction of 0.075 N** at a speed of 1.7 cm/s |
-| Blasius friction, no lift | 2.7 cm/s | some "rowing" thrust (fin drag) – too little |
-| **Blasius friction + lift (default)** | **34.0 cm/s** | thrust 0.51 N = pressure drag of the head 0.11 + segments 0.30 + fin 0.10 + friction 0.015 N |
+| Stonefish default (no lift, library friction) | **0.2 cm/s** | drag "along the velocity" has no forward component for a fin moving sideways |
+| + fin lift | 1.9 cm/s | thrust of 0.11 N is eaten up by **friction of 0.089 N** at a speed of 2.0 cm/s |
+| Blasius friction, no lift | 2.5 cm/s | some "rowing" thrust (fin drag) – too little |
+| **Blasius friction + lift (default)** | **34.5 cm/s** | thrust 0.55 N = pressure drag of the head 0.12 + segments 0.32 + fin 0.12 + friction 0.016 N |
 | locked tail | 0.0 cm/s | the thrust comes solely from the tail motion |
 
 Two corrections, both from physics and both switchable in the configuration:
@@ -223,15 +223,26 @@ Two corrections, both from physics and both switchable in the configuration:
 - **Friction** (`hydro.skin_friction`). Stonefish computes friction linearly, F = ρ·c·Σ A·v_t, and by default assumes c = 0.1·C_d ≈ 0.1 m/s. For a 0.5 m fish at 0.2 m/s the laminar boundary layer (Blasius: C_f = 1.328/√Re, Re = 10⁵) gives ½ρ·C_f·U² ≈ ρ·c·U with **c = ½·C_f·U_ref = 4.2·10⁻⁴ m/s**, i.e. ~250× less. We set this via `SetHydrodynamicCoefficients` – the equivalent of the `<hydrodynamics viscous_drag>` attribute from the documentation. Pressure drag stays as estimated by the library.
 - **Fin lift** (`fin_lift`, [src/FinLift.cpp](src/FinLift.cpp)). Quasi-static flat plate model: C_L = ½·C_Lα·sin 2α (shape as in measurements of flapping plates, Dickinson et al., *Science* 1999). It acts perpendicular to the inflow at the fin center point, C_Lα = 2.8/rad (Helmbold formula for aspect ratio 2.2). Fin drag is still computed by Stonefish from the mesh, so nothing is counted twice. First I tried the built-in `rudder` actuator. Its lift grows linearly with α up to the stall angle and then vanishes. A flapping fin at startup (α ≈ 90°) is therefore "stalled": with 35° it gave 1.7 cm/s, with 89° 5.7 cm/s, and at 90° (plate broadside to the flow) the lift would even be the largest, which is unphysical.
 
-The result does not depend on the numerics: 4000 Hz gives 34.08 cm/s, hydrodynamics computed every 40 steps (the library default of 50 Hz) gives 34.05 cm/s.
+The result does not depend on the numerics: 4000 Hz gives 34.4 cm/s, hydrodynamics computed every 40 steps (the library default of 50 Hz) gives 34.4 cm/s.
 
 ## Hydraulics and control
 
-**Hydraulics** ([src/Hydraulics.cpp](src/Hydraulics.cpp)) – 1:1 model as in MuJoCo: the pump as a first-order element (u ∈ [−1,1], Q_max = 60 ml/s, τ = 30 ms), closed L↔R chamber system (V_L + V_R = const), compliance Δp = (V_p − A_eff·r_eff·L)/C_h with a ±50 kPa relief valve. The force on the "tendon" is F = A_eff·r_eff·Δp, and in the joints τ_i = w_i·F (weights 1, 0.7, 0.4 for the three actuated ones, 0 for the passive ones) plus elasticity −k_i·θ_i.
+**Hydraulics** ([src/Hydraulics.cpp](src/Hydraulics.cpp)): the pump runs at **constant speed** and delivers a constant Q_const = 60 ml/s. Two directional valves choose only the direction: s = +1 (R→L) or s = −1 (L→R). There is no closed valve state; s = 0 means only "pump off" (CPG stopped). Switching the valves and reversing the stream takes τ_valve = 20 ms: dQ/dt = (s·Q_const − Q)/τ_valve. The rest is unchanged: closed L↔R chamber system (V_L + V_R = const), compliance Δp = (V_p − A_eff·r_eff·L)/C_h with a ±50 kPa relief valve. The force on the "tendon" is F = A_eff·r_eff·Δp, and in the joints τ_i = w_i·F (weights 1, 0.7, 0.4 for the three actuated ones, 0 for the passive ones) plus elasticity −k_i·θ_i.
 
-**How torques reach the joints (the key unknown from SPEC §1.4).** The servo (`servo`) in v1.5 has a `ServoControlMode::TORQUE` mode in its header, but `Servo::Update` handles it the same as velocity mode, so **there is de facto no torque mode**. The **`motor`** actuator is used: it is in the v1.5 XML parser, although it is not in the documentation. It calls `FeatherstoneEntity::DriveJoint` → `btMultiBody::addJointTorque`, i.e. a generalized joint force. In the Featherstone algorithm it acts on the child (+τ) and the parent (−τ) simultaneously, so **the drive is internal**. This is checked by the `t_internal` test: without water and gravity, with the tail flapping and the head nodding ±7.6°, the center of mass moves by 0.085 mm in 3 s, and the angular momentum L_z ≤ 4.5·10⁻⁶ kg·m²/s. A torque set in `SimulationStepCompleted` takes effect in the next step (actuators are updated at the start of the step), i.e. the coupling is explicit, as in MuJoCo.
+**How torques reach the joints (the key unknown from SPEC §1.4).** The servo (`servo`) in v1.5 has a `ServoControlMode::TORQUE` mode in its header, but `Servo::Update` handles it the same as velocity mode, so **there is de facto no torque mode**. The **`motor`** actuator is used: it is in the v1.5 XML parser, although it is not in the documentation. It calls `FeatherstoneEntity::DriveJoint` → `btMultiBody::addJointTorque`, i.e. a generalized joint force. In the Featherstone algorithm it acts on the child (+τ) and the parent (−τ) simultaneously, so **the drive is internal**. This is checked by the `t_internal` test: without water and gravity, with the tail flapping and the head nodding ±8.8°, the center of mass moves by 0.12 mm in 3 s, and the angular momentum L_z ≤ 1.0·10⁻⁵ kg·m²/s. A torque set in `SimulationStepCompleted` takes effect in the next step (actuators are updated at the start of the step), i.e. the coupling is explicit, as in MuJoCo.
 
-**CPG** ([src/Controllers.cpp](src/Controllers.cpp)) sets the **volume**, not the flow: V_ref = A_V·sin(2πft) + V_bias, u = (dV_ref/dt + K_v·(V_ref − V_p))/Q_max. The SPEC proposes u = A·sin + bias, but volume is the integral of flow. A constant bias in u would integrate without end (the tail would press against the valve), and a pure sine gives ∫sin = 1 − cos ≥ 0, i.e. an offset to one side. This is the same correction as in the MuJoCo demo.
+**CPG** ([src/Controllers.cpp](src/Controllers.cpp)) sets the **volume**, not the flow: V_ref = A_V·sin(2πft) + V_bias. The SPEC proposes a flow command A·sin + bias, but volume is the integral of flow. A constant bias would integrate without end (the tail would press against the valve), and a pure sine gives ∫sin = 1 − cos ≥ 0, i.e. an offset to one side. This is the same correction as in the MuJoCo demo.
+
+**Valve controller** – a hysteresis relay (the pump has no speed command, so the valves are the only actuator). With e = V_ref − V_p: e > δ → s = +1, e < −δ → s = −1, otherwise s stays as it was (δ = `rhythm.valve_hysteresis` = 1 ml). The state s is remembered between steps, starts at +1 and is reset with the simulation.
+
+**Valve rate limit.** The real valve switches at most ~5 times per second, so the relay holds each state for at least **`rhythm.valve_min_dwell` = 0.2 s**: until 0.2 s have passed since the last switch it ignores the error. Two regimes are separated by **f_track = Q_const/(2π·A_V) = 60/(2π·8) = 1.19 Hz** (the highest frequency at which the constant flow can still follow the slope of the sine):
+
+- **f < f_track – tracking.** V_p would follow V_ref as a "saw" within ±δ, but only with many valve switches per cycle (without the dwell: 26 at 0.5 Hz, 9 at 1 Hz). The valve cannot do that, and the chatter excites tail modes, so this regime is **excluded**: the frequency is clamped to `rhythm.freq_min` = **1.5 Hz**. Just above f_track (1.25 Hz) the dwell still adds 1–2 extra switches per cycle (3.4 per cycle in a test run) and the tail motion is not periodic at f (strongest components of L at 2.1 and 0.4 Hz), so a turn bias acts jerkily from cycle to cycle; from 1.5 Hz the valve switches cleanly 2 times per cycle.
+- **f > f_track – switching only at the peaks.** V_p cannot keep up with V_ref, so e changes sign only once per half-cycle: the valve switches **2 times per cycle**, V_p is a triangle and its amplitude is ≈ Q_const/(4f) minus a loss of up to Q_const·τ_valve per reversal. Unit test (tail following the pumped volume): **9.2 / 6.7 / 5.3 ml at 1.5 / 2 / 2.5 Hz** (triangle 10 / 7.5 / 6 ml). Just above f_track the triangle overshoots the commanded peak (9.2 ml at 1.5 Hz for A_V = 8 ml), because the volume keeps rising until e falls below −δ. Two switches per cycle with each state ≥ 0.2 s give the upper limit **`rhythm.freq_max` = 1/(2·valve_min_dwell) = 2.5 Hz**.
+
+The frequency is clamped to [freq_min, freq_max] = **[1.5, 2.5] Hz** in the controller (config, `--set rhythm.freq=…` and the ↑/↓ keys alike). During the start (ramp, small V_ref) the first stroke is held ≥ 0.2 s, so V_p may overshoot; with a free tail Δp stays below the relief pressure (s2: max 19.5 kPa, after 3 s 16.2 kPa; p_max = 50 kPa).
+
+The **valve switches per tail cycle** (sign changes of s, logged as the cumulative `valve_switches` column) is the measure of which regime the drive is in. It replaces the earlier "% of time the pump is saturated". The relief valve stays as a separate protection.
 
 **Depth controller** (scenario 4). The input is the **pressure sensor reading** (gauge, 50 Hz, noise σ ≈ 5 mm of water) converted to depth d = p/(ρg), not the true position from the simulator. Then:
 
@@ -251,19 +262,19 @@ Everything is generated by `tools/run_scenarios.py`. Next to each PNG there is a
 | [s1_hover_drift.png](results/s1_hover_drift.png) | Unpowered hover, VBS at mid-range. The true depth changes by **0.05 mm in 5 s** and 0.2 mm in 10 s, horizontal drift 0 – the buoyancy/weight balance computed by the generator matches what Stonefish computes. The gray band is the pressure sensor reading (±1 cm noise). |
 | [s1_righting.png](results/s1_righting.png) | Start with a 30° roll. The righting moment (center of mass 7.2 mm below the center of buoyancy) acts immediately: rocking about the upright with a period of 0.63 s, consistent with the metacentric height. Damping is **weak**: 30° → 10° after 5 s → 6° after 18 s. A smooth ellipsoid rotating about its axis offers almost no resistance, and Stonefish assumes a zero added moment of inertia about X. The dorsal fin (part of the head mesh) improved this from 16° to 10° after 5 s. In MuJoCo (`C_angular` model) the fish returns upright in 0.3 s. |
 | [s2_speed_vs_locked.png](results/s2_speed_vs_locked.png) | Left panel: speed (averaged over the flapping period) for the five variants from the table in "Thrust diagnosis": locked tail 0, Stonefish alone 0.3 cm/s, default model **34 cm/s** after ~6 s. Right panel: force balance in steady motion – the largest drag comes from the tail segments (faces flapping sideways also "row" backward). |
-| [s3_trajectory.png](results/s3_trajectory.png) | XY trajectories over 30 s for V_bias = −3…+3 ml. Tail bent to the left → left turn, and the radius decreases with bias: **20.4 / 10.1 / 6.6 m** for 1 / 2 / 3 ml, symmetric in both directions. The speed hardly changes. The first version clipped the posts and had asymmetric radii, which is why the start is at x = −8 m. |
-| [s4_depth_true_vs_measured.png](results/s4_depth_true_vs_measured.png) | Depth steps 1 → 3 → 2 m. Top panel: setpoint, true, measured and filtered measurement. Middle: measurement error (sensor ±1 cm noise, filter up to 3 cm lag during descent). Bottom: water in VBS and V_ref. Overshoot **3.3 cm**, entering the ±5 cm band after **21 s** (2 m down) and **16 s** (1 m up), steady-state error 0.2 cm. Water in the VBS stays within 1.8–39 ml (range 0.5–40.5 ml), and V_ref hits the limit only at the start of each step. |
-| [s5_current_drift.png](results/s5_current_drift.png) | Lateral current 5 cm/s in +Y, swimming at 2 Hz, 30 s. **Without the controller** the fish weathervanes into the current (heading −15°): the tail has a larger lateral area than the head. It then swims slightly against the current (−1.0 m in Y). **With the heading controller** it holds a heading of ~+3° and is carried along with the current (+1.0 m in Y). Lesson: holding a *heading* is not holding a *track* – that requires a position measurement (DVL, GPS at the surface, vision). |
-| [s6_freq_sweep.png](results/s6_freq_sweep.png) | Sweep over 0.5–3 Hz at the same commanded amplitude (A_V = 8 ml), 60 s per point. Above **Q_max/(2π·A_V) = 1.19 Hz** the pump saturates (right panel: 45–80% of the time |u| = 1), so the tail amplitude drops (middle). The speed is highest at **1.75–2.25 Hz (33–34 cm/s)**. Curiosity: at 0.75, 2.75 and 3 Hz the fish **starts backward** (−12…−13 cm/s), then **turns around** (heading change ~200°) and swims forward. A flat plate is symmetric front–back, so lift can push in either direction. The direction depends on the phase of the fin pitch relative to its lateral motion, and that depends on the frequency relative to the tail resonances (a symmetric flapping plate can spontaneously swim in either direction: Vandenberghe, Childress, Zhang, *J. Fluid Mech.* 2004). Backward motion is directionally unstable (like a weathervane turned backward), hence the turning around. |
-| [gui_s2_swim.png](results/gui_s2_swim.png) | Screenshot from the graphical application (scenario 2, t = 6.4 s, 0.336 m/s). |
+| [s3_trajectory.png](results/s3_trajectory.png) | XY trajectories over 30 s for V_bias = −3…+3 ml. Tail bent to the left → left turn, and the radius decreases with bias: **18.6 / 9.5 / 6.2 m** for 1 / 2 / 3 ml, symmetric in both directions. The speed hardly changes. The first version clipped the posts and had asymmetric radii, which is why the start is at x = −8 m. |
+| [s4_depth_true_vs_measured.png](results/s4_depth_true_vs_measured.png) | Depth steps 1 → 3 → 2 m. Top panel: setpoint, true, measured and filtered measurement. Middle: measurement error (sensor ±1 cm noise, filter up to 3 cm lag during descent). Bottom: water in VBS and V_ref. Overshoot **3.3 cm**, entering the ±5 cm band after **21 s** (2 m down) and **16 s** (1 m up), steady-state error 0.2 cm. Water in the VBS stays within ~2–39 ml (range 0.5–40.5 ml), and V_ref hits the limit only at the start of each step. |
+| [s5_current_drift.png](results/s5_current_drift.png) | Lateral current 5 cm/s in +Y, swimming at 2 Hz, 30 s. **Without the controller** the fish weathervanes into the current (heading −19°): the tail has a larger lateral area than the head. It then swims slightly against the current (−1.6 m in Y). **With the heading controller** it holds a heading of ~+3.4° and is carried along with the current (+1.0 m in Y). Lesson: holding a *heading* is not holding a *track* – that requires a position measurement (DVL, GPS at the surface, vision). |
+| [s6_freq_sweep.png](results/s6_freq_sweep.png) | Sweep over the allowed valve range **1.5–2.5 Hz** (step 0.25 Hz) at the same commanded amplitude (A_V = 8 ml), 60 s per point. Right panel: valve switches per tail cycle – **2 at every point** (f_track = 1.19 Hz is below the range). V_p is a triangle with amplitude ≈ Q_const/(4f) (9.2 / 7.8 / 6.6 / 5.9 / 5.2 ml at 1.5 / 1.75 / 2 / 2.25 / 2.5 Hz), so the tail amplitude drops with frequency (middle; fin amplitude 47 / 43 / 39 / 34 / 29°). Speed: **32.3 / 34.1 / 34.4 / 33.5 / 31.6 cm/s** at 1.5 … 2.5 Hz – highest at 1.75–2.25 Hz. All points swim forward from the start. Before the valve limits, the sweep went up to 3 Hz, and at 2.75 and 3 Hz the fish **started backward** and then **turned around** (heading change ~200°). A flat plate is symmetric front–back, so lift can push in either direction. The direction depends on the phase of the fin pitch relative to its lateral motion, and that depends on the frequency relative to the tail resonances (a symmetric flapping plate can spontaneously swim in either direction: Vandenberghe, Childress, Zhang, *J. Fluid Mech.* 2004). Backward motion is directionally unstable (like a weathervane turned backward), hence the turning around. |
+| [gui_s2_swim.png](results/gui_s2_swim.png) | Screenshot from the graphical application (scenario 2, t = 6.4 s, 0.336 m/s). Taken with the previous pump model (before the valve model, dwell and frequency limits): the overlay still shows "pump u" instead of the valve state s. |
 
 ## Tests
 
 `tests/run_tests.sh` (≈20 s) runs:
 
-1. **Unit tests** (`build/unit_tests`, no simulator): V_L + V_R = const and |p_L − p_R| ≤ p_max under random pump operation (the valve actually opens); the sum of TailDriver torques on all bodies = 0; weights and the formula τ = w·F − k·θ; direction and magnitude of the FinLift lift (thrust for lateral motion in both directions, zero at α = 0° and 90°); the filter attenuates noise; anti-windup; z_min limit; CPG phase continuity when f changes.
+1. **Unit tests** (`build/unit_tests`, no simulator): V_L + V_R = const and |p_L − p_R| ≤ p_max under random valve switching (the relief valve actually opens), and the same with the relay in closed loop; Q → ±Q_const after the valves switch; relay at freq_min, 2 Hz and freq_max: each valve state held ≥ valve_min_dwell (0.2 s); frequency clamped to [freq_min, freq_max] (constructor and SetFreq) and freq_max ≤ 1/(2·valve_min_dwell); at 1.5 / 2 / 2.5 Hz ≤ 2.5 valve switches per cycle and V_p amplitude between Q_const/(4f) − Q_const·τ_valve and Q_const/(4f), decreasing with f; a new controller starts with s = +1; the sum of TailDriver torques on all bodies = 0; weights and the formula τ = w·F − k·θ; direction and magnitude of the FinLift lift (thrust for lateral motion in both directions, zero at α = 0° and 90°); the filter attenuates noise; anti-windup; z_min limit; CPG phase continuity when f changes.
 2. **Every scenario loads** without parser errors.
-3. **Console runs and assertions** ([tests/check_logs.py](tests/check_logs.py)): no NaN; s1: |Δz| after 5 s < 5 mm and horizontal drift < 5 mm; righting: roll after 5 s < ½ of the initial roll; hydraulics in the s2 log: V_L + V_R = const, |Δp| ≤ p_max; internal drive: sum of torques = 0, center of mass stationary (< 1 mm), L_z ≈ 0; s2: moving tail > 5 cm/s, locked ≈ 0; s4: steady-state error < 5 cm, VBS within range.
+3. **Console runs and assertions** ([tests/check_logs.py](tests/check_logs.py)): no NaN; s1: |Δz| after 5 s < 5 mm and horizontal drift < 5 mm; righting: roll after 5 s < ½ of the initial roll; hydraulics in the s2 log: V_L + V_R = const, |Δp| ≤ p_max, valves only in the states ±1, ≤ 4 valve switches per cycle at 2 Hz (above f_track), at least valve_min_dwell between switches (±10 ms log resolution) and V_p amplitude ≈ Q_const/(4f); internal drive: sum of torques = 0, center of mass stationary (< 1 mm), L_z ≈ 0; s2: moving tail > 5 cm/s, locked ≈ 0; s4: steady-state error < 5 cm, VBS within range.
 
 Result on the author's computer: **ALL TESTS PASSED**. From CMake: `ctest --test-dir build`.
 
@@ -291,7 +302,7 @@ Found during the work (verified in the library sources), with a workaround for e
 2. **Quasi-static hydrodynamics, no vortex wake.** Forces depend only on the instantaneous face velocity ("as if there was no body"). There are no vortices behind the fin, no delayed stall, no interaction between bodies through the water (the fin does not "feel" water pushed by the hull), and no wall or surface effects. The fin lift is an added, single-point flat plate model, symmetric front–back (hence the backward swimming in s6).
 3. **Added mass averaged** over the axes (library/Bullet limitation). The tail is too heavy in the X axis and too light in the Y axis, and the added moment of inertia about the X axis is 0. Hence the weakly damped rocking in s1.
 4. **Linear friction**, linearized at U_ref = 0.2 m/s. For other speeds it is an approximation.
-5. **Hydraulics as an external model** (C++, explicit coupling, 0.5 ms step): linear compliance, ideal valve, first-order pump, no losses or power.
+5. **Hydraulics as an external model** (C++, explicit coupling, 0.5 ms step): linear compliance, ideal relief valve, constant pump delivery independent of the load, directional valves as a first-order reversal (τ_valve) with a minimum dwell of 0.2 s per state, no leakage, losses or power, no valve wear model (only the switch count).
 6. **Unidentified parameters** – all `PLACEHOLDER`. The calibration procedure (bench, tail in water, tethered thrust, pool) is described in the MuJoCo demo README and applies here unchanged. In addition, measurements of the rocking damping and the turning radius are needed.
 7. **GPU-dependent performance.** The graphical application requires OpenGL ≥ 4.3 (~800 FPS on RX 7700 XT, Mesa). Without a GPU only the console application works (5–8× faster than real time at 2000 Hz).
 8. **No waves or camera in console mode** – a library limitation, so the scenarios do not use them.
@@ -302,19 +313,19 @@ The same robot (geometry, densities, hydraulics, CPG, bladder/VBS range). Differ
 
 | Quantity | MuJoCo | Stonefish | Source of the difference |
 |---|---|---|---|
-| Speed at 2 Hz | 22 cm/s | **34 cm/s** | different drag model: MuJoCo computes drag from ellipsoids and `fluidcoef` coefficients, Stonefish from each face; in Stonefish the fin lift comes from an added model |
-| Best frequency | 1.5–1.75 Hz (24 cm/s) | 1.75–2.25 Hz (33–34 cm/s) | different added mass → different resonances and phase of the wave along the tail |
-| Pump saturation at 2 Hz | 72% | 76% | same hydraulics – consistent |
-| Fin amplitude at 2 Hz | 35.7° | 37.4° | consistent |
-| Backward swimming | with a wrong wave phase (first version) | at 0.75, 2.75, 3 Hz – then turns around | symmetric plate in both lift models |
-| Turning radius, V_bias = 3 ml | 2.0 m | 6.6 m | not investigated in detail; possible causes: averaged added mass of the head (in Stonefish 1.6 kg in all axes), different yaw rotation drag, different tail deflection shape |
+| Speed at 2 Hz | 22 cm/s | **34.5 cm/s** | different drag model: MuJoCo computes drag from ellipsoids and `fluidcoef` coefficients, Stonefish from each face; in Stonefish the fin lift comes from an added model |
+| Best frequency | 1.5–1.75 Hz (24 cm/s) | 1.75–2.25 Hz (34 cm/s) | different added mass → different resonances and phase of the wave along the tail |
+| Tail drive at 2 Hz | see the MuJoCo README | valve switches only at the peaks (2 per cycle), V_p amplitude 6.6 ml | compare only when both branches use the same pump/valve model |
+| Fin amplitude at 2 Hz | 35.7° | 39.0° | close; the MuJoCo number may come from a different pump model |
+| Backward swimming | with a wrong wave phase (first version) | none in the allowed range 1.5–2.5 Hz (earlier at 2.75, 3 Hz – then turned around) | symmetric plate in both lift models |
+| Turning radius, V_bias = 3 ml | 2.0 m | 6.2 m | not investigated in detail; possible causes: averaged added mass of the head (in Stonefish 1.6 kg in all axes), different yaw rotation drag, different tail deflection shape |
 | Righting from 30° | ~0.3 s | rocking, 10° after 5 s | MuJoCo has rotational damping (`C_angular`), while Stonefish has zero added moment of inertia about X |
 | Depth change of 1 m | ~35 s | ~16 s to ±5 cm | different gains (here derived from the model) and measurement through the sensor |
 | Buoyancy | computed by hand in Python | **from the mesh**, by the library | – |
 | Current on part of the body | none | yes (s5: weathervane effect) | – |
 | Time step | 2 ms | 0.5 ms | explicit joint springs + light segments |
 
-Takeaway for the learner: **neither of these models predicts the speed of the real robot** (22 vs 34 cm/s for the same parameters). Both show the same *mechanisms* – pump saturation, the wave along the tail, turning via bias, the righting moment, depth control – and the numbers have to be calibrated with measurements.
+Takeaway for the learner: **neither of these models predicts the speed of the real robot** (22 vs 34 cm/s for the same parameters). Both show the same *mechanisms* – the end of volume tracking at high frequency (the valves switch only at the peaks), the wave along the tail, turning via bias, the righting moment, depth control – and the numbers have to be calibrated with measurements.
 
 ## ROS 2 (stage 7)
 

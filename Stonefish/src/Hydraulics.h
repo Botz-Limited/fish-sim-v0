@@ -1,9 +1,13 @@
-// Tail hydraulics: pump + two chambers (L, R) in a closed circuit.
+// Tail hydraulics: constant-speed pump + directional valves + two chambers (L, R) in a closed circuit.
 // The same model as in the MuJoCo demo (../MuJoCo/fishsim/hydraulics.py), ported 1:1 to C++,
 // so that the results of both simulators can be compared.
 //
 // States:
-//   Q        – pump flow from R to L [m³/s] (first-order lag, time constant τ_pump),
+//   Q        – flow from R to L [m³/s]. The pump runs at CONSTANT speed and delivers Q_const;
+//              the directional valves only choose the direction: s = +1 (R→L) or s = −1 (L→R).
+//              There is no "closed" valve state; s = 0 means only "pump off" (no rhythm).
+//              Switching the valves and reversing the stream takes time: first-order lag
+//              dQ/dt = (s·Q_const − Q)/τ_valve,
 //   V_L, V_R – fluid volumes in the chambers [m³]; V_L + V_R = const (closed circuit).
 //
 // "Hydraulic spring": the pump has transferred V_p = (V_L − V_R)/2, and the tail bent by
@@ -13,7 +17,7 @@
 //   torque on the "tendon" F = A_eff·r_eff·Δp  [N·m] (distributed over the joints with weights w_i).
 //
 // Integration: explicit Euler with the physics step. Torque computed from the state AT THE START of the step.
-// Stable because dt ≪ τ_pump and ω_n·dt ≪ 2 for the hydraulic spring (README).
+// Stable because dt ≪ τ_valve and ω_n·dt ≪ 2 for the hydraulic spring (README).
 #pragma once
 
 namespace fish
@@ -25,8 +29,8 @@ namespace fish
         double C_h;         // [m³/Pa]
         double p_max;       // [Pa]
         double V0_chamber;  // [m³]
-        double Q_max;       // [m³/s]
-        double tau_pump;    // [s]
+        double Q_const;     // [m³/s] constant pump delivery
+        double tau_valve;   // [s] valve switching + flow reversal time
     };
 
     class TailHydraulics
@@ -34,9 +38,9 @@ namespace fish
     public:
         explicit TailHydraulics(const HydraulicsParams& p);
 
-        // One step: pump command u ∈ [−1, 1], current "tendon length" L [rad].
+        // One step: valve state s ∈ {−1, +1} (0 = pump off), current "tendon length" L [rad].
         // Returns the torque F [N·m] to apply in THIS step (from the state before the update).
-        double Step(double u, double L, double dt);
+        double Step(int s, double L, double dt);
 
         double DeltaP(double L) const;   // p_L − p_R [Pa]
         double ForceOnTendon(double L) const { return Ar_ * DeltaP(L); }

@@ -21,8 +21,9 @@ from fishcfg import ROOT  # noqa: E402
 CONSOLE = ROOT / "build" / "fish_console"
 LOGS = ROOT / "results" / "logs"
 
-# Frequency sweep (scenario 6): same parameters, only f changes.
-SWEEP_FREQS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0]
+# Frequency sweep (scenario 6): same parameters, only f changes – over the allowed valve range
+# rhythm.freq_min … rhythm.freq_max (1.5 … 2.5 Hz), step 0.25 Hz.
+SWEEP_FREQS = [1.5, 1.75, 2.0, 2.25, 2.5]
 TURN_BIASES_ML = [-3, -2, -1, 0, 1, 2, 3]
 
 

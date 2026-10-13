@@ -15,13 +15,14 @@ namespace fish
         return (Vp() - Ar_ * L) / p_.C_h;
     }
 
-    double TailHydraulics::Step(double u, double L, double dt)
+    double TailHydraulics::Step(int s, double L, double dt)
     {
         const double F = ForceOnTendon(L);   // explicit: force from the state at the start of the step
-        u = std::clamp(u, -1.0, 1.0);
+        s = std::clamp(s, -1, 1);
 
-        // The pump spins up to u·Q_max with time constant τ_pump (first-order lag).
-        Q_ += dt * (u * p_.Q_max - Q_) / p_.tau_pump;
+        // The valves direct the constant pump delivery: Q -> s·Q_const with time constant τ_valve
+        // (valve switching + reversal of the stream).
+        Q_ += dt * (s * p_.Q_const - Q_) / p_.tau_valve;
 
         // The pump moves fluid from R to L – the total volume does not change.
         VL_ += Q_ * dt;

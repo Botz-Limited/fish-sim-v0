@@ -1,7 +1,7 @@
 // GRAPHICAL application: real-time view (sf::GraphicalSimulationApp, OpenGL 4.3+).
 //
 // Keys (added):  Space – start/stop tail,  ←/→ – turn (V_bias ∓0.5 ml),
-//   ↑/↓ – frequency ±0.25 Hz,  PgUp/PgDn – reference depth −/+0.25 m (enables the controller).
+//   ↑/↓ – frequency ±0.25 Hz (within rhythm.freq_min … rhythm.freq_max),  PgUp/PgDn – reference depth −/+0.25 m (enables the controller).
 // Library keys (kept): W/S/A/D/Q/Z – camera, mouse – rotate/pan the view,
 //   H – panel, C – message console, K – key list, Esc – quit.
 // The camera is "glued" to the fish head (OpenGLTrackball::GlueToMoving).
@@ -98,7 +98,8 @@ namespace
             line("yaw         %+.1f deg", s.yawDeg);
             line("DRIVE");
             line("tail torque %+.0f mN m (hydraulics)", 1e3 * s.tailTorque);
-            line("pump u %+.2f   Q %+.1f ml/s", s.u, s.Q * 1e6);
+            line("valve s %+d   Q %+.1f ml/s", s.valve, s.Q * 1e6);
+            line("valve switches %ld", s.switches);
             std::string th = "joints";
             for(double a : s.thetaDeg) { std::snprintf(buf, sizeof(buf), " %+.0f", a); th += buf; }
             line("%s deg", th.c_str());

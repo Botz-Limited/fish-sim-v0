@@ -143,26 +143,38 @@
   },
 
   // ---------------------------------------------------------------- tail hydraulics (C++)
+  // The pump runs at CONSTANT speed (constant delivery Q_const); two directional valves choose
+  // only the direction of the flow: s = +1 (R→L) or s = −1 (L→R), there is no closed state.
+  // Flow: dQ/dt = (s·Q_const − Q)/τ_valve.
   "hydraulics": {
     "A_eff": 4e-4,           // [m²] effective area of the chamber wall; PLACEHOLDER – to be identified from measurements
     "r_eff": 0.05,           // [m] effective force lever arm; PLACEHOLDER – to be identified from measurements
     "C_h": 8e-11,            // [m³/Pa] chamber compliance (walls + compressibility); PLACEHOLDER – to be identified from measurements
     "p_max": 50e3,           // [Pa] relief valve opening pressure; PLACEHOLDER – to be identified from measurements
     "V0_chamber": 30e-6,     // [m³] volume of each chamber with a straight tail; PLACEHOLDER – to be identified from measurements
-    "Q_max": 60e-6,          // [m³/s] max. flow rate of the tail pump (60 ml/s); PLACEHOLDER – to be identified from measurements
-    "tau_pump": 0.03         // [s] pump time constant; PLACEHOLDER – to be identified from measurements
+    "Q_const": 60e-6,        // [m³/s] constant delivery of the tail pump (60 ml/s, the former Q_max); PLACEHOLDER – to be identified from measurements
+    "tau_valve": 0.02        // [s] valve switching + reversal of the stream; PLACEHOLDER – to be identified from measurements
   },
 
   // ---------------------------------------------------------------- tail rhythm / CPG (C++)
-  // The generator sets the pumped VOLUME V_ref = A_V·sin(2πft) + V_bias, and the pump
-  // command is u = (dV_ref/dt + K_v·(V_ref − V_p))/Q_max. Why not u = A·sin + bias
-  // directly – see README (section "Control").
+  // The generator sets the pumped VOLUME V_ref = A_V·sin(2πft) + V_bias, and a hysteresis
+  // relay sets the valves: e = V_ref − V_p > δ -> s = +1, e < −δ -> s = −1, otherwise s unchanged.
+  // Why a volume and not a flow command – see README (section "Control").
   "rhythm": {
     "enabled": false,
-    "freq": 2.0,             // [Hz] flapping frequency
+    "freq": 2.0,             // [Hz] flapping frequency (clamped to freq_min … freq_max)
     "volume_amp": 8e-6,      // [m³] amplitude A_V (8 ml ≈ 0.4 rad of tendon); PLACEHOLDER – to be identified from measurements
     "volume_bias": 0.0,      // [m³] V_bias – constant tail deflection (turn); + = to the right (+Y)
-    "K_v": 10.0,             // [1/s] volume error correction
+    "valve_hysteresis": 1e-6, // [m³] δ – relay hysteresis (1 ml); PLACEHOLDER – to be identified from measurements
+    // The valve switches at most ~5 times/s, so each state lasts at least 0.2 s (the relay waits).
+    "valve_min_dwell": 0.2,  // [s] minimum time between valve switches; PLACEHOLDER – to be identified from measurements
+    // Below f_track = Q_const/(2π·A_V) = 60/(2π·8) ≈ 1.19 Hz the valve would have to switch many times
+    // per cycle to track the slow V_ref (and the chatter excites tail modes). At 1.25 Hz the dwell still
+    // adds extra switches per cycle and the turn bias is jerky cycle-to-cycle; from 1.5 Hz there are clean
+    // 2 switches per cycle (user decision, the same on all branches).
+    "freq_min": 1.5,         // [Hz] lowest allowed tail frequency (tail_freq_min in MuJoCo)
+    // 2 valve switches per cycle, each state ≥ valve_min_dwell -> f ≤ 1/(2·valve_min_dwell) = 2.5 Hz.
+    "freq_max": 2.5,         // [Hz] highest allowed tail frequency (tail_freq_max in MuJoCo)
     "ramp_time": 1.0         // [s] soft start of the amplitude
   },
 

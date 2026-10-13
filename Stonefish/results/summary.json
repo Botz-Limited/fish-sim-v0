@@ -27,135 +27,93 @@
     6.076389304700919
   ],
   "s2_speed_cm_s": {
-    "s2_swim": 33.98421879834855,
-    "s2_swim_nolift": 2.728855490078907,
-    "s2_swim_libfriction": 1.5349129626727087,
-    "s2_swim_libfriction_nolift": 0.267529741827705,
+    "s2_swim": 34.522826325186145,
+    "s2_swim_nolift": 2.5276371365721655,
+    "s2_swim_libfriction": 1.8696691706769644,
+    "s2_swim_libfriction_nolift": 0.23968854497445957,
     "s2_swim_locked": 0.0
   },
   "s2_force_balance_N": {
-    "fin lift": 0.5143819999999999,
-    "head pressure drag": -0.1103426,
-    "segment pressure drag": -0.3000158,
-    "fin pressure drag": -0.10499332,
-    "skin friction (all)": -0.0153573
+    "fin lift": 0.5527761800000001,
+    "head pressure drag": -0.11751446000000002,
+    "segment pressure drag": -0.32031792,
+    "fin pressure drag": -0.11760894,
+    "skin friction (all)": -0.015610839999999999
   },
   "s3_radius_m": {
-    "-3": 6.557256283406745,
-    "-2": 10.051563125959945,
-    "-1": 20.366658425880395,
-    "1": 20.367153305042443,
-    "2": 10.05172511835156,
-    "3": 6.557357164891075
+    "-3": 6.151107152075703,
+    "-2": 9.482125422705115,
+    "-1": 18.628942772725946,
+    "1": 18.62798871516178,
+    "2": 9.481556072885587,
+    "3": 6.15065442748087
   },
   "s4": [
     {
       "step": "1->3 m",
-      "overshoot_cm": 3.2646000000000175,
-      "t_settle_5cm_s": 21.3305,
-      "err_end_cm": 1.1604436000000002,
-      "err_meas_true_rms_cm": 1.0894063583087976
+      "overshoot_cm": 3.2560000000000144,
+      "t_settle_5cm_s": 21.2605,
+      "err_end_cm": 1.1434749999999998,
+      "err_meas_true_rms_cm": 1.0859859382682462
     },
     {
       "step": "3->2 m",
-      "overshoot_cm": 3.284200000000004,
-      "t_settle_5cm_s": 16.2205,
-      "err_end_cm": 0.1913341111111113,
-      "err_meas_true_rms_cm": 0.5817976360642932
+      "overshoot_cm": 3.3293999999999935,
+      "t_settle_5cm_s": 16.200500000000005,
+      "err_end_cm": 0.19518066666666647,
+      "err_meas_true_rms_cm": 0.5756767907066723
     }
   ],
   "s4_vbs_range_ml": [
-    1.7934400000000001,
+    2.172632,
     39.12871
   ],
-  "s5_current_mean_yaw_deg": -15.180265166636154,
-  "s5_current_y_drift_30s_m": -0.990579,
-  "s5_current_heading_mean_yaw_deg": 2.8868352269096587,
-  "s5_current_heading_y_drift_30s_m": 1.038003,
+  "s5_current_mean_yaw_deg": -19.07801757015076,
+  "s5_current_y_drift_30s_m": -1.610982,
+  "s5_current_heading_mean_yaw_deg": 3.406387919479799,
+  "s5_current_heading_y_drift_30s_m": 0.952908,
   "s6": {
-    "0.50Hz": {
-      "speed_cm_s": 9.233740800000001,
-      "speed_5_15s_cm_s": 0.07159610000000001,
-      "heading_change_deg": 1.2721297127535987,
-      "fin_amp_deg": 30.99302797021041,
-      "sat_pct": 0.0
-    },
-    "0.75Hz": {
-      "speed_cm_s": -2.4669692000000003,
-      "speed_5_15s_cm_s": -0.712212,
-      "heading_change_deg": 112.03206372190215,
-      "fin_amp_deg": 34.61949854140404,
-      "sat_pct": 0.0
-    },
-    "1.00Hz": {
-      "speed_cm_s": 24.1412507,
-      "speed_5_15s_cm_s": 5.2860245,
-      "heading_change_deg": 5.019524934902348,
-      "fin_amp_deg": 40.489337175111054,
-      "sat_pct": 0.0
-    },
-    "1.25Hz": {
-      "speed_cm_s": 28.127721399999995,
-      "speed_5_15s_cm_s": 19.7562396,
-      "heading_change_deg": 0.434865054334439,
-      "fin_amp_deg": 44.73349688471208,
-      "sat_pct": 45.0
-    },
     "1.50Hz": {
-      "speed_cm_s": 31.4878516,
-      "speed_5_15s_cm_s": 30.232930599999996,
-      "heading_change_deg": 0.4067158097470002,
-      "fin_amp_deg": 44.350737801821126,
-      "sat_pct": 62.0
+      "speed_cm_s": 32.31527740000001,
+      "speed_5_15s_cm_s": 32.0350396,
+      "heading_change_deg": 0.6300930891654893,
+      "fin_amp_deg": 47.23987628713231,
+      "valve_switches_per_cycle": 2.002002002002003
     },
     "1.75Hz": {
-      "speed_cm_s": 33.4679917,
-      "speed_5_15s_cm_s": 33.13436279999999,
-      "heading_change_deg": 0.012619510029315379,
-      "fin_amp_deg": 41.37764844847015,
-      "sat_pct": 69.0
+      "speed_cm_s": 34.0949911,
+      "speed_5_15s_cm_s": 33.8507027,
+      "heading_change_deg": 1.1390740731173277,
+      "fin_amp_deg": 43.370484988579264,
+      "valve_switches_per_cycle": 2.002002002002003
     },
     "2.00Hz": {
-      "speed_cm_s": 33.896844,
-      "speed_5_15s_cm_s": 33.568262499999996,
-      "heading_change_deg": 0.4698175424854817,
-      "fin_amp_deg": 37.43288142345481,
-      "sat_pct": 76.0
+      "speed_cm_s": 34.4304536,
+      "speed_5_15s_cm_s": 33.98939819999999,
+      "heading_change_deg": 0.07801542307528019,
+      "fin_amp_deg": 39.01086341515238,
+      "valve_switches_per_cycle": 2.002002002002003
     },
     "2.25Hz": {
-      "speed_cm_s": 33.044792099999995,
-      "speed_5_15s_cm_s": 31.959087599999997,
-      "heading_change_deg": 0.5044406944958832,
-      "fin_amp_deg": 32.71581384677569,
-      "sat_pct": 75.0
+      "speed_cm_s": 33.5218625,
+      "speed_5_15s_cm_s": 31.561534799999997,
+      "heading_change_deg": 2.7871501577375755,
+      "fin_amp_deg": 34.119639933336046,
+      "valve_switches_per_cycle": 2.002002002002003
     },
     "2.50Hz": {
-      "speed_cm_s": 31.115215000000003,
-      "speed_5_15s_cm_s": 22.8588934,
-      "heading_change_deg": 0.38420618873703416,
-      "fin_amp_deg": 27.53353976921348,
-      "sat_pct": 75.0
-    },
-    "2.75Hz": {
-      "speed_cm_s": 28.362517999999998,
-      "speed_5_15s_cm_s": -13.154898900000001,
-      "heading_change_deg": 200.71899357537197,
-      "fin_amp_deg": 22.24596180780742,
-      "sat_pct": 78.5
-    },
-    "3.00Hz": {
-      "speed_cm_s": 25.153965699999997,
-      "speed_5_15s_cm_s": -12.067988099999999,
-      "heading_change_deg": 200.11252302043775,
-      "fin_amp_deg": 17.45326389659218,
-      "sat_pct": 80.0
+      "speed_cm_s": 31.63981,
+      "speed_5_15s_cm_s": 30.077140600000003,
+      "heading_change_deg": 1.2680797032829372,
+      "fin_amp_deg": 28.897395554790986,
+      "valve_switches_per_cycle": 2.002002002002003
     }
   },
-  "s6_f_sat_Hz": 1.1936620731892151,
+  "s6_f_track_Hz": 1.1936620731892151,
   "t_internal": {
-    "com_drift_mm": 0.08500588214941539,
-    "P_max": 0.00019015516521561963,
-    "Lz_max": 4.513607e-06,
-    "head_yaw_amp_deg": 7.632743211504532
+    "com_drift_mm": 0.1716420694352082,
+    "P_max": 0.0003271944502283284,
+    "Lz_max": 1.459609e-05,
+    "head_yaw_amp_deg": 9.47586249477112
   }
 }

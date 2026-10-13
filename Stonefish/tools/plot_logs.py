@@ -297,7 +297,7 @@ def plot_s6():
     from run_scenarios import SWEEP_FREQS
     cfg = load_config()
     h, r = cfg["hydraulics"], cfg["rhythm"]
-    f_sat = h["Q_max"] / (2 * math.pi * r["volume_amp"])
+    f_track = h["Q_const"] / (2 * math.pi * r["volume_amp"])
     rows = []
     for f in SWEEP_FREQS:
         d = log(f"s6_sweep_{f:.2f}Hz")
@@ -307,12 +307,13 @@ def plot_s6():
         early = (d.t >= 5) & (d.t < 15)
         yaw = np.degrees(np.unwrap(d.yaw))
         rows.append((f, mean_fwd(d) * 100, float(np.mean(d.v_fwd[early]) * 100), float(abs(yaw[m].mean())), math.degrees(harmonic_amp(t, fin[m], f)),
-                     math.degrees(harmonic_amp(t, d.L[m], f)), float(np.mean(np.abs(d.u[m]) > 0.999) * 100)))
+                     math.degrees(harmonic_amp(t, d.L[m], f)),
+                     float((d.valve_switches[m][-1] - d.valve_switches[m][0]) / ((t[-1] - t[0]) * f))))
     rows = np.array(rows)
     SUMMARY["s6"] = {f"{r_[0]:.2f}Hz": dict(speed_cm_s=float(r_[1]), speed_5_15s_cm_s=float(r_[2]),
                                             heading_change_deg=float(r_[3]), fin_amp_deg=float(r_[4]),
-                                            sat_pct=float(r_[6])) for r_ in rows}
-    SUMMARY["s6_f_sat_Hz"] = f_sat
+                                            valve_switches_per_cycle=float(r_[6])) for r_ in rows}
+    SUMMARY["s6_f_track_Hz"] = f_track
     fig, ax = plt.subplots(1, 3, figsize=(12, 3.8))
     ax[0].plot(rows[:, 0], rows[:, 2], "o--", color=C[1], ms=5, lw=1.2, label="start (5–15 s)")
     ax[0].plot(rows[:, 0], rows[:, 1], "o-", color=C[0], ms=5, label="steady (50–60 s)")
@@ -330,16 +331,18 @@ def plot_s6():
     ax[1].set_title("Tail amplitude")
     ax[1].legend(fontsize=8)
     ax[2].plot(rows[:, 0], rows[:, 6], "o-", color=C[4], ms=5)
-    ax[2].set_ylabel("time with |u| = 1 [%]")
-    ax[2].set_title("Tail pump saturation")
+    ax[2].set_ylim(0, max(4.0, rows[:, 6].max() + 0.5))
+    ax[2].axhline(2, color=NEUTRAL, lw=1)
+    ax[2].set_ylabel("valve switches per tail cycle")
+    ax[2].set_title(f"Valves (each state ≥ {r['valve_min_dwell']:.1f} s)")
     for a in ax:
-        a.axvline(f_sat, color=NEUTRAL, lw=1.2, ls="--")
+        a.axvline(f_track, color=NEUTRAL, lw=1.2, ls="--")
         a.set_xlabel("CPG frequency [Hz]")
-    ax[0].text(f_sat, ax[0].get_ylim()[1], f" Q_max/(2π·A_V) = {f_sat:.2f} Hz", va="top", color=INK2, fontsize=8)
-    fig.suptitle("Frequency sweep 0.5–3 Hz, 60 s per point (same commanded amplitude A_V = 8 ml)", x=0.01, ha="left",
+    ax[0].text(f_track, ax[0].get_ylim()[1], f" Q_const/(2π·A_V) = {f_track:.2f} Hz", va="top", color=INK2, fontsize=8)
+    fig.suptitle(f"Frequency sweep {SWEEP_FREQS[0]:g}–{SWEEP_FREQS[-1]:g} Hz (valve range), 60 s per point (same commanded amplitude A_V = 8 ml)", x=0.01, ha="left",
                  fontweight="bold", color=INK)
     save(fig, "s6_freq_sweep", rows.tolist(), ["freq_Hz", "speed_50_60s_cm_s", "speed_5_15s_cm_s", "heading_change_deg", "fin_amp_deg", "L_amp_deg",
-          "pump_saturated_pct"])
+          "valve_switches_per_cycle"])
 
 
 def summary_internal():

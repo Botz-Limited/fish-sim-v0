@@ -7,10 +7,14 @@ namespace fish
 {
     // ------------------------------------------------------------------ TailRhythm
 
-    TailRhythm::TailRhythm(double freq, double amp_, double bias_, double Kv, double Qmax, double rampTime)
-        : bias(bias_), amp(amp_), f_(freq), Kv_(Kv), Qmax_(Qmax), ramp_(rampTime)
+    TailRhythm::TailRhythm(double freq, double amp_, double bias_, double hysteresis, double rampTime,
+                           double minDwell, double fMin, double fMax)
+        : bias(bias_), amp(amp_), delta_(hysteresis), ramp_(rampTime), minDwell_(minDwell), fMin_(fMin), fMax_(fMax)
     {
+        f_ = Clamp(freq);
     }
+
+    double TailRhythm::Clamp(double f) const { return std::clamp(f, fMin_, fMax_); }
 
     std::pair<double, double> TailRhythm::Vref(double t) const
     {
@@ -27,16 +31,27 @@ namespace fish
         return {a * amp * s + bias, amp * (da * s + a * w * c)};
     }
 
-    double TailRhythm::Command(double t, double Vp) const
+    int TailRhythm::Command(double t, double Vp)
     {
-        auto [v, dv] = Vref(t);
-        // feed-forward (the flow that "should" be flowing) + volume error correction
-        const double u = (dv + Kv_ * (v - Vp)) / Qmax_;
-        return std::clamp(u, -1.0, 1.0);
+        // the valve holds each state for at least minDwell (≤ 5 switches/s)
+        if(t - tSwitch_ < minDwell_) return s_;
+        // hysteresis relay: switch only when the error leaves the band ±δ
+        const double e = Vref(t).first - Vp;
+        int s = s_;
+        if(e > delta_) s = +1;
+        else if(e < -delta_) s = -1;
+        if(s != s_)
+        {
+            s_ = s;
+            tSwitch_ = t;
+            ++switches_;
+        }
+        return s_;
     }
 
     void TailRhythm::SetFreq(double f, double t)
     {
+        f = Clamp(f);
         // the phase φ(t) = 2πf·t + φ0 must be continuous at time t
         phase0_ += 2.0 * M_PI * (f_ - f) * t;
         f_ = f;

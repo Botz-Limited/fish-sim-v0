@@ -10,28 +10,45 @@ namespace fish
     // ------------------------------------------------------------------ tail CPG
     // The generator commands the pumped VOLUME, not the flow:
     //   V_ref(t) = a(t)·A_V·sin(2πft + φ0) + V_bias
-    //   u = clip((dV_ref/dt + K_v·(V_ref − V_p)) / Q_max, −1, 1)
-    // Why not u = A·sin(2πft) + bias (as in SPEC): the volume in a chamber is the INTEGRAL
-    // of the flow, so a constant bias in u would integrate without bound until the relief valve
-    // locks the tail on one side. A plain sine also gives an offset: ∫sin = 1 − cos ≥ 0.
-    // Here the bias is a volume -> constant tail deflection -> turning.
+    // Why not a flow command proportional to sin(2πft) + bias (as in SPEC): the volume in a chamber
+    // is the INTEGRAL of the flow, so a constant bias would integrate without bound until the relief
+    // valve locks the tail on one side. Here the bias is a volume -> constant tail deflection -> turning.
     // a(t) – soft start ½(1 − cos(πt/T)) over ramp_time seconds.
-    // When 2πf·A_V > Q_max, the pump saturates (|u| = 1) and the amplitude drops (scenario 6).
+    //
+    // The pump runs at constant speed, so the only command is the valve state s = ±1.
+    // Hysteresis relay (state s remembered between steps, s = +1 at start / reset):
+    //   e = V_ref − V_p;   e > δ -> s = +1;   e < −δ -> s = −1;   otherwise s unchanged.
+    // While 2πf·A_V < Q_const, V_p follows V_ref as a "saw" (band ≈ ±δ plus an overshoot
+    // ≈ Q_const·τ_valve, many valve switches per cycle). Above f_track = Q_const/(2π·A_V) the valve
+    // switches only at the peaks (2 per cycle), V_p is a triangle with amplitude ≈ Q_const/(4f) (scenario 6).
+    //
+    // Hardware limits: the valve switches at most ~5 times/s, so each state is held for at least
+    // minDwell (valve_min_dwell = 0.2 s) – the relay ignores the error until then. The frequency is
+    // clamped to [fMin, fMax]: below f_track the "saw" regime would need fast chattering the valve
+    // cannot do; above 1/(2·minDwell) the valve cannot make 2 switches per cycle.
     class TailRhythm
     {
     public:
-        TailRhythm(double freq, double amp, double bias, double Kv, double Qmax, double rampTime);
+        TailRhythm(double freq, double amp, double bias, double hysteresis, double rampTime,
+                   double minDwell, double fMin, double fMax);
         std::pair<double, double> Vref(double t) const;   // (V_ref, dV_ref/dt)
-        double Command(double t, double Vp) const;        // u ∈ [−1, 1]
+        int Command(double t, double Vp);                 // valve state s ∈ {−1, +1} (updates the relay)
+        int valve() const { return s_; }
+        long switches() const { return switches_; }   // valve switches (sign changes of s) since start
         // Frequency change without a phase jump (φ chosen so that the phase is continuous).
+        // f is clamped to [fMin, fMax] (also in the constructor).
         void SetFreq(double f, double t);
+        double Clamp(double f) const;
         double freq() const { return f_; }
         double bias = 0.0;     // [m³] V_bias – can be changed on the fly (turning, heading controller)
         double amp = 0.0;      // [m³] A_V
 
     private:
-        double f_, Kv_, Qmax_, ramp_;
+        double delta_, ramp_, minDwell_, fMin_, fMax_, f_;
         double phase0_ = 0.0;
+        int s_ = +1;           // relay state; a new TailRhythm (simulation reset) starts with s = +1
+        double tSwitch_ = -1e300;   // [s] time of the last valve switch (−∞ at start / reset)
+        long switches_ = 0;
     };
 
     // ------------------------------------------------------------------ first-order filter

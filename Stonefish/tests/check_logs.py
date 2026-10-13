@@ -59,6 +59,23 @@ vsum = d.V_L + d.V_R
 check(np.ptp(vsum) < 1e-12, f"V_L + V_R = const (spread {np.ptp(vsum):.1e} m³)")
 dp = np.abs(d.p_L - d.p_R)
 check(dp.max() <= h["p_max"] * (1 + 1e-6) + 0.02, f"|p_L − p_R| ≤ p_max (max {dp.max() / 1e3:.2f} kPa, p_max {h['p_max'] / 1e3:.0f} kPa)")
+check(set(np.unique(d.s)) <= {-1.0, 1.0}, "valves only in the states s = ±1 while the CPG runs")
+r = load_config(ROOT / "config" / "s2_swim.json")["rhythm"]
+f, A = r["freq"], r["volume_amp"]
+f_track = h["Q_const"] / (2 * math.pi * A)
+m = d.t > d.t[-1] - 5
+spc = (d.valve_switches[m][-1] - d.valve_switches[m][0]) / ((d.t[m][-1] - d.t[m][0]) * f)
+check(f <= f_track or spc <= 4.0,
+      f"valve switches per cycle {spc:.2f} ≤ 4 (f = {f} Hz > f_track = Q_const/(2π·A_V) = {f_track:.2f} Hz: switching only at the peaks)")
+t_sw = d.t[1:][np.diff(d.valve_switches) > 0]
+dwell = CFG["rhythm"]["valve_min_dwell"]
+gap = np.diff(t_sw).min()
+check(gap >= dwell - 0.011,   # log at 100 Hz: switch times known to ±10 ms
+      f"each valve state held ≥ valve_min_dwell (min gap {gap:.2f} s, dwell {dwell} s)")
+amp = 0.5 * np.ptp(d.V_p[m])
+tri = h["Q_const"] / (4 * f)
+check(tri - h["Q_const"] * h["tau_valve"] < amp <= tri * (1 + 1e-6),
+      f"V_p amplitude {amp * 1e6:.2f} ml ≈ Q_const/(4f) = {tri * 1e6:.2f} ml (minus ≤ Q_const·τ_valve)")
 
 print("Internal actuation (no water forces or gravity):")
 d = logs["t_internal"]

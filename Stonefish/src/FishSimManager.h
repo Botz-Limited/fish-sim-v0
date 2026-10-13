@@ -40,8 +40,11 @@ namespace fish
         double t = 0, speed = 0, depth = 0, depthMeas = 0, depthRef = 0;
         double freq = 0, biasMl = 0, pL = 0, pR = 0, vbsMl = 0, yawDeg = 0;
         bool rhythmOn = false, depthOn = false, headingOn = false;
-        // drive: torque from the hydraulics [N·m], pump command u, pump flow Q [m³/s], joint angles [deg]
-        double tailTorque = 0, u = 0, Q = 0;
+        // drive: torque from the hydraulics [N·m], valve state s (±1, 0 = pump off), valve switches so far,
+        // flow Q [m³/s], joint angles [deg]
+        double tailTorque = 0, Q = 0;
+        int valve = 0;
+        long switches = 0;
         std::vector<double> thetaDeg;
         // water forces [N]: drag (pressure + skin friction) per part, fin lift (our FinLift), total
         ForceFS dragHead, dragTail, dragFin, finLift, water;
@@ -116,7 +119,8 @@ namespace fish
 
         // state in the current step (for the log)
         long step_ = 0;
-        double u_ = 0, F_ = 0, L_ = 0;
+        int valve_ = 0;                // valve state s (±1, 0 = pump off)
+        double F_ = 0, L_ = 0;
         std::vector<double> theta_, omega_, tau_;
         double depthMeas_ = 0, vbsRef_ = 0, vbsFlow_ = 0, tauSum_ = 0;
 

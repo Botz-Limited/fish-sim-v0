@@ -76,10 +76,10 @@ fish_stonefish_demo/
 
 ## 5. Hydraulika i sterowanie (C++)
 
-- `Hydraulics`: pompa I rzędu (`u ∈ [−1,1]`, `Q_max`, `τ_pump`), układ zamknięty L↔R, podatność komór `p = (V − V0)/C` z nasyceniem `p_max` (zawór przelewowy), moment `τ = A_eff·r_eff·(p_L − p_R)` rozłożony na przeguby (wagi w configu). Ten sam model co w pozostałych demach, żeby dało się porównać.
-- `Controllers`: CPG `u = A·sin(2πft) + bias`; PID głębokości: **wejściem jest odczyt z czujnika ciśnienia** (nie prawdziwa pozycja z symulatora), wyjściem komenda VBS. Lekcja: regulator działa na zaszumionym pomiarze, jak w prawdziwym robocie. Dodaj prosty filtr dolnoprzepustowy i opisz, dlaczego.
+- `Hydraulics`: pompa o **stałych obrotach** i stałym wydatku `Q_const` (60 ml/s); dwa zawory kierunkowe wybierają tylko kierunek przepływu, stan `s = +1` (R→L) albo `s = −1` (L→R), bez stanu zamkniętego (`s = 0` = pompa wyłączona). Przełączenie zaworów i odwrócenie strumienia: `dQ/dt = (s·Q_const − Q)/τ_valve`, `τ_valve` = 20 ms. Układ zamknięty L↔R, podatność komór `p = (V − V0)/C` z nasyceniem `p_max` (zawór przelewowy), moment `τ = A_eff·r_eff·(p_L − p_R)` rozłożony na przeguby (wagi w configu). Ten sam model co w pozostałych demach, żeby dało się porównać.
+- `Controllers`: CPG zadaje **objętość** `V_ref = a(t)·A_V·sin(2πft) + V_bias` (nie przepływ – stały bias przepływu całkowałby się bez końca), a zawory ustawia **przekaźnik z histerezą** δ = 1 ml: `e = V_ref − V_p`; `e > δ` → `s = +1`, `e < −δ` → `s = −1`, inaczej `s` bez zmian (start i reset: `s = +1`). Ograniczenia zaworu: przełącza się najwyżej ~5 razy/s, więc każdy stan trwa co najmniej `valve_min_dwell` = 0.2 s (przekaźnik do tego czasu ignoruje błąd). Częstotliwość jest obcinana do `[freq_min, freq_max]` = **[1.5, 2.5] Hz** (konfiguracja, `set_freq`, klawisze): poniżej `f_track = Q_const/(2π·A_V)` ≈ 1.19 Hz zawór musiałby przełączać się wiele razy na cykl, przy 1.25 Hz wciąż dochodzą dodatkowe przełączenia i skręt jest szarpany, a `freq_max = 1/(2·valve_min_dwell)` = 2.5 Hz to 2 przełączenia na cykl. W całym zakresie zawór przełącza się tylko w szczytach (2 razy na cykl), `V_p` ma kształt trójkąta o amplitudzie ≈ `Q_const/(4f)`. Metryka: liczba przełączeń zaworu na cykl ogona. PID głębokości: **wejściem jest odczyt z czujnika ciśnienia** (nie prawdziwa pozycja z symulatora), wyjściem komenda VBS. Lekcja: regulator działa na zaszumionym pomiarze, jak w prawdziwym robocie. Dodaj prosty filtr dolnoprzepustowy i opisz, dlaczego.
 - Parametry w jednym pliku konfiguracyjnym (YAML lub JSON) ładowanym przy starcie, bez rekompilacji.
-- Logowanie CSV: czas, pozycja/orientacja głowy (prawdziwa), odczyty czujników, kąty przegubów, `p_L`, `p_R`, `Q`, komenda i stan VBS.
+- Logowanie CSV: czas, pozycja/orientacja głowy (prawdziwa), odczyty czujników, kąty przegubów, `p_L`, `p_R`, `Q`, stan zaworów `s` i licznik przełączeń, komenda i stan VBS.
 - Sterowanie klawiaturą w aplikacji graficznej (jeśli API to umożliwia; jeśli nie, sterowanie przez plik/konfigurację i opis w README).
 
 ## 6. Scenariusze
@@ -89,7 +89,7 @@ fish_stonefish_demo/
 3. `s3_turn`: bias CPG → trajektoria po łuku (XY).
 4. `s4_depth`: skoki zadanej głębokości (−1 → −3 → −2 m), PID na czujniku ciśnienia → głębokość prawdziwa vs mierzona, stan VBS.
 5. `s5_current`: stały prąd boczny → dryf; utrzymanie kursu przez bias (prosty regulator kursu na IMU, opcjonalnie).
-6. **Przegląd** (aplikacja konsolowa): częstotliwość 0.5–3 Hz → średnia prędkość i amplituda ogona (lekcja: ograniczenie przepływu pompy).
+6. **Przegląd** (aplikacja konsolowa): częstotliwość w dozwolonym zakresie zaworu 1.5–2.5 Hz (krok 0.25 Hz) → średnia prędkość, amplituda ogona i liczba przełączeń zaworu na cykl (lekcja: przy stałym wydatku pompy wyższa częstotliwość = mniejsza amplituda).
 7. **(Opcjonalnie) ROS 2**: ten sam robot w `stonefish_ros2`, publikacja czujników, CPG i PID jako węzły w Pythonie, nagranie rosbag.
 
 ## 7. Etapy realizacji

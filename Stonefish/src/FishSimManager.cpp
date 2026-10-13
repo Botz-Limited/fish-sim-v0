@@ -174,7 +174,7 @@ namespace fish
     {
         const auto& h = cfg_.at("hydraulics");
         HydraulicsParams hp{h.at("A_eff"), h.at("r_eff"), h.at("C_h"), h.at("p_max"),
-                            h.at("V0_chamber"), h.at("Q_max"), h.at("tau_pump")};
+                            h.at("V0_chamber"), h.at("Q_const"), h.at("tau_valve")};
         hyd_ = std::make_unique<TailHydraulics>(hp);
 
         const auto& t = cfg_.at("tail");
@@ -184,7 +184,8 @@ namespace fish
 
         const auto& r = cfg_.at("rhythm");
         rhythm_ = std::make_unique<TailRhythm>(r.at("freq"), r.at("volume_amp"), r.at("volume_bias"),
-                                               r.at("K_v"), hp.Q_max, r.at("ramp_time"));
+                                               r.at("valve_hysteresis"), r.at("ramp_time"),
+                                               r.at("valve_min_dwell"), r.at("freq_min"), r.at("freq_max"));
         rhythmOn_ = r.at("enabled").get<bool>();
 
         const auto& d = cfg_.at("depth");
@@ -312,13 +313,10 @@ namespace fish
 
         // ---- 2) Tail hydraulics and joint torques
         L_ = driver_->TendonLength(theta_);
-        u_ = rhythmOn_ ? rhythm_->Command(t, hyd_->Vp()) : 0.0;
-        if(!rhythmOn_)
-        {
-            // CPG disabled: the pump holds the volume V_bias (the tail returns to the reference position)
-            u_ = std::clamp(cfg_.d("rhythm", "K_v") * (rhythm_->bias - hyd_->Vp()) / hyd_->params().Q_max, -1.0, 1.0);
-        }
-        F_ = hyd_->Step(u_, L_, dt);
+        // Valve state from the relay controller; CPG disabled = pump off (s = 0): the valves have
+        // no closed state, so the pumped volume stays where it is and the tail is held by the hydraulic spring.
+        valve_ = rhythmOn_ ? rhythm_->Command(t, hyd_->Vp()) : 0;
+        F_ = hyd_->Step(valve_, L_, dt);
         tau_ = driver_->JointTorques(F_, theta_, locked_);
         // The torque set now acts in the NEXT physics step (actuators are
         // updated at the start of the step) – this is explicit coupling, as in MuJoCo.
@@ -377,7 +375,7 @@ namespace fish
         for(size_t i = 1; i <= theta_.size(); ++i) log_ << ",theta" << i;
         for(size_t i = 1; i <= theta_.size(); ++i) log_ << ",omega" << i;
         for(size_t i = 1; i <= theta_.size(); ++i) log_ << ",tau" << i;
-        log_ << ",tau_sum,L,u,Q,V_L,V_R,V_p,p_L,p_R,F,Q_valve,freq,V_bias,vbs_V,vbs_Vref,vbs_flow,fin_lift,fin_alpha_deg,fin_thrust,"
+        log_ << ",tau_sum,L,s,valve_switches,V_ref,Q,V_L,V_R,V_p,p_L,p_R,F,Q_valve,freq,V_bias,vbs_V,vbs_Vref,vbs_flow,fin_lift,fin_alpha_deg,fin_thrust,"
                 "Fdrag_head,Fdrag_tail,Fdrag_fin,Fskin_all\n";
     }
 
@@ -406,8 +404,8 @@ namespace fish
         for(double x : tau_) { std::snprintf(buf, sizeof(buf), ",%.6e", x); log_ << buf; }
         // thrust from lift = its component along the head X axis
         const double finThrust = finLift_ ? finLift_->lastForceWorld().dot(T.getBasis().getColumn(0)) : 0.0;
-        std::snprintf(buf, sizeof(buf), ",%.3e,%.6f,%.5f,%.6e,%.9e,%.9e,%.6e,%.2f,%.2f,%.6e,%.6e,%.4f,%.6e,%.6e,%.6e,%.6e,%.5f,%.2f,%.5f\n",
-                      tauSum_, L_, u_, hyd_->Q(), hyd_->VL(), hyd_->VR(), hyd_->Vp(), hyd_->pL(L_), hyd_->pR(L_), F_,
+        std::snprintf(buf, sizeof(buf), ",%.3e,%.6f,%d,%ld,%.9e,%.6e,%.9e,%.9e,%.6e,%.2f,%.2f,%.6e,%.6e,%.4f,%.6e,%.6e,%.6e,%.6e,%.5f,%.2f,%.5f\n",
+                      tauSum_, L_, valve_, rhythm_->switches(), rhythm_->Vref(getSimulationTime()).first, hyd_->Q(), hyd_->VL(), hyd_->VR(), hyd_->Vp(), hyd_->pL(L_), hyd_->pR(L_), F_,
                       hyd_->Qvalve(), rhythm_->freq(), rhythm_->bias, vbs_->getLiquidVolume(), vbsRef_, vbsFlow_,
                       finLift_ ? finLift_->lastLift() : 0.0, finLift_ ? finLift_->lastAlphaDeg() : 0.0, finThrust);
         std::string row(buf);
@@ -463,8 +461,8 @@ namespace fish
 
     void FishSimManager::ChangeFreq(double df)
     {
-        const double f = std::clamp(rhythm_->freq() + df, 0.25, 3.5);
-        rhythm_->SetFreq(f, getSimulationTime());
+        // limits rhythm.freq_min … rhythm.freq_max from the config (TailRhythm clamps)
+        rhythm_->SetFreq(rhythm_->freq() + df, getSimulationTime());
     }
 
     void FishSimManager::ChangeBias(double dV)
@@ -503,7 +501,8 @@ namespace fish
         s.headingOn = headingOn_;
 
         s.tailTorque = F_;
-        s.u = u_;
+        s.valve = valve_;
+        s.switches = rhythm_->switches();
         s.Q = hyd_->Q();
         for(double th : theta_) s.thetaDeg.push_back(th * 180.0 / M_PI);
         // Water forces as Stonefish computed them in the last step (world frame) -> head frame.
