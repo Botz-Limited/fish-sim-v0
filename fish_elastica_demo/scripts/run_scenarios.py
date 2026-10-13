@@ -376,11 +376,11 @@ def stage4(pool):
 
     print("Stage 4 (free swimming, %.0f Hz):" % cfg.hydraulics.tail_freq)
     print(f"  {'model':>15} {'damping':>11} {'U final':>9} {'[BL/s]':>7} {'dist.':>7} "
-          f"{'turn':>7} {'max |z|':>8} {'Re':>8}")
+          f"{'turn':>7} {'max |z|':>8} {'Re':>8} {'sw/cycle':>8}")
     for (m, d), r in R.items():
         print(f"  {m:>15} {d:>11} {r['U_final']*100:7.2f}cm/s {r['U_final']/r['length']:7.3f} "
               f"{r['distance']:6.2f}m {r['heading_change']:6.1f}° {r['z_max'].max():8.1e} "
-              f"{r['reynolds']:8.1e}")
+              f"{r['reynolds']:8.1e} {r['switches_per_cycle']:8.1f}")
 
 
 # ---------------------------------------------------------------- stage 5
@@ -418,7 +418,7 @@ def stage5(pool):
         ax.set_ylabel(ylab)
         ax.set_title(title)
     axs[2].axhspan(0.2, 0.4, color="#f2f1ed", zorder=0)
-    axs[2].text(0.55, 0.3, "real fish\nSt ≈ 0.2–0.4", fontsize=8, color=THEORY, va="center")
+    axs[2].text(s5.freqs[0] + 0.03, 0.3, "real fish\nSt ≈ 0.2–0.4", fontsize=8, color=THEORY, va="center")
     axs[0].text(0.02, 0.97, "dotted: tail natural frequency\nin vacuum (pump idle)",
                 transform=axs[0].transAxes, fontsize=8, color=THEORY, va="top")
     fig.legend(*axs[0].get_legend_handles_labels(), loc="lower center", ncol=3,
@@ -426,21 +426,23 @@ def stage5(pool):
     fig.savefig(RESULTS / "e5_sweep_freq_E.png")
     plt.close(fig)
     with open(RESULTS / "e5_sweep_freq_E.csv", "w") as fh:
-        fh.write("E_factor,freq_Hz,U_m_s,U_BL_s,tip_amp_m,strouhal,theta_amp_rad,dp_amp_Pa,f_n_Hz\n")
+        fh.write("E_factor,freq_Hz,U_m_s,U_BL_s,tip_amp_m,strouhal,theta_amp_rad,dp_amp_Pa,f_n_Hz,"
+                 "valve_switches_per_cycle,dp_max_steady_Pa,dp_max_all_Pa\n")
         for p in pts:
             fh.write(f"{p['E_factor']},{p['freq']},{p['U']:.6g},{p['U']/p['length']:.6g},"
                      f"{p['tip_amp']:.6g},{p['strouhal']:.6g},{p['theta_amp']:.6g},"
-                     f"{p['dp_amp']:.6g},{FN[p['E_factor']]:.6g}\n")
+                     f"{p['dp_amp']:.6g},{FN[p['E_factor']]:.6g},{p['switches_per_cycle']:.3g},"
+                     f"{p['dp_max']:.6g},{p['dp_max_all']:.6g}\n")
 
     print("Stage 5 (f × E sweep, drag+reactive model):")
     for e in s5.E_factors:
         print(f"  E = {e:g}·E₀: tail f_n (vacuum) = {FN[e]:.3f} Hz")
     print(f"  {'E×':>4} {'f [Hz]':>7} {'U [cm/s]':>9} {'[BL/s]':>7} {'tip A':>9} {'St':>6} "
-          f"{'θ ampl.':>8} {'Δp ampl.':>9}")
+          f"{'θ ampl.':>8} {'Δp ampl.':>9} {'sw/cycle':>8} {'max|Δp|':>9}")
     for p in pts:
-        print(f"  {p['E_factor']:4g} {p['freq']:7.1f} {p['U']*100:9.2f} {p['U']/p['length']:7.3f} "
+        print(f"  {p['E_factor']:4g} {p['freq']:7.2f} {p['U']*100:9.2f} {p['U']/p['length']:7.3f} "
               f"{p['tip_amp']*1e3:7.1f}mm {p['strouhal']:6.2f} {np.degrees(p['theta_amp']):7.1f}° "
-              f"{p['dp_amp']/1e3:7.1f}kPa")
+              f"{p['dp_amp']/1e3:7.1f}kPa {p['switches_per_cycle']:8.1f} {p['dp_max']/1e3:7.1f}kPa")
 
 
 # ---------------------------------------------------------------- stage 6

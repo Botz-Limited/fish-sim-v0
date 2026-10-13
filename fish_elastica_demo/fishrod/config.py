@@ -101,7 +101,7 @@ class FishConfig:
 
 @dataclass
 class HydraulicsConfig:
-    """Pump + two chambers (L, R) in a closed circuit – as in the MuJoCo and SOFA demos.
+    """Constant-speed pump + directional valves + two chambers (L, R) in a closed circuit – as in the MuJoCo and SOFA demos.
 
     A chamber under pressure Δp = p_L − p_R bends its segment with a moment M = A_eff·r_eff·Δp
     (A_eff – effective wall area, r_eff – lever arm about the bending axis).
@@ -127,18 +127,31 @@ class HydraulicsConfig:
     C_h: float = 4.5e-10           # [m³/Pa] compliance (walls + compressibility); PLACEHOLDER – to be identified from measurements
     p_max: float = 50e3            # [Pa] relief valve on |p_L − p_R|; PLACEHOLDER – to be identified from measurements
     V0_chamber: float = 30e-6      # [m³] chamber volume with a straight tail; PLACEHOLDER – to be identified from measurements
-    # The pump must deliver a peak flow of 2π·f·A_V, otherwise it saturates and the amplitude drops
-    # (lesson from SOFA). With A_V = 8 ml and f = 3 Hz (upper end of the stage 5 sweep) that is 151 ml/s.
-    Q_max: float = 160e-6          # [m³/s] PLACEHOLDER – to be identified from measurements
-    tau_pump: float = 0.03         # [s] pump time constant; PLACEHOLDER – to be identified from measurements
+    # Constant-speed pump: constant flow, the direction is chosen by two-state valves (±1).
+    # The relay controller tracks V_ref as long as 2π·f·A_V < Q_const; above
+    # f_track = Q_const/(2π·A_V) (≈ 1.2 Hz for A_V = 8 ml) the valve switches only at the peaks
+    # and the volume becomes a triangle with amplitude ≈ Q_const/(4f). In the allowed range
+    # (tail_freq_min = 1.5 Hz > f_track) the valve switches exactly twice per cycle, as in MuJoCo (Q_const = 7.5·A_V).
+    Q_const: float = 60e-6         # [m³/s] PLACEHOLDER – to be identified from measurements
+    tau_valve: float = 0.02        # [s] valve switching + flow reversal time; PLACEHOLDER – to be identified from measurements
+    valve_hysteresis: float = 1e-6  # [m³] δ of the relay controller (1 ml); PLACEHOLDER – to be identified from measurements
+    # The valve switches at most ~5 times/s, so each state lasts at least 0.2 s.
+    valve_min_dwell: float = 0.2   # [s] minimum time between valve switches; PLACEHOLDER – to be identified from measurements
+    # Below f_track the relay would have to switch many times per cycle to follow a slow V_ref
+    # (and the chatter excites tail modes); at 1.25 Hz the valve still adds extra switches per
+    # cycle and a turning bias becomes jerky, so the range starts at 1.5 Hz (all demos).
+    # Here f_track ≈ 1.2 Hz < tail_freq_min, so in the whole range the relay switches twice per cycle.
+    tail_freq_min: float = 1.5     # [Hz] lowest allowed tail-beat frequency
+    # The valve switches 2 times per cycle and each state lasts ≥ valve_min_dwell,
+    # so f ≤ 1/(2·valve_min_dwell) = 2.5 Hz (above that the valve misses switches).
+    tail_freq_max: float = 2.5     # [Hz] highest allowed tail-beat frequency
     # Tail rhythm: prescribed pumped volume V_ref(t) = a(t)·(A_V·sin(2πft) + V_bias)
     tail_freq: float = 2.0         # [Hz]
     tail_volume_amp: float = 8e-6  # [m³] A_V, as in MuJoCo; PLACEHOLDER – to be identified from measurements
     tail_volume_bias: float = 0.0  # [m³] constant deflection (turning)
-    K_v: float = 10.0              # [1/s] volume error correction (K_v·τ_pump < 0.5)
     ramp_time: float = 1.0         # [s] soft start of the amplitude
     # Hydraulics step: the pump ODE is computed every N rod steps, so that dt_h ≤ dt_hydraulics.
-    # Conditions: dt_h ≪ τ_pump (30 ms) and ω_n·dt_h ≪ 1 for the "hydraulic spring" (~40 rad/s).
+    # Conditions: dt_h ≪ τ_valve (20 ms) and ω_n·dt_h ≪ 1 for the "hydraulic spring" (~40 rad/s).
     # The rod step is ~1e-5 s, so computing the ODE in every step would only waste time.
     dt_hydraulics: float = 2e-4    # [s]
 
@@ -206,7 +219,7 @@ class Stage4Config:
 class Stage5Config:
     """Stage 5: sweep of the tail-beat frequency and Young's modulus."""
 
-    freqs: tuple = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0)   # [Hz]
+    freqs: tuple = (1.5, 1.75, 2.0, 2.25, 2.5)   # [Hz] tail_freq_min … tail_freq_max
     E_factors: tuple = (0.5, 1.0, 2.0)              # Young's modulus multiplier (whole body)
     t_end: float = 12.0            # [s] at low f the fish accelerates more slowly
     # Natural frequency of the tail: head held fixed, pump stopped (hydraulics coupled),

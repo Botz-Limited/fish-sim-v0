@@ -226,17 +226,24 @@ def static_bend_volume(cfg: Config, V_p: float, verbose: bool = False) -> dict:
     act = _finish(sim, rod, holder, cfg, rc)
     # The pump transfers V_p smoothly (a rhythm with zero amplitude and constant V_bias, with a ramp);
     # a ready-made V_p at the start would be a pressure step V_p/C_h (~25 kPa per ml) and a shock.
+    # The relay controller never settles (the valve has no closed state, V_p oscillates around
+    # V_ref), so after the ramp the pump is switched off. The flow then decays with τ_valve and
+    # carries another Q·τ_valve, so we switch off when V_p + Q·τ_valve hits V_ref.
     hyd = TailHydraulics(hc, TailRhythm(hc, amp=0.0, bias=V_p))
     every = max(1, int(hc.dt_hydraulics / dt))
 
     def hook(t, dt_h):
+        if hyd.rhythm is not None and t >= hc.ramp_time and \
+                abs(hyd.V_p + hyd.Q * hc.tau_valve - V_p) < 0.1 * hc.valve_hysteresis:
+            hyd.rhythm = None
         act.set_rest_curvature(hyd.step(t, act.theta(), dt_h))
 
     integrate(sim, [rod], dt, s2.t_static, hook=hook, hook_every=every,
               max_dilatation=cfg.numerics.max_dilatation, verbose=verbose, label="stage2 V_p")
     Lam = act.Lambda
-    dp_th = V_p / (hc.C_h + hc.A_r**2 * Lam)
-    return dict(V_p=V_p, V_p_sim=hyd.V_p, dp=act.dp, dp_th=dp_th, theta=act.theta(),
+    # theory for the volume actually transferred (the pump stops within ~0.1 ml of the target)
+    dp_th = hyd.V_p / (hc.C_h + hc.A_r**2 * Lam)
+    return dict(V_p=hyd.V_p, V_target=V_p, dp=act.dp, dp_th=dp_th, theta=act.theta(),
                 theta_th=hc.A_r * dp_th * Lam)
 
 
@@ -418,9 +425,13 @@ def free_swim(cfg: Config, model: str, damper: str | None = None, verbose: bool 
     frame_log = {k: [] for k in ("drag", "reactive", "dp", "theta", "U")}
     counter = [0]
 
+    sw = [None]                 # valve switch count at the start of the steady window
+
     def hook(t, dt_h):
         dp = hyd.step(t, act.theta(), dt_h)
         act.set_rest_curvature(dp)
+        if sw[0] is None and t >= s4.t_end - 2.0:
+            sw[0] = hyd.n_switch
         c = counter[0]
         if c % rec_every == 0:
             log["t"].append(t)
@@ -470,7 +481,9 @@ def free_swim(cfg: Config, model: str, damper: str | None = None, verbose: bool 
         lat.append(e[0] * r[1] - e[1] * r[0])    # 2D cross product (z component)
     tip_amp = 0.5 * float(np.ptp(lat)) if lat else 0.0
     U_end = float(np.mean(U[tail]))
-    out.update(tip_amp=tip_amp,
+    # valve switches per tail-beat cycle in the last 2 s (2 = switching only at the peaks)
+    sw_cyc = (hyd.n_switch - sw[0]) / (2.0 * hc.tail_freq) if sw[0] is not None else np.nan
+    out.update(tip_amp=tip_amp, switches_per_cycle=float(sw_cyc),
                strouhal=float(hc.tail_freq * 2 * tip_amp / U_end) if U_end > 1e-3 else np.nan)
     out.update(model=model, damper=damper, U=U, U_avg=U_avg, dt=dt,
                U_final=float(np.mean(U[tail])),
@@ -496,8 +509,12 @@ def sweep_point(cfg: Config, freq: float, E_factor: float) -> dict:
     r = free_swim(sweep_config(cfg, freq, E_factor), "drag+reactive")
     # the summary results need neither frames nor full time histories
     return dict(freq=freq, E_factor=E_factor, U=r["U_final"], tip_amp=r["tip_amp"],
-                strouhal=r["strouhal"], theta_amp=float(0.5 * np.ptp(r["theta"][-int(len(r["theta"]) / 6):])),
-                dp_amp=float(0.5 * np.ptp(r["dp"][-int(len(r["dp"]) / 6):])), length=r["length"])
+                strouhal=r["strouhal"], switches_per_cycle=r["switches_per_cycle"],
+                theta_amp=float(0.5 * np.ptp(r["theta"][-int(len(r["theta"]) / 6):])),
+                dp_amp=float(0.5 * np.ptp(r["dp"][-int(len(r["dp"]) / 6):])),
+                # max |Δp| in steady swimming (last 1/6) and over the whole run (start included)
+                dp_max=float(np.max(np.abs(r["dp"][-int(len(r["dp"]) / 6):]))),
+                dp_max_all=float(np.max(np.abs(r["dp"]))), length=r["length"])
 
 
 def tail_natural_frequency(cfg: Config, E_factor: float = 1.0) -> dict:

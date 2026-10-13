@@ -89,7 +89,7 @@ def test_unbalanced_torque_is_detected(vacuum):
 
 
 def test_hydraulics_closed_loop_and_relief_valve(fish_cfg):
-    """Tail locked (θ = 0), the pump pushes a constant 32 ml: without the valve
+    """Tail locked (θ = 0), V_ref = constant 32 ml, the pump never reaches it: without the valve
     Δp = V/C_h ≈ 71 kPa. The valve must hold p_max and the total chamber volume must
     stay constant (closed circuit)."""
     hc = fish_cfg.hydraulics
@@ -102,6 +102,67 @@ def test_hydraulics_closed_loop_and_relief_valve(fish_cfg):
     dps = np.array(dps)
     assert np.max(np.abs(dps)) <= hc.p_max * (1 + 1e-9)
     assert np.max(np.abs(dps)) > 0.99 * hc.p_max     # the valve actually opened
+
+
+def _run_valves(hc, f, n_cycles=10, t_settle=4.0, dt=2e-4):
+    """Hydraulics alone (θ = 0) at tail-beat frequency f; steady state after t_settle."""
+    rh = TailRhythm(hc, freq=f)
+    hyd = TailHydraulics(hc, rh)
+    V0 = hyd.V_L + hyd.V_R
+    log = {k: [] for k in ("V_p", "V_ref", "dp", "V_sum")}
+    n0 = None
+    for i in range(int((t_settle + n_cycles / f) / dt)):
+        t = i * dt
+        dp = hyd.step(t, 0.0, dt)
+        if t >= t_settle:
+            n0 = hyd.n_switch if n0 is None else n0
+            for k, v in zip(log, (hyd.V_p, rh.v_ref(t + dt)[0], dp, hyd.V_L + hyd.V_R)):
+                log[k].append(v)
+    out = {k: np.array(v) for k, v in log.items()}
+    out.update(V0=V0, switches_per_cycle=(hyd.n_switch - n0) / n_cycles)
+    return out
+
+
+def test_valve_holds_each_state_for_min_dwell(fish_cfg):
+    # The valve switches at most ~5 times/s: the gap between switches is ≥ valve_min_dwell.
+    hc = fish_cfg.hydraulics
+    for f in (hc.tail_freq_min, 2.0, hc.tail_freq_max):
+        rh = TailRhythm(hc, freq=f)
+        hyd = TailHydraulics(hc, rh)
+        dt, u = 2e-4, []
+        for i in range(int(10.0 / dt)):
+            hyd.step(i * dt, 0.0, dt)
+            u.append(hyd.u)
+        t = np.arange(len(u)) * dt
+        t_sw = t[1:][np.diff(u) != 0]
+        assert np.diff(t_sw).min() >= hc.valve_min_dwell - 1e-9, f
+
+
+def test_frequency_clamped_to_valve_range(fish_cfg):
+    hc = fish_cfg.hydraulics
+    assert TailRhythm(hc, freq=0.5).freq == hc.tail_freq_min
+    assert TailRhythm(hc, freq=3.0).freq == hc.tail_freq_max
+    r = TailRhythm(hc)
+    r.set_freq(10.0, 3.7)
+    assert r.freq == hc.tail_freq_max
+    assert hc.tail_freq_max <= 1 / (2 * hc.valve_min_dwell)   # 2 switches per cycle
+
+
+def test_valves_switch_twice_per_cycle_in_allowed_range(fish_cfg):
+    """Q_const = 7.5·A_V (as in MuJoCo): f_track = Q_const/(2π·A_V) ≈ 1.2 Hz < tail_freq_min, so
+    in the whole allowed range the valve switches at the peaks only (2 switches per cycle), the
+    stroke is a triangle with amplitude ≈ Q_const/(4f) (minus the τ_valve losses), the sum
+    V_L + V_R does not change and |Δp| ≤ p_max."""
+    hc = fish_cfg.hydraulics
+    assert hc.Q_const / (2 * np.pi * hc.tail_volume_amp) < hc.tail_freq_min
+    assert hc.Q_const * hc.valve_min_dwell < 2 * hc.tail_volume_amp * 2    # one state ≲ 4·A_V
+    for f in (hc.tail_freq_min, 1.75, 2.0, 2.25, hc.tail_freq_max):
+        r = _run_valves(hc, f)
+        assert r["switches_per_cycle"] == pytest.approx(2.0, abs=0.1)
+        amp = 0.5 * np.ptp(r["V_p"])
+        assert 0.5 * hc.Q_const / (4 * f) < amp <= hc.Q_const / (4 * f)
+        assert np.max(np.abs(r["V_sum"] - r["V0"])) < 1e-15
+        assert np.max(np.abs(r["dp"])) <= hc.p_max * (1 + 1e-9)
 
 
 # ---------------------------------------------------------------- stage 3

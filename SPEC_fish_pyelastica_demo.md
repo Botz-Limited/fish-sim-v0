@@ -35,7 +35,7 @@ fish_elastica_demo/
   fishrod/
     config.py                   # dataclass with ALL parameters
     build.py                    # simulator (class with mixins), rod(s), BC, damping, callbacks
-    hydraulics.py               # ODE model of the pump and chambers (as in the MuJoCo/Modelica demo)
+    hydraulics.py               # ODE model of the pump, valves and chambers (as in the MuJoCo/Modelica demo)
     actuation.py                # internal drive: rest curvature from pressure
     water.py                    # own water forces (class inheriting from ea.NoForces)
     buoyancy.py                 # buoyancy per element + bladder in the head
@@ -61,7 +61,7 @@ fish_elastica_demo/
 - The chambers are **internal**: the hydraulics must not produce a net force or moment on the whole fish. Adding external moments to elements (as in some examples) breaks this principle if the moments do not cancel.
 - Recommended approach: pressure changes the **rest curvature** of the segment with the chambers: `κ_rest(s, t) = K_p · (p_L − p_R)` in the chamber zone (zero outside it). The rod itself "wants" to bend, and the net force and moment from the drive are zero by construction. Check in the API how to change the rest curvature during the simulation (a callback/forcing modifying the corresponding field), and describe it.
 - Alternative for comparison (optional stage): pairs of equal and opposite moments at the boundaries of the chamber zone.
-- Hydraulics: the same simple ODE model as in the other demos (first-order pump, closed L↔R circuit, chamber compliance, relief valve). Integrated every rod step or every N steps, with a description of the choice.
+- Hydraulics: the same simple ODE model as in the other demos (constant-speed pump with constant flow `Q_const`, two-state directional valves `s = ±1` switched by a relay controller with hysteresis `δ` that tracks the prescribed volume `V_ref(t)`; the valve holds each state for at least `valve_min_dwell = 0.2 s` (≤ 5 switches/s) and the tail frequency is clamped to `[tail_freq_min, tail_freq_max] = [1.5, 2.5] Hz`, flow reversal with time constant `tau_valve`, closed L↔R circuit, chamber compliance, relief valve). Integrated every rod step or every N steps, with a description of the choice.
 
 ## 5. Water (water.py) – own force class
 
@@ -87,7 +87,7 @@ Implement a class inheriting from `ea.NoForces` with the method `apply_forces(sy
 2. **Drive via rest curvature**: static tail deflection vs pressure difference. Test: net force and moment from the drive ≈ 0 (check on a free rod in vacuum: the center of mass does not move).
 3. **Clamped tail in water**: head fixed, sinusoidal pump. Comparison of the water models `none` / `drag` / `drag+reactive`: amplitude, phase, mean reaction force at the mount (qualitative tethered thrust).
 4. **Free swimming 2D (flat)**: no gravity and no buoyancy (neutral buoyancy). Forward speed vs time. Comparison of the water models, including `stokes_sbt` as an example of wrong physics.
-5. **Sweep**: frequency 0.5–3 Hz and Young's modulus ×0.5/×1/×2 → swimming speed. Pay attention to resonance (compare with the natural frequency from stage 1) and describe it in the README.
+5. **Sweep**: frequency 1.5–2.5 Hz (`tail_freq_min`…`tail_freq_max`, step 0.25) and Young's modulus ×0.5/×1/×2 → swimming speed. Pay attention to resonance (compare with the natural frequency from stage 1) and describe it in the README.
 6. **3D + buoyancy + ballast**: gravity and buoyancy enabled, steps of the depth setpoint. Plot of the depth and of the bladder volume.
 7. **(Optional) export to other demos**: equivalent stiffnesses for the MuJoCo segmented model (as in the SOFA demo) to `results/prbm.json`.
 
