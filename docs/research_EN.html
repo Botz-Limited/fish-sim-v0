@@ -216,7 +216,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <span>Version: 9 Oct 2026</span>
     <span>Language: EN (PL version available)</span>
   </div>
-  <div class="callout"><strong>Read the numbers as mechanisms, not as a ranking.</strong> Every physical parameter in the six demos is a placeholder that has not been identified on a real robot. The demos also use different parameter sets (for example, the SOFA chamber holds 91 ml and the MuJoCo chamber 30 ml). A speed of 22 cm/s in one tool and 44 cm/s in another says which physics each tool includes, not which tool is more accurate.</div>
+  <div class="callout"><strong>Read the numbers as mechanisms, not as a ranking.</strong> Every physical parameter in the six demos is a placeholder that has not been identified on a real robot. The demos also use different parameter sets (for example, the SOFA chamber holds 91 ml and the MuJoCo chamber 30 ml). A speed of 23 cm/s in one tool and 37 cm/s in another says which physics each tool includes, not which tool is more accurate.</div>
 </header>
 
 <section id="summary">
@@ -254,26 +254,45 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <p>All six demos model the same robot concept, a fish with a soft silicone tail bent by water pumped between two chambers. Knowing this loop makes the input tables in section 3 readable.</p>
   <figure>
     <div class="diagram">
-      <svg viewBox="0 0 800 300" role="img" aria-label="Closed hydraulic loop: the rhythm generator commands a pump that moves water from chamber R to chamber L; a relief valve between them opens at 50 kPa; the pressure difference bends the silicone tail.">
+      <svg viewBox="0 0 800 300" role="img" aria-label="Closed hydraulic loop: the rhythm generator and its relay send a plus or minus one signal to two 3/2 directional valves, one per chamber; a constant-speed pump feeds both valves, so one chamber is connected to the pump outlet and the other to the pump inlet; the pressure difference bends the silicone tail.">
         <defs>
           <marker id="ah1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+          <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-whead"/></marker>
         </defs>
-        <rect class="d-soft" x="16" y="119" width="214" height="62" rx="8"/>
-        <text class="d-b" x="123" y="144" text-anchor="middle">Rhythm generator (CPG)</text>
-        <text class="d-t" x="123" y="165" text-anchor="middle">V_ref = A_V·sin(2πft) + V_bias</text>
-        <line class="d-line" x1="230" y1="150" x2="296" y2="150" marker-end="url(#ah1)"/>
-        <text class="d-m" x="263" y="141" text-anchor="middle">u</text>
-        <rect class="d-box" x="300" y="120" width="120" height="60" rx="8"/>
-        <text class="d-b" x="360" y="146" text-anchor="middle">Pump</text>
-        <text class="d-m" x="360" y="166" text-anchor="middle">Q_max, τ_pump</text>
-        <polyline class="d-line" points="360,120 360,60 612,60 612,78" marker-end="url(#ah1)"/>
-        <polyline class="d-line" points="612,222 612,240 360,240 360,180" marker-end="url(#ah1)"/>
-        <text class="d-t" x="490" y="52" text-anchor="middle">V_p: water R → L</text>
-        <line class="d-line" x1="470" y1="60" x2="470" y2="130"/>
-        <line class="d-line" x1="470" y1="170" x2="470" y2="240"/>
-        <rect class="d-box" x="446" y="130" width="48" height="40" rx="4"/>
-        <text class="d-t" x="470" y="155" text-anchor="middle">valve</text>
-        <text class="d-m" x="540" y="262" text-anchor="end">relief valve: opens at |Δp| = 50 kPa</text>
+        <rect class="d-soft" x="16" y="106" width="214" height="88" rx="8"/>
+        <text class="d-b" x="123" y="132" text-anchor="middle">Rhythm generator (CPG)</text>
+        <text class="d-t" x="123" y="152" text-anchor="middle">V_ref = A_V·sin(2πft) + V_bias</text>
+        <text class="d-t" x="123" y="176" text-anchor="middle">relay → s = ±1</text>
+        <polyline class="d-dash" points="123,106 123,22 498,22 498,70" marker-end="url(#ah2)"/>
+        <polyline class="d-dash" points="123,194 123,276 498,276 498,230" marker-end="url(#ah2)"/>
+        <text class="d-w" x="310" y="16" text-anchor="middle">s = ±1</text>
+        <text class="d-w" x="310" y="270" text-anchor="middle">−s</text>
+        <text class="d-m" x="250" y="52">P = pump outlet, T = pump inlet</text>
+        <text class="d-m" x="250" y="68">s = +1: L–P, R–T  ·  s = −1: L–T, R–P</text>
+        <rect class="d-box" x="270" y="120" width="100" height="60" rx="8"/>
+        <text class="d-b" x="320" y="142" text-anchor="middle">Pump</text>
+        <text class="d-m" x="320" y="158" text-anchor="middle">Q_const</text>
+        <text class="d-m" x="320" y="172" text-anchor="middle">constant speed</text>
+        <line class="d-line" x1="370" y1="140" x2="410" y2="140"/>
+        <line class="d-line" x1="410" y1="115" x2="410" y2="185"/>
+        <line class="d-line" x1="370" y1="160" x2="435" y2="160"/>
+        <line class="d-line" x1="435" y1="85" x2="435" y2="215"/>
+        <circle class="d-head" cx="410" cy="140" r="3"/><circle class="d-head" cx="435" cy="160" r="3"/>
+        <line class="d-line" x1="435" y1="85" x2="466" y2="85"/><line class="d-line" x1="410" y1="115" x2="466" y2="115"/>
+        <line class="d-line" x1="410" y1="185" x2="466" y2="185"/><line class="d-line" x1="435" y1="215" x2="466" y2="215"/>
+        <text class="d-m" x="446" y="82">T</text><text class="d-m" x="446" y="112">P</text>
+        <text class="d-m" x="446" y="182">P</text><text class="d-m" x="446" y="212">T</text>
+        <rect class="d-box" x="466" y="70" width="64" height="60" rx="6"/>
+        <text class="d-b" x="498" y="94" text-anchor="middle">valve L</text>
+        <text class="d-t" x="498" y="109" text-anchor="middle">3/2</text>
+        <text class="d-m" x="498" y="123" text-anchor="middle">τ_valve</text>
+        <rect class="d-box" x="466" y="170" width="64" height="60" rx="6"/>
+        <text class="d-b" x="498" y="194" text-anchor="middle">valve R</text>
+        <text class="d-t" x="498" y="209" text-anchor="middle">3/2</text>
+        <text class="d-m" x="498" y="223" text-anchor="middle">τ_valve</text>
+        <line class="d-line" x1="530" y1="100" x2="572" y2="100" marker-end="url(#ah1)"/>
+        <line class="d-line" x1="530" y1="200" x2="572" y2="200" marker-end="url(#ah1)"/>
+        <text class="d-m" x="484" y="252" text-anchor="end">relief valve: opens at |Δp| = 50 kPa</text>
         <path class="d-box" d="M560,30 L720,100 L720,200 L560,270 Z"/>
         <rect class="d-soft" x="572" y="80" width="80" height="60" rx="6"/>
         <rect class="d-soft" x="572" y="160" width="80" height="60" rx="6"/>
@@ -286,7 +305,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
         <text class="d-t" x="640" y="292" text-anchor="middle">silicone tail (top view)</text>
       </svg>
     </div>
-    <figcaption>The shared hydraulic loop. The pump moves a volume V_p from chamber R to chamber L in a closed circuit; the pressure difference Δp = p_L − p_R bends the tail. The rhythm generator commands a volume (not a flow), and an offset V_bias makes the fish turn. Depth is controlled separately: a PID sets the volume of a ballast bladder (MuJoCo, PyElastica), a VBS tank (Stonefish) or a syringe (OpenModelica).</figcaption>
+    <figcaption>The shared hydraulic loop. A constant-speed pump feeds two 3/2 directional valves, one per chamber, driven in opposition by a ±1 signal from the relay on the rhythm generator; the pressure difference Δp = p_L − p_R bends the tail. The flow is always ±Q_const with no closed state; a relay with 1 ml hysteresis and a 0.2 s minimum dwell switches the valves to follow the volume the rhythm generator commands (not a flow), within 1.5–2.5 Hz. An offset V_bias makes the fish turn. Depth is controlled separately: a PID sets the volume of a ballast bladder (MuJoCo, PyElastica), a VBS tank (Stonefish) or a syringe (OpenModelica).</figcaption>
   </figure>
 
   <h3>The same quantities, set differently in each demo</h3>
@@ -295,8 +314,8 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <tbody>
       <tr><th>Body</th><td>ellipsoid hull 25×10×10 cm</td><td>same as MuJoCo</td><td>whole fish = rod 0.40 m</td><td>none (tail clamped)</td><td>2D head, half-ellipse 60 mm, fixed</td><td>lumped mass 1 kg</td></tr>
       <tr><th>Tail</th><td>5 rigid segments × 40 mm, 3 actuated</td><td>5 rigid segments × 40 mm</td><td>continuous, chamber zone 0.20–0.32 m</td><td>3D FEM, 0.20 m</td><td>2D FEM, 0.15 m</td><td>1 rotational DOF</td></tr>
-      <tr><th>Pump flow Q_max</th><td class="num">60 ml/s</td><td class="num">60 ml/s</td><td class="num">160 ml/s</td><td class="num">250 ml/s</td><td>none (pressure prescribed)</td><td class="num">0.3 ml per revolution</td></tr>
-      <tr><th>Volume amplitude A_V</th><td class="num">8 ml</td><td class="num">8 ml</td><td class="num">8 ml</td><td class="num">17 ml</td><td class="num">P0 = 15 kPa</td><td>CPG duty A = 0.8</td></tr>
+      <tr><th>Constant pump flow Q_const</th><td class="num">60 ml/s</td><td class="num">60 ml/s</td><td class="num">60 ml/s</td><td class="num">100 ml/s</td><td>none (pressure prescribed)</td><td class="num">0.3 ml per revolution</td></tr>
+      <tr><th>Volume amplitude A_V</th><td class="num">8 ml</td><td class="num">8 ml</td><td class="num">8 ml</td><td class="num">13 ml</td><td class="num">P0 = 15 kPa</td><td class="num">4 ml</td></tr>
       <tr><th>Relief pressure</th><td class="num">50 kPa</td><td class="num">50 kPa</td><td class="num">50 kPa</td><td class="num">50 kPa</td><td>none</td><td class="num">50 kPa</td></tr>
       <tr><th>Ballast</th><td>bladder 0–40 ml</td><td>VBS 0.5–40.5 ml</td><td>bladder 0–40 ml</td><td>none</td><td>none</td><td>syringe 12.5 ml</td></tr>
     </tbody>
@@ -343,9 +362,9 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li><b>Body.</b> The hull is an ellipsoid on a free joint. The tail is five ellipsoids on hinge joints with springs and dampers, a pseudo-rigid-body approximation of the silicone. The caudal fin is a flat ellipsoid on the last segment.</li>
     <li><b>Water.</b> MuJoCo's built-in ellipsoid model gives blunt and slender drag, angular drag, Kutta lift and Magnus force for each part. There is no flow field.</li>
-    <li><b>Added mass, corrected.</b> MuJoCo applies only the gyroscopic part of the added-mass force: the source (<code>engine_passive.c</code>) omits the acceleration term that the docs show. On its own that part slowed the fish down (4.5 cm/s instead of 22 cm/s). The demo switches it off and adds the added mass as joint <code>armature</code> instead.</li>
+    <li><b>Added mass, corrected.</b> MuJoCo applies only the gyroscopic part of the added-mass force: the source (<code>engine_passive.c</code>) omits the acceleration term that the docs show. On its own that part pushed the fish backwards (5.1 cm/s instead of 23 cm/s). The demo switches it off and adds the added mass as joint <code>armature</code> instead.</li>
     <li><b>Buoyancy.</b> MuJoCo does not compute buoyancy. The demo applies it to each body, with the centre of buoyancy fixed in the hull frame so that tilting produces a righting moment. The hull mass is solved for neutral buoyancy at a half-full bladder.</li>
-    <li><b>Hydraulics.</b> A Python model runs before every physics step: a first-order pump, Δp = (V_p − A·r·θ_w)/C_h, where θ_w = Σ wᵢ·θᵢ is the weighted bend angle of the three joints (in rad), clipped at ±50 kPa, and a tendon force F = A·r·Δp spread over the three actuated joints with weights from 1 to 0.4.</li>
+    <li><b>Hydraulics.</b> A Python model runs before every physics step: a constant-speed pump behind a two-state ±1 valve (dQ/dt = (s·Q_const − Q)/τ_valve; a relay with 1 ml hysteresis and a 0.2 s minimum dwell sets s), Δp = (V_p − A·r·θ_w)/C_h, where θ_w = Σ wᵢ·θᵢ is the weighted bend angle of the three joints (in rad), clipped at ±50 kPa, and a tendon force F = A·r·Δp spread over the three actuated joints with weights from 1 to 0.4.</li>
     <li><b>Control.</b> A volume rhythm generator for the tail and a cascade depth PID that sets the bladder volume, followed by a rate-limited ballast pump.</li>
   </ul>
 
@@ -357,7 +376,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>Geometry</td><td>hull ellipsoid 0.25 × 0.10 × 0.10 m; 5 tail segments × 40 mm tapering to 0.4; fin 70 × 6 × 120 mm</td><td>MJCF or URDF files, STL/OBJ meshes</td></tr>
       <tr><td>Joints</td><td>±35°, actuated stiffness 0.3 N·m/rad, passive stiffness from a 3 Hz resonance, damping 0.005 N·m·s/rad</td><td>any joint type, tendons, equality constraints</td></tr>
       <tr><td>Water model</td><td><code>fluidcoef</code> = blunt 0.5, slender 0.25, angular 1.5, Kutta 1.0, Magnus 1.0; added-mass mode</td><td>deformable <code>flex</code> bodies (observed: the fluid model ignored them; the docs are silent)</td></tr>
-      <tr><td>Hydraulics</td><td>A_eff 4·10⁻⁴ m², r_eff 0.05 m, C_h 8·10⁻¹¹ m³/Pa, p_max 50 kPa, chamber 30 ml, Q_max 60 ml/s, τ_pump 30 ms</td><td>any Python model coupled through <code>ctrl</code></td></tr>
+      <tr><td>Hydraulics</td><td>A_eff 4·10⁻⁴ m², r_eff 0.05 m, C_h 8·10⁻¹¹ m³/Pa, p_max 50 kPa, chamber 30 ml, Q_const 60 ml/s, τ_valve 20 ms, relay δ 1 ml, dwell 0.2 s</td><td>any Python model coupled through <code>ctrl</code></td></tr>
       <tr><td>Ballast and control</td><td>bladder 0–40 ml at 10 ml/s; depth PID gains; tail 2 Hz, A_V 8 ml, V_bias, K_v 10 s⁻¹</td><td>sensors (IMU, force, touch), cameras, GPU batches (MJX) for reinforcement learning</td></tr>
       <tr><td>Live input</td><td>viewer keys: ←/→ V_bias ±0.5 ml, ↑/↓ frequency ±0.25 Hz, PgUp/PgDn depth ±0.25 m, Space start/stop</td><td>any Python callback</td></tr>
     </tbody>
@@ -367,19 +386,19 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <div class="tbl"><table class="io">
     <thead><tr><th>Output</th><th>Content</th><th>Example value</th></tr></thead>
     <tbody>
-      <tr><td>s1 straight swim</td><td>CSV + PNG: speed, five joint angles, p_L, p_R, Δp, tendon force, pump command</td><td>≈22 cm/s at 2 Hz after ≈2 s</td></tr>
-      <tr><td>s2 water on/off</td><td>speed with water, without water, with MuJoCo's default added mass</td><td>22 / 0 / 4.5 cm/s</td></tr>
-      <tr><td>s3 turning</td><td>XY trajectories for V_bias from −3 to +3 ml</td><td>±3 ml: 6.3°/s at ≈21 cm/s, radius ≈1.9 m</td></tr>
+      <tr><td>s1 straight swim</td><td>CSV + PNG: speed, five joint angles, p_L, p_R, Δp, tendon force, pump command</td><td>≈23 cm/s at 2 Hz after ≈2 s</td></tr>
+      <tr><td>s2 water on/off</td><td>speed with water, without water, with MuJoCo's default added mass</td><td>23 / 0 / 5.1 cm/s</td></tr>
+      <tr><td>s3 turning</td><td>XY trajectories for V_bias from −3 to +3 ml</td><td>±3 ml: 6.6°/s, radius ≈2.1 m</td></tr>
       <tr><td>s4 depth steps</td><td>depth, setpoint, bladder volume, pitch</td><td>1 m in ≈35 s swimming, ≈6 s hovering; overshoot ≈3 cm</td></tr>
-      <tr><td>s5 frequency sweep</td><td>speed, amplitudes, pump saturation for 0.5–3 Hz</td><td>peak 23.6 cm/s at 1.5 Hz</td></tr>
+      <tr><td>s5 frequency sweep</td><td>speed, tail amplitude, valve switches per cycle for 1.5–2.5 Hz</td><td>peak 24.6 cm/s at 1.75 Hz; 18.9 cm/s at 2.5 Hz</td></tr>
       <tr><td>s6 righting</td><td>roll, pitch and depth after a 30° roll</td><td>upright in ≈0.3 s</td></tr>
       <tr><td>Model report</td><td>text: masses, volumes, net buoyancy, CG/CB, stability margins of the time step</td><td>hover drift 0.000 cm in 5 s</td></tr>
     </tbody>
   </table></div>
 
   <figure>
-    <img src="img/mujoco_sweep.png" alt="MuJoCo frequency sweep: forward speed rises to 23.6 cm/s at 1.5 Hz and falls to 13.4 cm/s at 3 Hz; tail amplitudes on the right axis." loading="lazy">
-    <figcaption>Stage 6 frequency sweep (plot labels are in Polish on the main branch). Speed peaks at 1.5 Hz, just above 1.19 Hz, where the pump starts to saturate.</figcaption>
+    <img src="img/mujoco_sweep.png" alt="MuJoCo frequency sweep: forward speed peaks at 24.6 cm/s at 1.75 Hz and falls to 18.9 cm/s at 2.5 Hz; tail amplitude on the right axis." loading="lazy">
+    <figcaption>Stage 6 frequency sweep (re-plotted from the new results). Speed peaks at 1.75 Hz (24.6 cm/s). Above f_track = Q_const/(2π·A_V) = 1.19 Hz the valve switches only at the peaks, exactly twice per cycle over the whole 1.5–2.5 Hz range.</figcaption>
   </figure>
 
   <h3>Demo stages</h3>
@@ -395,7 +414,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li>No flow simulation: no wake, no vortices, no interaction between body parts through the water.</li>
     <li>Diagonal added mass, computed once for a straight tail, so the fish accelerates too quickly.</li>
-    <li>The tail is rigid segments, not a continuum. The hydraulics are linear (constant C_h, ideal valve, no losses).</li>
+    <li>The tail is rigid segments, not a continuum. The hydraulics are linear (constant C_h, ideal two-state valve with a first-order lag, no losses; with the constant pump the stroke follows from the frequency and cannot be set independently).</li>
     <li>No waves or free surface; buoyancy is faded out over ±5 cm near the surface as a patch.</li>
   </ul>
 </section>
@@ -435,8 +454,8 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li><b>Body.</b> Head plus five tail links on revolute joints and a fin. The meshes are generated by <code>make_meshes.py</code> (320 triangles for physics, 5120 for display), which also balances the mass and sizes the steel ballast.</li>
     <li><b>Water from geometry.</b> Buoyancy is computed from hydrostatic pressure on every triangle. Pressure drag acts per face, skin friction acts along the surface, and added mass comes from an automatically fitted sphere, cylinder or ellipsoid.</li>
-    <li><b>Fixes in C++.</b> Face drag cannot produce lift, so <code>FinLift.cpp</code> adds a flat-plate lift on the fin. Without it the fish reaches only 2.7 cm/s instead of 34 cm/s. The library's skin friction was about 250× too high and is replaced by a Blasius law.</li>
-    <li><b>Drive.</b> <code>Hydraulics.cpp</code> holds the same lumped pump and chamber model as MuJoCo. <code>TailDriver.cpp</code> applies joint torques τ_i = w_i·F − k_i·θ_i as an internal drive (action equals reaction).</li>
+    <li><b>Fixes in C++.</b> Face drag cannot produce lift, so <code>FinLift.cpp</code> adds a flat-plate lift on the fin. Without it the fish reaches only 2.5 cm/s instead of 34.5 cm/s. The library's skin friction was about 250× too high and is replaced by a Blasius law.</li>
+    <li><b>Drive.</b> <code>Hydraulics.cpp</code> holds the same lumped pump, valve and chamber model as MuJoCo. <code>TailDriver.cpp</code> applies joint torques τ_i = w_i·F − k_i·θ_i as an internal drive (action equals reaction).</li>
     <li><b>Sensors and control.</b> The pressure sensor (50 Hz, σ 50 Pa) and the IMU (100 Hz) are noisy. The depth PID reads the filtered pressure and sets the VBS water volume; a heading PI on the IMU yaw sets V_bias.</li>
     <li><b>Ocean.</b> Seabed, posts for visual reference, water type and a uniform current.</li>
   </ul>
@@ -448,7 +467,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>Config file</td><td><code>config/default.json</code>, per-scenario patches <code>sN_*.json</code>, single overrides <code>--set key=value</code> (no recompilation)</td><td>any parameter exposed by the application</td></tr>
       <tr><td>Scenario XML</td><td><code>fish_base.scn</code>: links, joints, motors, VBS, pressure sensor, IMU, encoders; <code>world_base.scn</code>: seabed, ocean, current</td><td>geometric waves (GPU-computed; body interaction still experimental), other current types, custom hydrodynamic coefficients</td></tr>
       <tr><td>Geometry and materials</td><td>OBJ meshes; hull density 600, silicone 1100, steel ballast 7850 kg/m³ (sized automatically)</td><td>any OBJ geometry</td></tr>
-      <tr><td>Hydraulics and rhythm</td><td>same values as MuJoCo: Q_max 60 ml/s, A_V 8 ml, f 2 Hz, p_max 50 kPa; fin lift slope 2.8/rad</td><td>thrusters, rudders, servos</td></tr>
+      <tr><td>Hydraulics and rhythm</td><td>same values as MuJoCo: Q_const 60 ml/s with a ±1 valve (relay δ 1 ml, dwell 0.2 s), A_V 8 ml, f 2 Hz, p_max 50 kPa; fin lift slope 2.8/rad</td><td>thrusters, rudders, servos</td></tr>
       <tr><td>Sensors</td><td>pressure 50 Hz with σ 50 Pa; IMU 100 Hz with angle, gyro and accelerometer noise</td><td>cameras, sonar, DVL, GPS, thermal camera</td></tr>
       <tr><td>Control and live input</td><td>depth setpoint schedule, heading PI; GUI keys for the CPG, V_bias, frequency and depth</td><td>ROS 2 interface (<code>stonefish_ros2</code>), not used here</td></tr>
       <tr><td>Simulation</td><td>2000 steps/s (2 ms was unstable), hydrodynamics every step, log every 20 steps</td><td>real-time or batch mode</td></tr>
@@ -461,17 +480,17 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <tbody>
       <tr><td>CSV log, 100 Hz</td><td>≈70 columns: pose, velocities, sensor readings, joint θ/ω/τ, pump, chambers, VBS, forces per body part</td><td>full logs in <code>results/logs/</code></td></tr>
       <tr><td>s1 hover / righting</td><td>depth drift; roll after a 30° tilt</td><td>0.21 mm in 10 s; 30° → 10° in 5 s</td></tr>
-      <tr><td>s2 swim</td><td>speed with and without fin lift, locked tail; force balance</td><td>34 cm/s; 2.7 cm/s without lift; fin lift 0.51 N</td></tr>
-      <tr><td>s3 turning</td><td>turning radius for V_bias ±1/±2/±3 ml</td><td>20.4 / 10.1 / 6.6 m</td></tr>
+      <tr><td>s2 swim</td><td>speed with and without fin lift, locked tail; force balance</td><td>34.5 cm/s; 2.5 cm/s without lift; fin lift 0.55 N</td></tr>
+      <tr><td>s3 turning</td><td>turning radius for V_bias ±1/±2/±3 ml</td><td>18.6 / 9.5 / 6.2 m</td></tr>
       <tr><td>s4 depth</td><td>true vs measured depth with the noisy sensor</td><td>1 → 3 m: overshoot 3.3 cm, within ±5 cm after 21 s</td></tr>
-      <tr><td>s5 current</td><td>drift in a 5 cm/s side current, with and without heading control</td><td>heading held at +2.9°, yet 1 m sideways drift in 30 s</td></tr>
-      <tr><td>s6 sweep, GUI</td><td>speed vs frequency; <code>summary.json</code>; 3D window</td><td>peak 33.9 cm/s at 2 Hz</td></tr>
+      <tr><td>s5 current</td><td>drift in a 5 cm/s side current, with and without heading control</td><td>heading held at +3.4°, yet 0.95 m sideways drift in 30 s</td></tr>
+      <tr><td>s6 sweep, GUI</td><td>speed vs frequency; <code>summary.json</code>; 3D window</td><td>peak 34.4 cm/s at 2 Hz (31.6–34.4 cm/s over 1.5–2.5 Hz, 2.0 valve switches per cycle)</td></tr>
     </tbody>
   </table></div>
 
   <figure>
-    <img src="img/stonefish_gui.png" alt="Stonefish 3D window: the robot fish swimming between reference posts, with a status panel showing speed 0.336 m/s, depth, chamber pressures and VBS volume." loading="lazy">
-    <figcaption>The Stonefish GUI during scenario s2: the panel on the right shows live speed, true and measured depth, chamber pressures and VBS volume.</figcaption>
+    <img src="img/stonefish_gui.png" alt="Stonefish 3D window: the robot fish swimming between reference posts, with a status panel showing speed 0.347 m/s, depth, chamber pressures, valve state and VBS volume." loading="lazy">
+    <figcaption>The Stonefish GUI during scenario s3: the panel on the right shows live speed, true and measured depth, chamber pressures, the valve state s with the pump flow Q, and the VBS volume.</figcaption>
   </figure>
 
   <h3>Demo stages</h3>
@@ -521,7 +540,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li><b>Body.</b> A 0.40 m rod with 50 elements. Each element has an elliptical section (from a table of 7 stations), so the tail is soft sideways and stiff vertically. The head is 20× stiffer.</li>
     <li><b>Actuation from inside.</b> The chamber pressure changes the rest curvature of the chamber zone (0.20–0.32 m): κ_rest = −A_r·Δp / B. The drive produces no net force; the centre of mass drifts only 10⁻¹⁵ m in vacuum.</li>
-    <li><b>Hydraulics.</b> The same lumped pump, chamber and valve model as in MuJoCo and SOFA, stepped every 0.2 ms and coupled through the bend angle of the chamber zone.</li>
+    <li><b>Hydraulics.</b> The same constant-speed pump, ±1 valve (relay, 0.2 s dwell), chamber model as in MuJoCo and SOFA, stepped every 0.2 ms and coupled through the bend angle of the chamber zone.</li>
     <li><b>Water.</b> A custom force: quadratic Morison drag per unit length, plus the Lighthill large-amplitude reactive force at the trailing edge. The built-in Stokes slender-body model is kept only to show it is wrong at this Reynolds number (≈1.8·10⁵): its force is ≈400× too small.</li>
     <li><b>Buoyancy and depth.</b> Per-element weight and buoyancy, a righting moment from the centre of gravity sitting below the axis, a bladder, and a cascade depth PID ported from MuJoCo.</li>
     <li><b>Time step.</b> ≈19 µs, from the explicit stability limit of the rod.</li>
@@ -533,10 +552,10 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <tbody>
       <tr><td>Rod</td><td>L 0.40 m, ρ 1050 kg/m³, E 0.5 MPa, ν 0.5, 50 elements</td><td>several rods joined by joints, rigid bodies</td></tr>
       <tr><td>Shape</td><td>half-width and half-height at 7 stations (24 × 34 mm at mid-body), ellipse or circle, stiff head</td><td>any per-element radius and stiffness</td></tr>
-      <tr><td>Hydraulics</td><td>A_eff 4.3·10⁻⁴ m², r_eff 5.5 mm, C_h 4.5·10⁻¹⁰ m³/Pa, p_max 50 kPa, Q_max 160 ml/s, f 2 Hz, A_V 8 ml</td><td>built-in muscle torques, uniform torques</td></tr>
+      <tr><td>Hydraulics</td><td>A_eff 4.3·10⁻⁴ m², r_eff 5.5 mm, C_h 4.5·10⁻¹⁰ m³/Pa, p_max 50 kPa, Q_const 60 ml/s, f 2 Hz, A_V 8 ml</td><td>built-in muscle torques, uniform torques</td></tr>
       <tr><td>Water</td><td>model: none, drag, drag+reactive, stokes_sbt; C_n 1.2, C_t 0.01</td><td>coupling to an immersed-boundary flow solver (SophT)</td></tr>
       <tr><td>Buoyancy and control</td><td>CG 5 mm below the axis, bladder 0–40 ml at 10 ml/s, PID at 100 Hz, depth schedule</td><td>contact and friction with a floor</td></tr>
-      <tr><td>Stage settings</td><td>sweep grids (f 0.5–3 Hz × E ×0.5/1/2), durations, damping type</td><td>other boundary conditions and dampers</td></tr>
+      <tr><td>Stage settings</td><td>sweep grids (f 1.5–2.5 Hz × E ×0.5/1/2), durations, damping type</td><td>other boundary conditions and dampers</td></tr>
     </tbody>
   </table></div>
 
@@ -546,16 +565,16 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <tbody>
       <tr><td>e1 validation</td><td>cantilever vs theory, natural frequency, energy drift for n = 25/50/100</td><td>n = 50: tip error 1.05 %, ω₁ error 1.8 %</td></tr>
       <tr><td>e2 actuation</td><td>bend vs pressure and vs volume; internal-drive check</td><td>8 ml → 15.8 kPa, 0.377 rad</td></tr>
-      <tr><td>e3 tethered</td><td>tip amplitude, phase, thrust and lateral force for each water model</td><td>thrust 149 mN with the reactive force, 5.9 mN with drag only</td></tr>
-      <tr><td>e4 free swim</td><td>speed vs time; body shape over one period; <code>free_swim.gif</code></td><td>44.1 cm/s (1.1 body lengths/s); 17 cm/s with drag only</td></tr>
-      <tr><td>e5 sweep f × E</td><td>speed, Strouhal number, tail natural frequency</td><td>softest tail at 3 Hz: 55 cm/s; f_n 1.89/2.60/3.64 Hz</td></tr>
-      <tr><td>e6 depth</td><td>depth, bladder volume, pitch, roll, speed</td><td>1.0 → 1.5 m settles in 9.9 s, overshoot 23 cm</td></tr>
+      <tr><td>e3 tethered</td><td>tip amplitude, phase, thrust and lateral force for each water model</td><td>thrust 106 mN with the reactive force, 2.5 mN with drag only</td></tr>
+      <tr><td>e4 free swim</td><td>speed vs time; body shape over one period; <code>free_swim.gif</code></td><td>37.0 cm/s (0.93 body lengths/s); 12.1 cm/s with drag only</td></tr>
+      <tr><td>e5 sweep f × E</td><td>speed, Strouhal number, tail natural frequency</td><td>softest tail at 1.5 Hz: 44.5 cm/s; f_n 1.89/2.60/3.64 Hz</td></tr>
+      <tr><td>e6 depth</td><td>depth, bladder volume, pitch, roll, speed</td><td>1.0 → 1.5 m settles in 9.5 s, overshoot 22 cm</td></tr>
     </tbody>
   </table></div>
 
   <figure>
-    <img src="img/pyelastica_free_swim.png" alt="PyElastica free swimming at 2 Hz: speed curves for four water models, with drag+reactive reaching 44.1 cm/s; on the right, the body shape over one period." loading="lazy">
-    <figcaption>Stage 4: the choice of water model decides the result. Without the reactive (Lighthill) force the fish reaches 17 cm/s; the Stokes model gives zero.</figcaption>
+    <img src="img/pyelastica_free_swim.png" alt="PyElastica free swimming at 2 Hz: speed curves for four water models, with drag+reactive reaching 37.0 cm/s; on the right, the body shape over one period." loading="lazy">
+    <figcaption>Stage 4: the choice of water model decides the result. Without the reactive (Lighthill) force the fish reaches 12 cm/s; the Stokes model gives zero.</figcaption>
   </figure>
 
   <h3>Demo stages</h3>
@@ -603,7 +622,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <figure>
       <video controls muted playsinline preload="metadata" poster="img/poster_sofa_flapping.jpg"><source src="media/sofa_flapping.mp4" type="video/mp4"></video>
       <img class="print-only" src="img/poster_sofa_flapping.jpg" alt="">
-      <figcaption><span class="vtag">Video</span>Rendered video from the sofa branch (PyVista, 6.5 s): air and water side by side with the tip angle below, first in real time, then the last cycle 4× slower. Labels are in Polish. <span class="print-only">Video file: <code>docs/media/sofa_flapping.mp4</code> (plays in the HTML version).</span></figcaption>
+      <figcaption><span class="vtag">Video</span>Rendered video from the sofa branch (PyVista, 6.5 s): air and water side by side with the tip angle below, first in real time, then the last cycle 4× slower. <span class="print-only">Video file: <code>docs/media/sofa_flapping.mp4</code> (plays in the HTML version).</span></figcaption>
     </figure>
     <div>
       <figure>
@@ -620,7 +639,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <li><b>Chambers.</b> <code>SurfacePressureConstraint</code> in volume-growth mode: the pump sets the volume, and the constraint solver returns the pressure.</li>
     <li><b>Solver.</b> Implicit Euler, a Gauss–Seidel constraint solver and the CHOLMOD sparse Cholesky factorisation (4–15× faster than LDL). Static curves are found pseudo-statically, holding each point until the motion dies out.</li>
     <li><b>Water.</b> Custom quadratic normal drag and tangential friction on every skin triangle, applied explicitly; the silicone weight is reduced by buoyancy. There is no added mass, lift or wake.</li>
-    <li><b>Hydraulics.</b> A port of the MuJoCo rhythm with pump-lag compensation (without it the volume overshoots by 16 % at 2 Hz), a closed circuit and a 20 ml prefill.</li>
+    <li><b>Hydraulics.</b> A port of the MuJoCo constant-pump hydraulics (±1 valve, relay with 1 ml hysteresis and 0.2 s dwell), a closed circuit and a 20 ml prefill (it must exceed |V_bias| + A_V + a margin).</li>
   </ul>
 
   <h3>Inputs</h3>
@@ -629,7 +648,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <tbody>
       <tr><td>Geometry</td><td>tail 0.20 m, section 60 × 80 mm tapering to 0.4, fin 70 × 120 × 6 mm; two chambers 0.12 m long, 4 mm wall, 4 mm septum (91 ml each)</td><td>any Gmsh, STL, OBJ or VTK mesh; XML <code>.scn</code> scenes</td></tr>
       <tr><td>Material</td><td>E 3·10⁵ Pa, ν 0.45, ρ 1100; spine E × 20; fibers 2·10⁵ N/m every 4 mm</td><td>hyperelastic materials, beams (BeamAdapter)</td></tr>
-      <tr><td>Actuation</td><td>f 2 Hz, A_V 17 ml, prefill 20 ml, Q_max 250 ml/s, p_max 50 kPa</td><td>pressure control, cable actuators, inverse control (SoftRobots.Inverse)</td></tr>
+      <tr><td>Actuation</td><td>f 2 Hz, A_V 13 ml, prefill 20 ml, Q_const 100 ml/s, p_max 50 kPa</td><td>pressure control, cable actuators, inverse control (SoftRobots.Inverse)</td></tr>
       <tr><td>Environment</td><td>air or water; drag coefficients C_n 1.0, C_t 0.01</td><td>contact and collision</td></tr>
       <tr><td>Numerics</td><td>step 2 ms (0.5–1 ms in water), Rayleigh damping, solver cholmod/ldl/cg/warp, mesh level test/coarse/medium/fine</td><td>model order reduction (&gt;100× faster per <a href="https://doi.org/10.1109/TRO.2018.2861900">Goury &amp; Duriez 2018</a>; needs offline training)</td></tr>
       <tr><td>Run control</td><td>environment variables <code>FISHSOFA_LEVEL</code>, <code>_MODE</code>, <code>_ENV</code>, <code>_WORKERS</code></td><td>GUI interaction</td></tr>
@@ -644,15 +663,15 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>s2a design variants</td><td>bend for homogeneous, spine, thick wall, fibers, spine + fibers</td><td>1.3° homogeneous vs 31° for V4</td></tr>
       <tr><td>s2 p–V curve</td><td>pressure and tip angle vs chamber volume, mesh convergence</td><td>50 ml: 16.1 kPa and 15.4° (fine mesh)</td></tr>
       <tr><td>s3 symmetry</td><td>left vs right chamber</td><td>error ≤ 0.75 % in angle</td></tr>
-      <tr><td>s4 flapping in air</td><td>angle, pressures, volume conservation, solver iterations</td><td>±12.7° at 2 Hz, |Δp| ≤ 5.7 kPa</td></tr>
-      <tr><td>s5 water vs air</td><td>amplitude, phase, tethered thrust, lateral force, drag power</td><td>±7.3° in water (0.57× air); thrust 66.7 mN (stage s5; the s6 sweep gives 63 mN at 2 Hz)</td></tr>
-      <tr><td>s6 sweeps, video</td><td>frequency and Young's modulus sweeps; <code>flapping.mp4</code> 1080p60</td><td>max thrust 67.9 mN at 2.25 Hz</td></tr>
+      <tr><td>s4 flapping in air</td><td>angle, pressures, volume conservation, solver iterations</td><td>±7.6° at 2 Hz, |Δp| ≤ 3.6 kPa, 2.2 valve switches per cycle</td></tr>
+      <tr><td>s5 water vs air</td><td>amplitude, phase, tethered thrust, lateral force, drag power</td><td>±5.0° in water (0.63× air); thrust 15.5 mN</td></tr>
+      <tr><td>s6 sweeps, video</td><td>frequency and Young's modulus sweeps; <code>flapping.mp4</code> 1080p60</td><td>max thrust 18.0 mN at 1.75 Hz</td></tr>
     </tbody>
   </table></div>
 
   <figure>
-    <img src="img/sofa_freq_sweep.png" alt="SOFA frequency sweep in water: tip angle falls from 11.8° at 0.5 Hz to 4.3° at 3 Hz; tethered thrust peaks near 68 mN at 2.25 Hz; pressure difference stays below 6 kPa; pump saturates above ≈2.3 Hz." loading="lazy">
-    <figcaption>Stage 6 in water. Amplitude falls steadily with frequency (no resonance in water), thrust peaks at 2.25 Hz, and above ≈2.3 Hz (Q_max/(2π·A_V) ≈ 2.34 Hz) the pump saturates. The thrust comes from a drag model and is qualitative.</figcaption>
+    <img src="img/sofa_freq_sweep.png" alt="SOFA frequency sweep in water, 1.5 to 2.5 Hz: tip angle falls from 6.6° to 3.5°; tethered thrust peaks at 18 mN at 1.75 Hz; pressure difference stays below 4 kPa; the valve switches 2.0 to 2.7 times per cycle." loading="lazy">
+    <figcaption>Stage 6 in water (A_V 13 ml, Q_const 100 ml/s). Amplitude falls from 6.6° at 1.5 Hz to 3.5° at 2.25–2.5 Hz (no resonance in water), thrust peaks at 1.75 Hz (18.0 mN), |Δp| stays ≤ 4 kPa (the relief valve never opens), and the directional valve switches 2.0–2.7 times per cycle (f_track = Q_const/(2π·A_V) ≈ 1.2 Hz lies below the swept range). The thrust comes from a drag model and is qualitative.</figcaption>
   </figure>
 
   <h3>Demo stages</h3>
@@ -663,7 +682,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <li><b>3</b><span>Left/right symmetry (≈3 min)</span></li>
     <li><b>4</b><span>Antagonistic flapping in air (≈25 min)</span></li>
     <li><b>5</b><span>Water vs air, tethered thrust (30–60 min)</span></li>
-    <li><b>6</b><span>Frequency and stiffness sweeps, 19 runs (≈1 h on 12 threads)</span></li>
+    <li><b>6</b><span>Frequency and stiffness sweeps, 13 runs (≈25 min on 9 threads)</span></li>
   </ol>
 
   <h3>Limitations</h3>
@@ -757,7 +776,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <li><b>3</b><span>Passive tail: explicit vs implicit coupling (10 min)</span></li>
     <li><b>4</b><span>Actuated tail in still water vs dry (16–80 min)</span></li>
     <li><b>5</b><span>Inflow at 0.05/0.1/0.2 m/s (≈30 min each)</span></li>
-    <li><b>6</b><span>Frequency sweep 0.5–2 Hz (16–102 min each)</span></li>
+    <li><b>6</b><span>Frequency sweep 0.5–2 Hz (16–102 min each; earlier sine-pump runs, the cases are moved to 1.5–2.5 Hz and the rerun is pending)</span></li>
   </ol>
 
   <h3>Limitations</h3>
@@ -798,8 +817,8 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
         <figcaption><span class="vtag">Screen</span>OMEdit diagram view of <code>FishRobot.Subsystems.TailDrive</code>: battery, H-bridge, motor, pump, pipes, two chambers, relief valves and the tail.</figcaption>
       </figure>
       <figure>
-        <img src="img/openmodelica_plot.jpg" alt="OMEdit plotting view with the fish speed curve rising to 63.7 mm/s" loading="lazy">
-        <figcaption><span class="vtag">Screen</span>OMEdit plotting view after simulating SwimForward: the speed settles at 63.7 mm/s, the same 6.4 cm/s as in the README.</figcaption>
+        <img src="img/openmodelica_plot.jpg" alt="OMEdit plotting view with the fish speed curve settling at 143 mm/s" loading="lazy">
+        <figcaption><span class="vtag">Screen</span>OMEdit plotting view after simulating SwimForward (1.5 Hz): the speed settles at 143 mm/s, the same 14.3 cm/s as in the README.</figcaption>
       </figure>
     </div>
   </div>
@@ -807,7 +826,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <h3>How it works</h3>
   <ul>
     <li><b>Acausal components.</b> Parts are joined by physical connectors. The custom hydraulic port carries pressure p and flow V_flow, whose product is power. The compiler sorts the equations itself, so there is no input/output wiring.</li>
-    <li><b>Drive chain.</b> 2S LiPo battery 7.4 V → H-bridge → DC motor → gear pump (Q = D·ω − k_leak·Δp) → pipes (laminar plus Haaland turbulent friction, minor losses) → chambers with a nonlinear p–V table → relief valves.</li>
+    <li><b>Drive chain.</b> 2S LiPo battery 7.4 V → H-bridge → DC motor → gear pump (Q = D·ω − k_leak·Δp) → pipes (laminar plus Haaland turbulent friction, minor losses) → two 3/2 directional valves (two states, ±1) → chambers with a nonlinear p–V table → relief valves. The motor runs at full voltage and the pump is constant-flow (≈33 ml/s loaded).</li>
     <li><b>Tail and fin.</b> The tail is a rotary piston with one degree of freedom: (J + J_added)·θ̈ = τ − kθ − cθ̇ − c_h|θ̇|θ̇. Thrust comes from Lighthill's rigid-fin formula and drives a surge equation.</li>
     <li><b>Ballast.</b> A motor and lead screw drive a syringe piston; a heave equation and a cascade depth PID close the loop.</li>
     <li><b>Energy.</b> Every loss is integrated, and the balance closes to ≈10⁻⁶.</li>
@@ -822,7 +841,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>Hydraulic</td><td>pump 0.3 ml/rev, leakage, η 0.8; pipe 0.2 m × 4 mm, ζ 1.5, roughness 25 µm; valve 50 kPa; chamber p–V table (11 points or a CSV file)</td><td><code>Modelica.Fluid</code> and media, compressible or two-phase (a variant is already in <code>HydraulicsFluid/</code>)</td></tr>
       <tr><td>Tail and fin</td><td>displacement 2·10⁻⁵ m³/rad, k 2 N·m/rad, inertia, added inertia, damping; fin span 0.06 m, C_T 1.0</td><td>a p–V curve from SOFA or from measurement</td></tr>
       <tr><td>Body and ballast</td><td>m 1 kg, added mass, C_d 0.3, area 0.005 m²; syringe 20 mm × 40 mm (12.5 ml), lead 1 mm</td><td>multibody library for 3D motion</td></tr>
-      <tr><td>Control</td><td>CPG amplitude 0.8, 1.5 Hz, bias; depth PID gains</td><td>any block-diagram controller</td></tr>
+      <tr><td>Control</td><td>V_ref amplitude 4 ml, 1.5–2.5 Hz, relay δ 1 ml, dwell 0.2 s; depth PID gains</td><td>any block-diagram controller</td></tr>
       <tr><td>Measured data</td><td>CSV files for <code>calibrate.py</code>: motor step, pump, pipe, chamber cycles, valve, tail, thrust, hull tow and coast-down, ballast</td><td>tables from <code>.mat</code>/<code>.txt</code>, FMU import</td></tr>
       <tr><td>Run time</td><td><code>-override</code> parameters, OMEdit modifiers</td><td>solver choice: DASSL, IDA, CVODE, Euler</td></tr>
     </tbody>
@@ -833,8 +852,8 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <thead><tr><th>Output</th><th>Content</th><th>Example value</th></tr></thead>
     <tbody>
       <tr><td>Time series (.mat)</td><td>every variable: p_L, p_R, flows, currents, motor speed, θ, thrust, speed, depth, ballast volume</td><td>valve opens at ≈51 kPa (HydraulicsStep)</td></tr>
-      <tr><td>Energy budget</td><td>loss per component, mechanical output, stored energy, balance error</td><td>1.8 W at 1 Hz → ≈9.1 h on 16.3 Wh</td></tr>
-      <tr><td>Swimming</td><td>surge speed, thrust, battery power vs frequency</td><td>best 8.5 cm/s at 0.5 Hz; 16.6 W at 4 Hz (different scenarios from the 6.4 cm/s at 1.5 Hz and 7.3 cm/s at 2 Hz, so not one series)</td></tr>
+      <tr><td>Energy budget</td><td>loss per component, mechanical output, stored energy, balance error</td><td>1.8 W at 1.5 Hz → ≈9.0 h on 16.3 Wh</td></tr>
+      <tr><td>Swimming</td><td>surge speed, thrust, battery power vs frequency</td><td>13.3–14.9 cm/s over 1.5–2.5 Hz (14.3 at 1.5 Hz, 13.3 at 2 Hz), 1.76–1.78 W; 2.7 valve switches per cycle at 1.5 Hz, 2.0 above</td></tr>
       <tr><td>Depth control</td><td>depth, piston position, current</td><td>3 cm/s descent, 6 % overshoot, 5 mm error</td></tr>
       <tr><td>FMU</td><td><code>TailDrive.fmu</code> (linux64, 1.8 MB) + comparison with OpenModelica</td><td>difference 0.016 % of amplitude</td></tr>
       <tr><td>Calibration reports</td><td>fitted parameters with 1σ uncertainty and correlation matrix</td><td>e.g. hull C_d 0.402 ± 0.9 % (synthetic data)</td></tr>
@@ -842,18 +861,18 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   </table></div>
 
   <figure>
-    <div class="ebar" role="img" aria-label="Energy loss shares at 1 Hz: motor winding 78.5 %, pipes 9.3 %, motor bearings 8.4 %, pump friction 2.7 %, battery 0.8 %, tail 0.1 %.">
-      <span class="e1" style="width:78.5%"></span><span class="e2" style="width:9.3%"></span><span class="e3" style="width:8.4%"></span><span class="e4" style="width:2.7%"></span><span class="e5" style="width:0.8%"></span><span class="e6" style="width:0.1%"></span>
+    <div class="ebar" role="img" aria-label="Energy loss shares at 1.5 Hz with the constant pump: pipes 42.1 %, motor bearings 28.2 %, pump friction 13.2 %, directional valves 8.3 %, motor winding 4.4 %, tail 1.3 %.">
+      <span class="e2" style="width:42.1%"></span><span class="e3" style="width:28.2%"></span><span class="e4" style="width:13.2%"></span><span class="e5" style="width:8.3%"></span><span class="e1" style="width:4.4%"></span><span class="e6" style="width:1.3%"></span>
     </div>
     <div class="ekey">
-      <span><i class="e1" style="background:var(--t-om)"></i>motor winding 78.5 %</span>
-      <span><i style="background:var(--t-of)"></i>pipes 9.3 %</span>
-      <span><i style="background:var(--t-mj)"></i>motor bearings 8.4 %</span>
-      <span><i style="background:var(--t-so)"></i>pump friction 2.7 %</span>
-      <span><i style="background:var(--t-sf)"></i>battery 0.8 %</span>
-      <span><i style="background:var(--t-pe)"></i>tail 0.1 %</span>
+      <span><i style="background:var(--t-of)"></i>pipes 42.1 %</span>
+      <span><i style="background:var(--t-mj)"></i>motor bearings 28.2 %</span>
+      <span><i style="background:var(--t-so)"></i>pump friction 13.2 %</span>
+      <span><i style="background:var(--t-sf)"></i>directional valves 8.3 %</span>
+      <span><i class="e1" style="background:var(--t-om)"></i>motor winding 4.4 %</span>
+      <span><i style="background:var(--t-pe)"></i>tail 1.3 %</span>
     </div>
-    <figcaption>Where the energy goes (EnergyBudget scenario: 60 s at 1 Hz, 1.8 W). With placeholder parameters the motor is oversized, so its winding dominates. In SwimForward only ≈0.01 % of battery energy becomes useful propulsion work. The demo commits no plots; they are generated by the scripts.</figcaption>
+    <figcaption>Where the energy goes (EnergyBudget scenario: 60 s at 1.5 Hz, 1.8 W). With the earlier reversing pump the motor winding took 78.5 %. With the constant pump the losses move from reversing the rotor to pushing the full flow all the time. In SwimForward ≈0.1 % of battery energy becomes useful propulsion work. The demo commits no plots; they are generated by the scripts.</figcaption>
   </figure>
 
   <h3>Demo stages</h3>
@@ -1030,15 +1049,15 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   </table></div>
 
   <h3>Same fish, different speeds: why</h3>
-  <p>At about 2 Hz the three free-swimming demos give speeds that differ by 2×. The difference comes from where each tool gets its thrust.</p>
+  <p>At about 2 Hz the three free-swimming demos give speeds that differ by 1.6×. The difference comes from where each tool gets its thrust.</p>
   <div class="tbl"><table>
     <thead><tr><th>Tool</th><th class="num">Speed near 2 Hz</th><th>Main source of thrust in the model</th></tr></thead>
     <tbody>
-      <tr><th><span class="dot mj"></span> MuJoCo</th><td class="num">22 cm/s</td><td>Kutta lift on ellipsoids from the built-in model</td></tr>
-      <tr><th><span class="dot sf"></span> Stonefish</th><td class="num">34 cm/s</td><td>flat-plate fin lift added in C++</td></tr>
-      <tr><th><span class="dot pe"></span> PyElastica</th><td class="num">44 cm/s</td><td>Lighthill reactive force at the trailing edge</td></tr>
-      <tr><th><span class="dot om"></span> OpenModelica</th><td class="num">7.3 cm/s</td><td>Lighthill rigid fin on a 1-DOF tail (only 3.4° amplitude at 2 Hz)</td></tr>
-      <tr><th><span class="dot so"></span> SOFA</th><td class="num">tethered</td><td>drag on skin triangles: 63 mN at 2 Hz</td></tr>
+      <tr><th><span class="dot mj"></span> MuJoCo</th><td class="num">23 cm/s</td><td>Kutta lift on ellipsoids from the built-in model</td></tr>
+      <tr><th><span class="dot sf"></span> Stonefish</th><td class="num">34.5 cm/s</td><td>flat-plate fin lift added in C++</td></tr>
+      <tr><th><span class="dot pe"></span> PyElastica</th><td class="num">37 cm/s</td><td>Lighthill reactive force at the trailing edge</td></tr>
+      <tr><th><span class="dot om"></span> OpenModelica</th><td class="num">13.3 cm/s</td><td>Lighthill rigid fin on a 1-DOF tail (only 6.2° amplitude at 2 Hz)</td></tr>
+      <tr><th><span class="dot so"></span> SOFA</th><td class="num">tethered</td><td>drag on skin triangles: 13 mN at 2 Hz</td></tr>
       <tr><th><span class="dot of"></span> OpenFOAM FSI</th><td class="num">tethered</td><td>resolved flow: net drag with this tail shape</td></tr>
     </tbody>
   </table></div>

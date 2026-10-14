@@ -216,7 +216,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <span>Wersja: 9 października 2026</span>
     <span>Język: PL (dostępna wersja EN)</span>
   </div>
-  <div class="callout"><strong>Liczby pokazują mechanizmy, a nie ranking.</strong> Każdy parametr fizyczny w sześciu demach jest wartością zastępczą (placeholder), niezidentyfikowaną na prawdziwym robocie. Dema używają też różnych zestawów parametrów (np. komora w SOFA ma 91 ml, w MuJoCo 30 ml). Prędkość 22 cm/s w jednym narzędziu i 44 cm/s w innym mówi, jaką fizykę każde z nich uwzględnia, a nie które jest dokładniejsze.</div>
+  <div class="callout"><strong>Liczby pokazują mechanizmy, a nie ranking.</strong> Każdy parametr fizyczny w sześciu demach jest wartością zastępczą (placeholder), niezidentyfikowaną na prawdziwym robocie. Dema używają też różnych zestawów parametrów (np. komora w SOFA ma 91 ml, w MuJoCo 30 ml). Prędkość 23 cm/s w jednym narzędziu i 37 cm/s w innym mówi, jaką fizykę każde z nich uwzględnia, a nie które jest dokładniejsze.</div>
 </header>
 
 <section id="summary">
@@ -254,39 +254,56 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <p>Wszystkie sześć dem modeluje tę samą koncepcję robota: rybę z miękkim silikonowym ogonem zginanym przez wodę przepompowywaną między dwiema komorami. Znajomość tej pętli ułatwia czytanie tabel wejść w rozdziale 3.</p>
   <figure>
     <div class="diagram">
-      <svg viewBox="0 0 800 300" role="img" aria-label="Zamknięta pętla hydrauliczna: generator rytmu steruje pompą, która przetłacza wodę z komory R do komory L; zawór przelewowy między nimi otwiera się przy 50 kPa; różnica ciśnień zgina silikonowy ogon.">
+      <svg viewBox="0 0 800 300" role="img" aria-label="Obwód hydrauliczny: generator rytmu z przekaźnikiem wysyła sygnał s = ±1 do dwóch zaworów kierunkowych 3/2 (po jednym na komorę, sterowanych przeciwsobnie); pompa o stałych obrotach Q_const łączy każdą komorę z wylotem P albo wlotem T pompy; zawór przelewowy otwiera się przy 50 kPa; różnica ciśnień zgina silikonowy ogon.">
         <defs>
           <marker id="ah1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-head"/></marker>
+          <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-whead"/></marker>
         </defs>
-        <rect class="d-soft" x="16" y="119" width="214" height="62" rx="8"/>
-        <text class="d-b" x="123" y="144" text-anchor="middle">Generator rytmu (CPG)</text>
-        <text class="d-t" x="123" y="165" text-anchor="middle">V_ref = A_V·sin(2πft) + V_bias</text>
-        <line class="d-line" x1="230" y1="150" x2="296" y2="150" marker-end="url(#ah1)"/>
-        <text class="d-m" x="263" y="141" text-anchor="middle">u</text>
-        <rect class="d-box" x="300" y="120" width="120" height="60" rx="8"/>
-        <text class="d-b" x="360" y="146" text-anchor="middle">Pompa</text>
-        <text class="d-m" x="360" y="166" text-anchor="middle">Q_max, τ_pump</text>
-        <polyline class="d-line" points="360,120 360,60 612,60 612,78" marker-end="url(#ah1)"/>
-        <polyline class="d-line" points="612,222 612,240 360,240 360,180" marker-end="url(#ah1)"/>
-        <text class="d-t" x="490" y="52" text-anchor="middle">V_p: woda R → L</text>
-        <line class="d-line" x1="470" y1="60" x2="470" y2="130"/>
-        <line class="d-line" x1="470" y1="170" x2="470" y2="240"/>
-        <rect class="d-box" x="446" y="130" width="48" height="40" rx="4"/>
-        <text class="d-t" x="470" y="155" text-anchor="middle">zawór</text>
-        <text class="d-m" x="540" y="262" text-anchor="end">zawór przelewowy: otwiera się przy |Δp| = 50 kPa</text>
+        <rect class="d-soft" x="16" y="106" width="214" height="88" rx="8"/>
+        <text class="d-b" x="123" y="132" text-anchor="middle">Generator rytmu (CPG)</text>
+        <text class="d-t" x="123" y="152" text-anchor="middle">V_ref = A_V·sin(2πft) + V_bias</text>
+        <text class="d-t" x="123" y="176" text-anchor="middle">przekaźnik → s = ±1</text>
+        <polyline class="d-dash" points="123,106 123,22 498,22 498,70" marker-end="url(#ah2)"/>
+        <polyline class="d-dash" points="123,194 123,276 498,276 498,230" marker-end="url(#ah2)"/>
+        <text class="d-w" x="310" y="16" text-anchor="middle">s = ±1</text>
+        <text class="d-w" x="310" y="270" text-anchor="middle">−s</text>
+        <text class="d-m" x="250" y="52">P = wylot pompy, T = wlot pompy</text>
+        <text class="d-m" x="250" y="68">s = +1: L–P, R–T  ·  s = −1: L–T, R–P</text>
+        <rect class="d-box" x="270" y="120" width="100" height="60" rx="8"/>
+        <text class="d-b" x="320" y="142" text-anchor="middle">Pompa</text>
+        <text class="d-m" x="320" y="158" text-anchor="middle">Q_const</text>
+        <text class="d-m" x="320" y="172" text-anchor="middle">stała prędkość</text>
+        <line class="d-line" x1="370" y1="140" x2="410" y2="140"/>
+        <line class="d-line" x1="410" y1="115" x2="410" y2="185"/>
+        <line class="d-line" x1="370" y1="160" x2="435" y2="160"/>
+        <line class="d-line" x1="435" y1="85" x2="435" y2="215"/>
+        <circle class="d-head" cx="410" cy="140" r="3"/><circle class="d-head" cx="435" cy="160" r="3"/>
+        <line class="d-line" x1="435" y1="85" x2="466" y2="85"/><line class="d-line" x1="410" y1="115" x2="466" y2="115"/>
+        <line class="d-line" x1="410" y1="185" x2="466" y2="185"/><line class="d-line" x1="435" y1="215" x2="466" y2="215"/>
+        <text class="d-m" x="446" y="82">T</text><text class="d-m" x="446" y="112">P</text>
+        <text class="d-m" x="446" y="182">P</text><text class="d-m" x="446" y="212">T</text>
+        <rect class="d-box" x="466" y="70" width="64" height="60" rx="6"/>
+        <text class="d-b" x="498" y="94" text-anchor="middle">zawór L</text>
+        <text class="d-t" x="498" y="109" text-anchor="middle">3/2</text>
+        <text class="d-m" x="498" y="123" text-anchor="middle">τ_valve</text>
+        <rect class="d-box" x="466" y="170" width="64" height="60" rx="6"/>
+        <text class="d-b" x="498" y="194" text-anchor="middle">zawór R</text>
+        <text class="d-t" x="498" y="209" text-anchor="middle">3/2</text>
+        <text class="d-m" x="498" y="223" text-anchor="middle">τ_valve</text>
+        <line class="d-line" x1="530" y1="100" x2="572" y2="100" marker-end="url(#ah1)"/>
+        <line class="d-line" x1="530" y1="200" x2="572" y2="200" marker-end="url(#ah1)"/>
+        <text class="d-m" x="484" y="252" text-anchor="end">zawór przelewowy: otwiera się przy |Δp| = 50 kPa</text>
         <path class="d-box" d="M560,30 L720,100 L720,200 L560,270 Z"/>
         <rect class="d-soft" x="572" y="80" width="80" height="60" rx="6"/>
         <rect class="d-soft" x="572" y="160" width="80" height="60" rx="6"/>
-        <text class="d-b" x="612" y="106" text-anchor="middle">komora L</text>
-        <text class="d-m" x="612" y="124" text-anchor="middle">p_L</text>
-        <text class="d-b" x="612" y="186" text-anchor="middle">komora R</text>
-        <text class="d-m" x="612" y="204" text-anchor="middle">p_R</text>
+        <text class="d-b" x="612" y="106" text-anchor="middle">komora L</text><text class="d-m" x="612" y="124" text-anchor="middle">p_L</text>
+        <text class="d-b" x="612" y="186" text-anchor="middle">komora R</text><text class="d-m" x="612" y="204" text-anchor="middle">p_R</text>
         <rect class="d-box" x="720" y="146" width="56" height="8" rx="2"/>
         <text class="d-m" x="748" y="138" text-anchor="middle">płetwa</text>
         <text class="d-t" x="640" y="292" text-anchor="middle">silikonowy ogon (widok z góry)</text>
       </svg>
     </div>
-    <figcaption>Wspólna pętla hydrauliczna. Pompa przetłacza objętość V_p z komory R do komory L w obiegu zamkniętym; różnica ciśnień Δp = p_L − p_R zgina ogon. Generator rytmu zadaje objętość (a nie przepływ), a przesunięcie V_bias powoduje skręt. Głębokość jest regulowana osobno: PID ustawia objętość pęcherza balastowego (MuJoCo, PyElastica), zbiornika VBS (Stonefish) lub strzykawki (OpenModelica).</figcaption>
+    <figcaption>Wspólna pętla hydrauliczna. Pompa o stałych obrotach zasila dwa zawory kierunkowe 3/2, po jednym na komorę, sterowane przeciwsobnie sygnałem ±1 z przekaźnika przy generatorze rytmu; różnica ciśnień Δp = p_L − p_R zgina ogon. Przepływ to zawsze ±Q_const, bez stanu zamkniętego; przekaźnik z histerezą 1 ml i minimalnym czasem stanu 0,2 s przełącza zawory tak, by objętość podążała za zadaną przez generator rytmu (a nie przepływem), w zakresie 1,5–2,5 Hz. Przesunięcie V_bias powoduje skręt. Głębokość jest regulowana osobno: PID ustawia objętość pęcherza balastowego (MuJoCo, PyElastica), zbiornika VBS (Stonefish) lub strzykawki (OpenModelica).</figcaption>
   </figure>
 
   <h3>Te same wielkości, inaczej ustawione w każdym demie</h3>
@@ -295,8 +312,8 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <tbody>
       <tr><th>Ciało</th><td>kadłub-elipsoida 25×10×10 cm</td><td>jak w MuJoCo</td><td>cała ryba = pręt 0,40 m</td><td>brak (ogon utwierdzony)</td><td>głowa 2D, pół-elipsa 60 mm, nieruchoma</td><td>masa skupiona 1 kg</td></tr>
       <tr><th>Ogon</th><td>5 sztywnych segmentów × 40 mm, 3 napędzane</td><td>5 sztywnych segmentów × 40 mm</td><td>ciągły, strefa komór 0,20–0,32 m</td><td>MES 3D, 0,20 m</td><td>MES 2D, 0,15 m</td><td>1 obrotowy stopień swobody</td></tr>
-      <tr><th>Wydajność pompy Q_max</th><td class="num">60 ml/s</td><td class="num">60 ml/s</td><td class="num">160 ml/s</td><td class="num">250 ml/s</td><td>brak (zadane ciśnienie)</td><td class="num">0,3 ml na obrót</td></tr>
-      <tr><th>Amplituda objętości A_V</th><td class="num">8 ml</td><td class="num">8 ml</td><td class="num">8 ml</td><td class="num">17 ml</td><td class="num">P0 = 15 kPa</td><td>wypełnienie CPG A = 0,8</td></tr>
+      <tr><th>Stała wydajność pompy Q_const</th><td class="num">60 ml/s</td><td class="num">60 ml/s</td><td class="num">60 ml/s</td><td class="num">100 ml/s</td><td>brak (zadane ciśnienie)</td><td class="num">0,3 ml na obrót</td></tr>
+      <tr><th>Amplituda objętości A_V</th><td class="num">8 ml</td><td class="num">8 ml</td><td class="num">8 ml</td><td class="num">13 ml</td><td class="num">P0 = 15 kPa</td><td>wypełnienie CPG A = 0,8</td></tr>
       <tr><th>Ciśnienie otwarcia zaworu</th><td class="num">50 kPa</td><td class="num">50 kPa</td><td class="num">50 kPa</td><td class="num">50 kPa</td><td>brak</td><td class="num">50 kPa</td></tr>
       <tr><th>Balast</th><td>pęcherz 0–40 ml</td><td>VBS 0,5–40,5 ml</td><td>pęcherz 0–40 ml</td><td>brak</td><td>brak</td><td>strzykawka 12,5 ml</td></tr>
     </tbody>
@@ -343,9 +360,9 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li><b>Ciało.</b> Kadłub to elipsoida na przegubie swobodnym. Ogon to pięć elipsoid na zawiasach ze sprężynami i tłumikami, czyli przybliżenie silikonu modelem pseudo-sztywnym. Płetwa ogonowa to płaska elipsoida na ostatnim segmencie.</li>
     <li><b>Woda.</b> Wbudowany model elipsoidalny MuJoCo daje opór czołowy i boczny, opór obrotowy, siłę nośną Kutty i siłę Magnusa dla każdej części. Nie ma pola przepływu.</li>
-    <li><b>Masa dodana, poprawiona.</b> MuJoCo stosuje tylko żyroskopową część siły masy dodanej: kod źródłowy (<code>engine_passive.c</code>) pomija człon z przyspieszeniem, który pokazuje dokumentacja. Sama ta część hamowała rybę (4,5 cm/s zamiast 22 cm/s). Demo ją wyłącza i dodaje masę dodaną jako <code>armature</code> przegubów.</li>
+    <li><b>Masa dodana, poprawiona.</b> MuJoCo stosuje tylko żyroskopową część siły masy dodanej: kod źródłowy (<code>engine_passive.c</code>) pomija człon z przyspieszeniem, który pokazuje dokumentacja. Sama ta część pchała rybę do tyłu (5,1 cm/s zamiast 23 cm/s). Demo ją wyłącza i dodaje masę dodaną jako <code>armature</code> przegubów.</li>
     <li><b>Wyporność.</b> MuJoCo nie liczy wyporu. Demo przykłada go do każdej bryły, ze środkiem wyporu stałym w układzie kadłuba, więc przechył daje moment prostujący. Masa kadłuba jest wyliczana z neutralnej pływalności przy pęcherzu wypełnionym do połowy.</li>
-    <li><b>Hydraulika.</b> Model w Pythonie działa przed każdym krokiem fizyki: pompa pierwszego rzędu, Δp = (V_p − A·r·θ_w)/C_h, gdzie θ_w = Σ wᵢ·θᵢ to ważony kąt zgięcia trzech przegubów (w rad), obcięte do ±50 kPa, i siła cięgna F = A·r·Δp rozłożona na trzy napędzane przeguby z wagami od 1 do 0,4.</li>
+    <li><b>Hydraulika.</b> Model w Pythonie działa przed każdym krokiem fizyki: pompa o stałych obrotach z dwustanowym zaworem ±1 (dQ/dt = (s·Q_const − Q)/τ_valve; s ustawia przekaźnik z histerezą 1 ml i minimalnym czasem stanu 0,2 s), Δp = (V_p − A·r·θ_w)/C_h, gdzie θ_w = Σ wᵢ·θᵢ to ważony kąt zgięcia trzech przegubów (w rad), obcięte do ±50 kPa, i siła cięgna F = A·r·Δp rozłożona na trzy napędzane przeguby z wagami od 1 do 0,4.</li>
     <li><b>Sterowanie.</b> Objętościowy generator rytmu dla ogona i kaskadowy PID głębokości ustawiający objętość pęcherza, za nim pompa balastu z ograniczeniem wydajności.</li>
   </ul>
 
@@ -357,7 +374,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>Geometria</td><td>kadłub-elipsoida 0,25 × 0,10 × 0,10 m; 5 segmentów ogona × 40 mm zwężanych do 0,4; płetwa 70 × 6 × 120 mm</td><td>pliki MJCF lub URDF, siatki STL/OBJ</td></tr>
       <tr><td>Przeguby</td><td>±35°, sztywność napędzanych 0,3 N·m/rad, sztywność pasywnych z rezonansu 3 Hz, tłumienie 0,005 N·m·s/rad</td><td>dowolne typy przegubów, cięgna, więzy równościowe</td></tr>
       <tr><td>Model wody</td><td><code>fluidcoef</code> = blunt 0,5, slender 0,25, angular 1,5, Kutta 1,0, Magnus 1,0; tryb masy dodanej</td><td>odkształcalne bryły <code>flex</code> (zaobserwowane: model płynu ich nie uwzględniał; dokumentacja tego nie mówi)</td></tr>
-      <tr><td>Hydraulika</td><td>A_eff 4·10⁻⁴ m², r_eff 0,05 m, C_h 8·10⁻¹¹ m³/Pa, p_max 50 kPa, komora 30 ml, Q_max 60 ml/s, τ_pump 30 ms</td><td>dowolny model w Pythonie sprzężony przez <code>ctrl</code></td></tr>
+      <tr><td>Hydraulika</td><td>A_eff 4·10⁻⁴ m², r_eff 0,05 m, C_h 8·10⁻¹¹ m³/Pa, p_max 50 kPa, komora 30 ml, Q_const 60 ml/s, τ_valve 20 ms, przekaźnik δ 1 ml, czas stanu 0,2 s</td><td>dowolny model w Pythonie sprzężony przez <code>ctrl</code></td></tr>
       <tr><td>Balast i sterowanie</td><td>pęcherz 0–40 ml przy 10 ml/s; wzmocnienia PID głębokości; ogon 2 Hz, A_V 8 ml, V_bias, K_v 10 s⁻¹</td><td>czujniki (IMU, siła, dotyk), kamery, wsady GPU (MJX) do uczenia ze wzmocnieniem</td></tr>
       <tr><td>Wejście na żywo</td><td>klawisze podglądu: ←/→ V_bias ±0,5 ml, ↑/↓ częstotliwość ±0,25 Hz, PgUp/PgDn głębokość ±0,25 m, spacja start/stop</td><td>dowolny callback w Pythonie</td></tr>
     </tbody>
@@ -367,19 +384,19 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <div class="tbl"><table class="io">
     <thead><tr><th>Wynik</th><th>Zawartość</th><th>Przykładowa wartość</th></tr></thead>
     <tbody>
-      <tr><td>s1 pływanie prosto</td><td>CSV + PNG: prędkość, pięć kątów przegubów, p_L, p_R, Δp, siła cięgna, sterowanie pompy</td><td>≈22 cm/s przy 2 Hz po ≈2 s</td></tr>
-      <tr><td>s2 woda wł./wył.</td><td>prędkość z wodą, bez wody, z domyślną masą dodaną MuJoCo</td><td>22 / 0 / 4,5 cm/s</td></tr>
-      <tr><td>s3 skręt</td><td>trajektorie XY dla V_bias od −3 do +3 ml</td><td>±3 ml: 6,3°/s przy ≈21 cm/s, promień ≈1,9 m</td></tr>
+      <tr><td>s1 pływanie prosto</td><td>CSV + PNG: prędkość, pięć kątów przegubów, p_L, p_R, Δp, siła cięgna, sterowanie pompy</td><td>≈23 cm/s przy 2 Hz po ≈2 s</td></tr>
+      <tr><td>s2 woda wł./wył.</td><td>prędkość z wodą, bez wody, z domyślną masą dodaną MuJoCo</td><td>23 / 0 / 5,1 cm/s</td></tr>
+      <tr><td>s3 skręt</td><td>trajektorie XY dla V_bias od −3 do +3 ml</td><td>±3 ml: 6,6°/s, promień ≈2,1 m</td></tr>
       <tr><td>s4 skoki głębokości</td><td>głębokość, wartość zadana, objętość pęcherza, pochylenie</td><td>1 m w ≈35 s płynąc, ≈6 s w zawisie; przeregulowanie ≈3 cm</td></tr>
-      <tr><td>s5 przegląd częstotliwości</td><td>prędkość, amplitudy, nasycenie pompy dla 0,5–3 Hz</td><td>maksimum 23,6 cm/s przy 1,5 Hz</td></tr>
+      <tr><td>s5 przegląd częstotliwości</td><td>prędkość, amplituda ogona, przełączenia zaworu na cykl dla 1,5–2,5 Hz</td><td>maksimum 24,6 cm/s przy 1,75 Hz; 18,9 cm/s przy 2,5 Hz</td></tr>
       <tr><td>s6 prostowanie</td><td>przechył, pochylenie i głębokość po przechyle 30°</td><td>pion w ≈0,3 s</td></tr>
       <tr><td>Raport modelu</td><td>tekst: masy, objętości, wypór netto, CG/CB, zapasy stabilności kroku czasowego</td><td>dryf w zawisie 0,000 cm w 5 s</td></tr>
     </tbody>
   </table></div>
 
   <figure>
-    <img src="img/mujoco_sweep.png" alt="Przegląd częstotliwości w MuJoCo: prędkość rośnie do 23,6 cm/s przy 1,5 Hz i spada do 13,4 cm/s przy 3 Hz; amplitudy ogona na prawej osi." loading="lazy">
-    <figcaption>Etap 6, przegląd częstotliwości. Prędkość osiąga maksimum przy 1,5 Hz, tuż powyżej 1,19 Hz, gdzie pompa zaczyna się nasycać.</figcaption>
+    <img src="img/mujoco_sweep_PL.png" alt="Przegląd częstotliwości w MuJoCo: prędkość ma maksimum 24,6 cm/s przy 1,75 Hz i spada do 18,9 cm/s przy 2,5 Hz; amplitudy ogona na prawej osi." loading="lazy">
+    <figcaption>Etap 6, przegląd częstotliwości. Prędkość osiąga maksimum przy 1,75 Hz (24,6 cm/s). Powyżej f_track = Q_const/(2π·A_V) = 1,19 Hz zawór przełącza się tylko w szczytach, dokładnie dwa razy na cykl w całym zakresie 1,5–2,5 Hz.</figcaption>
   </figure>
 
   <h3>Etapy dema</h3>
@@ -395,7 +412,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li>Brak symulacji przepływu: brak śladu, wirów i oddziaływania części ciała przez wodę.</li>
     <li>Diagonalna masa dodana, liczona raz dla prostego ogona, więc ryba przyspiesza za szybko.</li>
-    <li>Ogon to sztywne segmenty, a nie kontinuum. Hydraulika jest liniowa (stałe C_h, idealny zawór, bez strat).</li>
+    <li>Ogon to sztywne segmenty, a nie kontinuum. Hydraulika jest liniowa (stałe C_h, idealny zawór dwustanowy z opóźnieniem pierwszego rzędu, bez strat; przy stałej pompie skok wynika z częstotliwości i nie da się go ustawić niezależnie).</li>
     <li>Brak fal i swobodnej powierzchni; przy powierzchni wypór jest wygaszany w paśmie ±5 cm jako łata.</li>
   </ul>
 </section>
@@ -435,7 +452,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li><b>Ciało.</b> Głowa i pięć ogniw ogona na przegubach obrotowych oraz płetwa. Siatki generuje <code>make_meshes.py</code> (320 trójkątów do fizyki, 5120 do wyświetlania), który też bilansuje masę i dobiera stalowy balast.</li>
     <li><b>Woda z geometrii.</b> Wypór liczony jest z ciśnienia hydrostatycznego na każdym trójkącie. Opór ciśnieniowy działa na każdą ściankę, tarcie wzdłuż powierzchni, a masa dodana pochodzi z automatycznie dopasowanej kuli, walca lub elipsoidy.</li>
-    <li><b>Poprawki w C++.</b> Opór ścianek nie daje siły nośnej, więc <code>FinLift.cpp</code> dodaje siłę nośną płaskiej płyty na płetwie. Bez niej ryba osiąga tylko 2,7 cm/s zamiast 34 cm/s. Tarcie z biblioteki było ≈250× za duże i zastąpiono je prawem Blasiusa.</li>
+    <li><b>Poprawki w C++.</b> Opór ścianek nie daje siły nośnej, więc <code>FinLift.cpp</code> dodaje siłę nośną płaskiej płyty na płetwie. Bez niej ryba osiąga tylko 2,5 cm/s zamiast 34,5 cm/s. Tarcie z biblioteki było ≈250× za duże i zastąpiono je prawem Blasiusa.</li>
     <li><b>Napęd.</b> <code>Hydraulics.cpp</code> zawiera ten sam skupiony model pompy i komór co MuJoCo. <code>TailDriver.cpp</code> przykłada momenty τ_i = w_i·F − k_i·θ_i jako napęd wewnętrzny (akcja równa reakcji).</li>
     <li><b>Czujniki i sterowanie.</b> Czujnik ciśnienia (50 Hz, σ 50 Pa) i IMU (100 Hz) są zaszumione. PID głębokości czyta filtrowane ciśnienie i ustawia objętość wody w VBS; regulator PI kursu na odchyleniu z IMU ustawia V_bias.</li>
     <li><b>Ocean.</b> Dno, słupki jako punkty odniesienia, typ wody i jednorodny prąd.</li>
@@ -448,7 +465,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>Plik konfiguracji</td><td><code>config/default.json</code>, łatki scenariuszy <code>sN_*.json</code>, pojedyncze nadpisania <code>--set klucz=wartość</code> (bez rekompilacji)</td><td>dowolny parametr udostępniony przez aplikację</td></tr>
       <tr><td>Scenariusz XML</td><td><code>fish_base.scn</code>: ogniwa, przeguby, silniki, VBS, czujnik ciśnienia, IMU, enkodery; <code>world_base.scn</code>: dno, ocean, prąd</td><td>fale geometryczne (liczone na GPU; oddziaływanie z bryłami wciąż eksperymentalne), inne typy prądów, własne współczynniki hydrodynamiczne</td></tr>
       <tr><td>Geometria i materiały</td><td>siatki OBJ; gęstość kadłuba 600, silikon 1100, stalowy balast 7850 kg/m³ (dobierany automatycznie)</td><td>dowolna geometria OBJ</td></tr>
-      <tr><td>Hydraulika i rytm</td><td>te same wartości co w MuJoCo: Q_max 60 ml/s, A_V 8 ml, f 2 Hz, p_max 50 kPa; nachylenie siły nośnej płetwy 2,8/rad</td><td>pędniki, stery, serwa</td></tr>
+      <tr><td>Hydraulika i rytm</td><td>te same wartości co w MuJoCo: Q_const 60 ml/s z zaworem ±1 (przekaźnik δ 1 ml, czas stanu 0,2 s), A_V 8 ml, f 2 Hz, p_max 50 kPa; nachylenie siły nośnej płetwy 2,8/rad</td><td>pędniki, stery, serwa</td></tr>
       <tr><td>Czujniki</td><td>ciśnienie 50 Hz z σ 50 Pa; IMU 100 Hz z szumem kąta, żyroskopu i akcelerometru</td><td>kamery, sonar, DVL, GPS, kamera termowizyjna</td></tr>
       <tr><td>Sterowanie i wejście na żywo</td><td>harmonogram głębokości zadanej, PI kursu; klawisze GUI dla CPG, V_bias, częstotliwości i głębokości</td><td>interfejs ROS 2 (<code>stonefish_ros2</code>), tu nieużyty</td></tr>
       <tr><td>Symulacja</td><td>2000 kroków/s (2 ms było niestabilne), hydrodynamika w każdym kroku, log co 20 kroków</td><td>tryb czasu rzeczywistego lub wsadowy</td></tr>
@@ -461,16 +478,16 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <tbody>
       <tr><td>Log CSV, 100 Hz</td><td>≈70 kolumn: poza, prędkości, odczyty czujników, θ/ω/τ przegubów, pompa, komory, VBS, siły na częściach ciała</td><td>pełne logi w <code>results/logs/</code></td></tr>
       <tr><td>s1 zawis / prostowanie</td><td>dryf głębokości; przechył po wychyleniu o 30°</td><td>0,21 mm w 10 s; 30° → 10° w 5 s</td></tr>
-      <tr><td>s2 pływanie</td><td>prędkość z siłą nośną płetwy i bez niej, ogon zablokowany; bilans sił</td><td>34 cm/s; 2,7 cm/s bez siły nośnej; siła nośna płetwy 0,51 N</td></tr>
-      <tr><td>s3 skręt</td><td>promień skrętu dla V_bias ±1/±2/±3 ml</td><td>20,4 / 10,1 / 6,6 m</td></tr>
+      <tr><td>s2 pływanie</td><td>prędkość z siłą nośną płetwy i bez niej, ogon zablokowany; bilans sił</td><td>34,5 cm/s; 2,5 cm/s bez siły nośnej; siła nośna płetwy 0,55 N</td></tr>
+      <tr><td>s3 skręt</td><td>promień skrętu dla V_bias ±1/±2/±3 ml</td><td>18,6 / 9,5 / 6,2 m</td></tr>
       <tr><td>s4 głębokość</td><td>głębokość prawdziwa vs mierzona zaszumionym czujnikiem</td><td>1 → 3 m: przeregulowanie 3,3 cm, w paśmie ±5 cm po 21 s</td></tr>
-      <tr><td>s5 prąd</td><td>dryf w bocznym prądzie 5 cm/s, z regulacją kursu i bez</td><td>kurs utrzymany na +2,9°, a mimo to 1 m dryfu w bok w 30 s</td></tr>
-      <tr><td>s6 przegląd, GUI</td><td>prędkość vs częstotliwość; <code>summary.json</code>; okno 3D</td><td>maksimum 33,9 cm/s przy 2 Hz</td></tr>
+      <tr><td>s5 prąd</td><td>dryf w bocznym prądzie 5 cm/s, z regulacją kursu i bez</td><td>kurs utrzymany na +3,4°, a mimo to 0,95 m dryfu w bok w 30 s</td></tr>
+      <tr><td>s6 przegląd, GUI</td><td>prędkość vs częstotliwość; <code>summary.json</code>; okno 3D</td><td>maksimum 34,4 cm/s przy 2 Hz (31,6–34,4 cm/s w zakresie 1,5–2,5 Hz, 2,0 przełączenia zaworu na cykl)</td></tr>
     </tbody>
   </table></div>
 
   <figure>
-    <img src="img/stonefish_gui.png" alt="Okno 3D Stonefish: ryba-robot płynie między słupkami odniesienia; panel stanu pokazuje prędkość 0,336 m/s, głębokość, ciśnienia w komorach i objętość VBS." loading="lazy">
+    <img src="img/stonefish_gui.jpg" alt="Okno 3D Stonefish: ryba-robot płynie między słupkami odniesienia; panel stanu pokazuje prędkość, głębokość, ciśnienia w komorach i objętość VBS." loading="lazy">
     <figcaption>GUI Stonefish w scenariuszu s2: panel po prawej pokazuje na żywo prędkość, głębokość prawdziwą i mierzoną, ciśnienia w komorach i objętość VBS.</figcaption>
   </figure>
 
@@ -521,7 +538,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <ul>
     <li><b>Ciało.</b> Pręt 0,40 m z 50 elementami. Każdy element ma przekrój eliptyczny (z tabeli 7 stacji), więc ogon jest miękki na boki i sztywny w pionie. Głowa jest 20× sztywniejsza.</li>
     <li><b>Napęd od środka.</b> Ciśnienie w komorze zmienia krzywiznę spoczynkową strefy komór (0,20–0,32 m): κ_rest = −A_r·Δp / B. Napęd nie daje siły wypadkowej; w próżni środek masy dryfuje tylko o 10⁻¹⁵ m.</li>
-    <li><b>Hydraulika.</b> Ten sam skupiony model pompy, komór i zaworu co w MuJoCo i SOFA, liczony co 0,2 ms i sprzężony przez kąt zgięcia strefy komór.</li>
+    <li><b>Hydraulika.</b> Ten sam model pompy o stałych obrotach, zaworu ±1 (przekaźnik, czas stanu 0,2 s) i komór co w MuJoCo i SOFA, liczony co 0,2 ms i sprzężony przez kąt zgięcia strefy komór.</li>
     <li><b>Woda.</b> Własna siła: kwadratowy opór Morisona na jednostkę długości plus siła reakcyjna Lighthilla (duże amplitudy) na krawędzi spływu. Wbudowany model Stokesa dla ciał smukłych zostawiono tylko po to, by pokazać, że przy tej liczbie Reynoldsa (≈1,8·10⁵) jest błędny: jego siła jest ≈400× za mała.</li>
     <li><b>Wyporność i głębokość.</b> Ciężar i wypór dla każdego elementu, moment prostujący od środka ciężkości poniżej osi, pęcherz i kaskadowy PID głębokości przeniesiony z MuJoCo.</li>
     <li><b>Krok czasowy.</b> ≈19 µs, z jawnego warunku stabilności pręta.</li>
@@ -533,10 +550,10 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <tbody>
       <tr><td>Pręt</td><td>L 0,40 m, ρ 1050 kg/m³, E 0,5 MPa, ν 0,5, 50 elementów</td><td>kilka prętów połączonych przegubami, bryły sztywne</td></tr>
       <tr><td>Kształt</td><td>półszerokość i półwysokość w 7 stacjach (24 × 34 mm w środku ciała), elipsa lub koło, sztywna głowa</td><td>dowolny promień i sztywność dla każdego elementu</td></tr>
-      <tr><td>Hydraulika</td><td>A_eff 4,3·10⁻⁴ m², r_eff 5,5 mm, C_h 4,5·10⁻¹⁰ m³/Pa, p_max 50 kPa, Q_max 160 ml/s, f 2 Hz, A_V 8 ml</td><td>wbudowane momenty mięśniowe, momenty jednorodne</td></tr>
+      <tr><td>Hydraulika</td><td>A_eff 4,3·10⁻⁴ m², r_eff 5,5 mm, C_h 4,5·10⁻¹⁰ m³/Pa, p_max 50 kPa, Q_const 60 ml/s, f 2 Hz, A_V 8 ml</td><td>wbudowane momenty mięśniowe, momenty jednorodne</td></tr>
       <tr><td>Woda</td><td>model: none, drag, drag+reactive, stokes_sbt; C_n 1,2, C_t 0,01</td><td>sprzężenie z solverem przepływu metodą brzegu zanurzonego (SophT)</td></tr>
       <tr><td>Wyporność i sterowanie</td><td>CG 5 mm poniżej osi, pęcherz 0–40 ml przy 10 ml/s, PID przy 100 Hz, harmonogram głębokości</td><td>kontakt i tarcie z dnem</td></tr>
-      <tr><td>Ustawienia etapów</td><td>siatki przeglądu (f 0,5–3 Hz × E ×0,5/1/2), czasy trwania, typ tłumienia</td><td>inne warunki brzegowe i tłumiki</td></tr>
+      <tr><td>Ustawienia etapów</td><td>siatki przeglądu (f 1,5–2,5 Hz × E ×0,5/1/2), czasy trwania, typ tłumienia</td><td>inne warunki brzegowe i tłumiki</td></tr>
     </tbody>
   </table></div>
 
@@ -546,16 +563,16 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <tbody>
       <tr><td>e1 walidacja</td><td>wspornik vs teoria, częstotliwość własna, dryf energii dla n = 25/50/100</td><td>n = 50: błąd końca 1,05 %, błąd ω₁ 1,8 %</td></tr>
       <tr><td>e2 napęd</td><td>zgięcie vs ciśnienie i vs objętość; test napędu wewnętrznego</td><td>8 ml → 15,8 kPa, 0,377 rad</td></tr>
-      <tr><td>e3 na uwięzi</td><td>amplituda końca, faza, ciąg i siła boczna dla każdego modelu wody</td><td>ciąg 149 mN z siłą reakcyjną, 5,9 mN z samym oporem</td></tr>
-      <tr><td>e4 swobodne pływanie</td><td>prędkość w czasie; kształt ciała w jednym okresie; <code>free_swim.gif</code></td><td>44,1 cm/s (1,1 długości ciała/s); 17 cm/s z samym oporem</td></tr>
-      <tr><td>e5 przegląd f × E</td><td>prędkość, liczba Strouhala, częstotliwość własna ogona</td><td>najmiększy ogon przy 3 Hz: 55 cm/s; f_n 1,89/2,60/3,64 Hz</td></tr>
-      <tr><td>e6 głębokość</td><td>głębokość, objętość pęcherza, pochylenie, przechył, prędkość</td><td>1,0 → 1,5 m ustala się w 9,9 s, przeregulowanie 23 cm</td></tr>
+      <tr><td>e3 na uwięzi</td><td>amplituda końca, faza, ciąg i siła boczna dla każdego modelu wody</td><td>ciąg 106 mN z siłą reakcyjną, 2,5 mN z samym oporem</td></tr>
+      <tr><td>e4 swobodne pływanie</td><td>prędkość w czasie; kształt ciała w jednym okresie; <code>free_swim.gif</code></td><td>37,0 cm/s (0,93 długości ciała/s); 12,1 cm/s z samym oporem</td></tr>
+      <tr><td>e5 przegląd f × E</td><td>prędkość, liczba Strouhala, częstotliwość własna ogona</td><td>najmiększy ogon przy 1,5 Hz: 44,5 cm/s; f_n 1,89/2,60/3,64 Hz</td></tr>
+      <tr><td>e6 głębokość</td><td>głębokość, objętość pęcherza, pochylenie, przechył, prędkość</td><td>1,0 → 1,5 m ustala się w 9,5 s, przeregulowanie 22 cm</td></tr>
     </tbody>
   </table></div>
 
   <figure>
-    <img src="img/pyelastica_free_swim.png" alt="Swobodne pływanie w PyElastica przy 2 Hz: krzywe prędkości dla czterech modeli wody, drag+reactive osiąga 44,1 cm/s; po prawej kształt ciała w jednym okresie." loading="lazy">
-    <figcaption>Etap 4: wybór modelu wody decyduje o wyniku. Bez siły reakcyjnej (Lighthilla) ryba osiąga 17 cm/s; model Stokesa daje zero.</figcaption>
+    <img src="img/pyelastica_free_swim.png" alt="Swobodne pływanie w PyElastica przy 2 Hz: krzywe prędkości dla czterech modeli wody, drag+reactive osiąga 37,0 cm/s; po prawej kształt ciała w jednym okresie." loading="lazy">
+    <figcaption>Etap 4: wybór modelu wody decyduje o wyniku. Bez siły reakcyjnej (Lighthilla) ryba osiąga 12 cm/s; model Stokesa daje zero.</figcaption>
   </figure>
 
   <h3>Etapy dema</h3>
@@ -601,9 +618,9 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <figcaption><span class="vtag">Film</span>GUI SOFA (ImGui) w 2560×1440 odtwarza przebieg w wodzie w tempie 0,5×; sam przebieg policzono offline (<code>scripts/record.py</code>, ≈30 min). Tekst pokazuje hydraulikę (V_p, p_L, p_R, Δp), ogon (kąt końcówki, przemieszczenie końcówki, max |u|) oraz siłę wody na ogon, łącznie i na odcinki. Zielone strzałki rysują siłę na każdym odcinku, a komory są pokolorowane ciśnieniem. Kolor skóry zmienia się w każdej pętli, każdy z własną legendą: przemieszczenie [mm], obciążenie wodą [Pa], potem naprężenie von Misesa [kPa]. Naprężenie jest liczone z zapisanych położeń węzłów tym samym modelem korotacyjnym co MES. <span class="print-only">Plik filmu: <code>docs/media/sofa_gui_replay.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
     </figure>
     <figure>
-      <video controls muted playsinline preload="metadata" poster="img/poster_sofa_flapping.jpg"><source src="media/sofa_flapping.mp4" type="video/mp4"></video>
-      <img class="print-only" src="img/poster_sofa_flapping.jpg" alt="">
-      <figcaption><span class="vtag">Film</span>Film renderowany z gałęzi sofa (PyVista, 6,5 s): powietrze i woda obok siebie, pod spodem kąt końcówki, najpierw w czasie rzeczywistym, potem ostatni cykl 4× wolniej. <span class="print-only">Plik filmu: <code>docs/media/sofa_flapping.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
+      <video controls muted playsinline preload="metadata" poster="img/poster_sofa_flapping_PL.jpg"><source src="media/sofa_flapping_PL.mp4" type="video/mp4"></video>
+      <img class="print-only" src="img/poster_sofa_flapping_PL.jpg" alt="">
+      <figcaption><span class="vtag">Film</span>Film renderowany z gałęzi sofa (PyVista, 6,5 s): powietrze i woda obok siebie, pod spodem kąt końcówki, najpierw w czasie rzeczywistym, potem ostatni cykl 4× wolniej. <span class="print-only">Plik filmu: <code>docs/media/sofa_flapping_PL.mp4</code> (odtwarzany w wersji HTML).</span></figcaption>
     </figure>
     <div>
       <figure>
@@ -620,7 +637,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <li><b>Komory.</b> <code>SurfacePressureConstraint</code> w trybie przyrostu objętości: pompa ustawia objętość, a solver więzów zwraca ciśnienie.</li>
     <li><b>Solver.</b> Niejawny Euler, solver więzów Gaussa–Seidela i rzadki rozkład Cholesky'ego CHOLMOD (4–15× szybszy od LDL). Krzywe statyczne wyznacza się pseudo-statycznie, trzymając każdy punkt, aż ruch wygaśnie.</li>
     <li><b>Woda.</b> Własny kwadratowy opór normalny i tarcie styczne na każdym trójkącie skóry, przykładane jawnie; ciężar silikonu pomniejszony o wypór. Brak masy dodanej, siły nośnej i śladu.</li>
-    <li><b>Hydraulika.</b> Port rytmu z MuJoCo z kompensacją opóźnienia pompy (bez niej objętość przestrzeliwuje o 16 % przy 2 Hz), obieg zamknięty i wstępne napełnienie 20 ml.</li>
+    <li><b>Hydraulika.</b> Port hydrauliki z MuJoCo z pompą o stałych obrotach (zawór ±1, przekaźnik z histerezą 1 ml i czasem stanu 0,2 s), obieg zamknięty i wstępne napełnienie 20 ml (musi przekraczać |V_bias| + A_V + zapas).</li>
   </ul>
 
   <h3>Dane wejściowe</h3>
@@ -629,7 +646,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <tbody>
       <tr><td>Geometria</td><td>ogon 0,20 m, przekrój 60 × 80 mm zwężany do 0,4, płetwa 70 × 120 × 6 mm; dwie komory po 0,12 m, ścianka 4 mm, przegroda 4 mm (po 91 ml)</td><td>dowolna siatka Gmsh, STL, OBJ lub VTK; sceny XML <code>.scn</code></td></tr>
       <tr><td>Materiał</td><td>E 3·10⁵ Pa, ν 0,45, ρ 1100; kręgosłup E × 20; włókna 2·10⁵ N/m co 4 mm</td><td>materiały hipersprężyste, belki (BeamAdapter)</td></tr>
-      <tr><td>Napęd</td><td>f 2 Hz, A_V 17 ml, napełnienie wstępne 20 ml, Q_max 250 ml/s, p_max 50 kPa</td><td>sterowanie ciśnieniem, aktuatory cięgnowe, sterowanie odwrotne (SoftRobots.Inverse)</td></tr>
+      <tr><td>Napęd</td><td>f 2 Hz, A_V 13 ml, napełnienie wstępne 20 ml, Q_const 100 ml/s, p_max 50 kPa</td><td>sterowanie ciśnieniem, aktuatory cięgnowe, sterowanie odwrotne (SoftRobots.Inverse)</td></tr>
       <tr><td>Środowisko</td><td>powietrze lub woda; współczynniki oporu C_n 1,0, C_t 0,01</td><td>kontakt i kolizje</td></tr>
       <tr><td>Numeryka</td><td>krok 2 ms (0,5–1 ms w wodzie), tłumienie Rayleigha, solver cholmod/ldl/cg/warp, poziom siatki test/coarse/medium/fine</td><td>redukcja rzędu modelu (&gt;100× szybciej wg <a href="https://doi.org/10.1109/TRO.2018.2861900">Goury &amp; Duriez 2018</a>; wymaga treningu offline)</td></tr>
       <tr><td>Sterowanie uruchomieniem</td><td>zmienne środowiskowe <code>FISHSOFA_LEVEL</code>, <code>_MODE</code>, <code>_ENV</code>, <code>_WORKERS</code></td><td>interakcja w GUI</td></tr>
@@ -644,15 +661,15 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>s2a warianty konstrukcji</td><td>zgięcie dla: jednorodnego, z kręgosłupem, grubej ścianki, włókien, kręgosłupa + włókien</td><td>1,3° jednorodny vs 31° dla V4</td></tr>
       <tr><td>s2 krzywa p–V</td><td>ciśnienie i kąt końca vs objętość komory, zbieżność siatki</td><td>50 ml: 16,1 kPa i 15,4° (siatka dokładna)</td></tr>
       <tr><td>s3 symetria</td><td>komora lewa vs prawa</td><td>błąd ≤ 0,75 % w kącie</td></tr>
-      <tr><td>s4 machanie w powietrzu</td><td>kąt, ciśnienia, zachowanie objętości, iteracje solvera</td><td>±12,7° przy 2 Hz, |Δp| ≤ 5,7 kPa</td></tr>
-      <tr><td>s5 woda vs powietrze</td><td>amplituda, faza, ciąg na uwięzi, siła boczna, moc oporu</td><td>±7,3° w wodzie (0,57× powietrza); ciąg 66,7 mN (etap s5; przegląd s6 daje 63 mN przy 2 Hz)</td></tr>
-      <tr><td>s6 przeglądy, wideo</td><td>przeglądy częstotliwości i modułu Younga; <code>flapping.mp4</code> 1080p60</td><td>maks. ciąg 67,9 mN przy 2,25 Hz</td></tr>
+      <tr><td>s4 machanie w powietrzu</td><td>kąt, ciśnienia, zachowanie objętości, iteracje solvera</td><td>±7,6° przy 2 Hz, |Δp| ≤ 3,6 kPa, 2,2 przełączenia zaworu na cykl</td></tr>
+      <tr><td>s5 woda vs powietrze</td><td>amplituda, faza, ciąg na uwięzi, siła boczna, moc oporu</td><td>±5,0° w wodzie (0,63× powietrza); ciąg 15,5 mN</td></tr>
+      <tr><td>s6 przeglądy, wideo</td><td>przeglądy częstotliwości i modułu Younga; <code>flapping.mp4</code> 1080p60</td><td>maks. ciąg 18,0 mN przy 1,75 Hz</td></tr>
     </tbody>
   </table></div>
 
   <figure>
-    <img src="img/sofa_freq_sweep.png" alt="Przegląd częstotliwości SOFA w wodzie: kąt końca spada z 11,8° przy 0,5 Hz do 4,3° przy 3 Hz; ciąg na uwięzi ma maksimum ok. 68 mN przy 2,25 Hz; różnica ciśnień poniżej 6 kPa; pompa nasyca się powyżej ≈2,3 Hz." loading="lazy">
-    <figcaption>Etap 6 w wodzie. Amplituda maleje równomiernie z częstotliwością (brak rezonansu w wodzie), ciąg ma maksimum przy 2,25 Hz, a powyżej ≈2,3 Hz (Q_max/(2π·A_V) ≈ 2,34 Hz) pompa się nasyca. Ciąg pochodzi z modelu oporu i jest jakościowy.</figcaption>
+    <img src="img/sofa_freq_sweep_PL.png" alt="Przegląd częstotliwości SOFA w wodzie: amplituda kąta końca spada z 6,6° przy 1,5 Hz do 3,5° przy 2,25–2,5 Hz; ciąg na uwięzi ma maksimum 18,0 mN przy 1,75 Hz; różnica ciśnień poniżej 4 kPa; zawór przełącza się 2,0–2,7 razy na cykl." loading="lazy">
+    <figcaption>Etap 6 w wodzie (A_V 13 ml, Q_const 100 ml/s). Amplituda maleje z 6,6° przy 1,5 Hz do 3,5° przy 2,25–2,5 Hz (brak rezonansu w wodzie), ciąg ma maksimum przy 1,75 Hz (18,0 mN), |Δp| nie przekracza 4 kPa (zawór przelewowy nigdy się nie otwiera), a zawór kierunkowy przełącza się 2,0–2,7 razy na cykl (f_track = Q_const/(2π·A_V) ≈ 1,2 Hz leży poniżej badanego zakresu). Ciąg pochodzi z modelu oporu i jest jakościowy.</figcaption>
   </figure>
 
   <h3>Etapy dema</h3>
@@ -663,7 +680,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <li><b>3</b><span>Symetria lewo/prawo (≈3 min)</span></li>
     <li><b>4</b><span>Antagonistyczne machanie w powietrzu (≈25 min)</span></li>
     <li><b>5</b><span>Woda vs powietrze, ciąg na uwięzi (30–60 min)</span></li>
-    <li><b>6</b><span>Przeglądy częstotliwości i sztywności, 19 symulacji (≈1 h na 12 wątkach)</span></li>
+    <li><b>6</b><span>Przeglądy częstotliwości i sztywności, 13 symulacji (≈25 min na 9 wątkach)</span></li>
   </ol>
 
   <h3>Ograniczenia</h3>
@@ -799,7 +816,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       </figure>
       <figure>
         <img src="img/openmodelica_plot.jpg" alt="Widok wykresów OMEdit z krzywą prędkości ryby rosnącą do 63,7 mm/s" loading="lazy">
-        <figcaption><span class="vtag">Ekran</span>Widok wykresów OMEdit po symulacji SwimForward: prędkość ustala się na 63,7 mm/s, czyli 6,4 cm/s jak w README.</figcaption>
+        <figcaption><span class="vtag">Ekran</span>Widok wykresów OMEdit po symulacji SwimForward (1,5 Hz): prędkość ustala się na 143 mm/s, czyli 14,3 cm/s jak w README.</figcaption>
       </figure>
     </div>
   </div>
@@ -807,7 +824,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   <h3>Zasada działania</h3>
   <ul>
     <li><b>Komponenty akauzalne.</b> Części łączy się złączami fizycznymi. Własny port hydrauliczny niesie ciśnienie p i przepływ V_flow, których iloczyn to moc. Kompilator sam porządkuje równania, więc nie ma okablowania wejście/wyjście.</li>
-    <li><b>Łańcuch napędu.</b> Bateria 2S LiPo 7,4 V → mostek H → silnik DC → pompa zębata (Q = D·ω − k_leak·Δp) → przewody (tarcie laminarne plus turbulentne Haalanda, straty miejscowe) → komory z nieliniową tablicą p–V → zawory przelewowe.</li>
+    <li><b>Łańcuch napędu.</b> Bateria 2S LiPo 7,4 V → mostek H → silnik DC → pompa zębata (Q = D·ω − k_leak·Δp) → przewody (tarcie laminarne plus turbulentne Haalanda, straty miejscowe) → dwa zawory kierunkowe 3/2 (dwa stany, ±1) → komory z nieliniową tablicą p–V → zawory przelewowe. Silnik pracuje na pełnym napięciu, a pompa ma stały wydatek (≈33 ml/s pod obciążeniem).</li>
     <li><b>Ogon i płetwa.</b> Ogon to tłok obrotowy o jednym stopniu swobody: (J + J_added)·θ̈ = τ − kθ − cθ̇ − c_h|θ̇|θ̇. Ciąg pochodzi ze wzoru Lighthilla dla sztywnej płetwy i napędza równanie ruchu postępowego.</li>
     <li><b>Balast.</b> Silnik ze śrubą pociągową przesuwa tłok strzykawki; równanie ruchu pionowego i kaskadowy PID głębokości zamykają pętlę.</li>
     <li><b>Energia.</b> Każda strata jest całkowana, a bilans domyka się z dokładnością ≈10⁻⁶.</li>
@@ -822,7 +839,7 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
       <tr><td>Hydraulika</td><td>pompa 0,3 ml/obr., przecieki, η 0,8; przewód 0,2 m × 4 mm, ζ 1,5, chropowatość 25 µm; zawór 50 kPa; tablica p–V komory (11 punktów lub plik CSV)</td><td><code>Modelica.Fluid</code> i media, ściśliwe lub dwufazowe (wariant jest już w <code>HydraulicsFluid/</code>)</td></tr>
       <tr><td>Ogon i płetwa</td><td>chłonność 2·10⁻⁵ m³/rad, k 2 N·m/rad, bezwładność, bezwładność dodana, tłumienie; rozpiętość płetwy 0,06 m, C_T 1,0</td><td>krzywa p–V z SOFA albo z pomiaru</td></tr>
       <tr><td>Ciało i balast</td><td>m 1 kg, masa dodana, C_d 0,3, pole 0,005 m²; strzykawka 20 mm × 40 mm (12,5 ml), skok śruby 1 mm</td><td>biblioteka wielobryłowa do ruchu 3D</td></tr>
-      <tr><td>Sterowanie</td><td>amplituda CPG 0,8, 1,5 Hz, przesunięcie; wzmocnienia PID głębokości</td><td>dowolny regulator w postaci schematu blokowego</td></tr>
+      <tr><td>Sterowanie</td><td>amplituda V_ref 4 ml, 1,5–2,5 Hz, przekaźnik δ 1 ml, czas przetrzymania 0,2 s; wzmocnienia PID głębokości</td><td>dowolny regulator w postaci schematu blokowego</td></tr>
       <tr><td>Dane pomiarowe</td><td>pliki CSV dla <code>calibrate.py</code>: skok silnika, pompa, przewód, cykle komory, zawór, ogon, ciąg, holowanie i wybieg kadłuba, balast</td><td>tablice z <code>.mat</code>/<code>.txt</code>, import FMU</td></tr>
       <tr><td>Uruchomienie</td><td>parametry przez <code>-override</code>, modyfikatory w OMEdit</td><td>wybór solvera: DASSL, IDA, CVODE, Euler</td></tr>
     </tbody>
@@ -833,8 +850,8 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
     <thead><tr><th>Wynik</th><th>Zawartość</th><th>Przykładowa wartość</th></tr></thead>
     <tbody>
       <tr><td>Przebiegi czasowe (.mat)</td><td>każda zmienna: p_L, p_R, przepływy, prądy, prędkość silnika, θ, ciąg, prędkość, głębokość, objętość balastu</td><td>zawór otwiera się przy ≈51 kPa (HydraulicsStep)</td></tr>
-      <tr><td>Bilans energii</td><td>strata na każdym komponencie, moc mechaniczna, energia zmagazynowana, błąd bilansu</td><td>1,8 W przy 1 Hz → ≈9,1 h na 16,3 Wh</td></tr>
-      <tr><td>Pływanie</td><td>prędkość postępowa, ciąg, moc baterii vs częstotliwość</td><td>najlepiej 8,5 cm/s przy 0,5 Hz; 16,6 W przy 4 Hz (inne scenariusze niż 6,4 cm/s przy 1,5 Hz i 7,3 cm/s przy 2 Hz, więc nie tworzą jednego ciągu)</td></tr>
+      <tr><td>Bilans energii</td><td>strata na każdym komponencie, moc mechaniczna, energia zmagazynowana, błąd bilansu</td><td>1,8 W przy 1,5 Hz → ≈9,0 h na 16,3 Wh</td></tr>
+      <tr><td>Pływanie</td><td>prędkość postępowa, ciąg, moc baterii vs częstotliwość</td><td>13,3–14,9 cm/s w zakresie 1,5–2,5 Hz (14,3 przy 1,5 Hz, 13,3 przy 2 Hz), 1,76–1,78 W; 2,7 przełączenia zaworu na cykl przy 1,5 Hz, 2,0 powyżej</td></tr>
       <tr><td>Regulacja głębokości</td><td>głębokość, położenie tłoka, prąd</td><td>zanurzanie 3 cm/s, przeregulowanie 6 %, błąd 5 mm</td></tr>
       <tr><td>FMU</td><td><code>TailDrive.fmu</code> (linux64, 1,8 MB) + porównanie z OpenModelica</td><td>różnica 0,016 % amplitudy</td></tr>
       <tr><td>Raporty kalibracji</td><td>dopasowane parametry z niepewnością 1σ i macierzą korelacji</td><td>np. C_d kadłuba 0,402 ± 0,9 % (dane syntetyczne)</td></tr>
@@ -842,18 +859,19 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   </table></div>
 
   <figure>
-    <div class="ebar" role="img" aria-label="Udział strat energii przy 1 Hz: uzwojenie silnika 78,5 %, przewody 9,3 %, łożyska silnika 8,4 %, tarcie pompy 2,7 %, bateria 0,8 %, ogon 0,1 %.">
-      <span class="e1" style="width:78.5%"></span><span class="e2" style="width:9.3%"></span><span class="e3" style="width:8.4%"></span><span class="e4" style="width:2.7%"></span><span class="e5" style="width:0.8%"></span><span class="e6" style="width:0.1%"></span>
+    <div class="ebar" role="img" aria-label="Udział strat energii przy 1,5 Hz: przewody 42,1 %, łożyska silnika 28,2 %, tarcie pompy 13,2 %, zawory kierunkowe 8,3 %, uzwojenie silnika 4,4 %, ogon 1,3 %, pozostałe 2,5 %.">
+      <span class="e1" style="width:42.1%;background:var(--t-of)"></span><span class="e2" style="width:28.2%;background:var(--t-mj)"></span><span class="e3" style="width:13.2%;background:var(--t-so)"></span><span class="e4" style="width:8.3%;background:var(--t-sf)"></span><span class="e5" style="width:4.4%;background:var(--t-om)"></span><span class="e6" style="width:1.3%;background:var(--t-pe)"></span><span style="width:2.5%;background:var(--muted)"></span>
     </div>
     <div class="ekey">
-      <span><i style="background:var(--t-om)"></i>uzwojenie silnika 78,5 %</span>
-      <span><i style="background:var(--t-of)"></i>przewody 9,3 %</span>
-      <span><i style="background:var(--t-mj)"></i>łożyska silnika 8,4 %</span>
-      <span><i style="background:var(--t-so)"></i>tarcie pompy 2,7 %</span>
-      <span><i style="background:var(--t-sf)"></i>bateria 0,8 %</span>
-      <span><i style="background:var(--t-pe)"></i>ogon 0,1 %</span>
+      <span><i style="background:var(--t-of)"></i>przewody 42,1 %</span>
+      <span><i style="background:var(--t-mj)"></i>łożyska silnika 28,2 %</span>
+      <span><i style="background:var(--t-so)"></i>tarcie pompy 13,2 %</span>
+      <span><i style="background:var(--t-sf)"></i>zawory kierunkowe 8,3 %</span>
+      <span><i style="background:var(--t-om)"></i>uzwojenie silnika 4,4 %</span>
+      <span><i style="background:var(--t-pe)"></i>ogon 1,3 %</span>
+      <span><i style="background:var(--muted)"></i>pozostałe 2,5 %</span>
     </div>
-    <figcaption>Gdzie idzie energia (scenariusz EnergyBudget: 60 s przy 1 Hz, 1,8 W). Przy parametrach zastępczych silnik jest przewymiarowany, więc dominuje jego uzwojenie. W SwimForward tylko ≈0,01 % energii baterii staje się użyteczną pracą napędową. Demo nie zawiera wykresów w repo; generują je skrypty.</figcaption>
+    <figcaption>Gdzie idzie energia (scenariusz EnergyBudget: 60 s przy 1,5 Hz, 1,8 W). (Przy wcześniejszej pompie rewersyjnej uzwojenie silnika brało 78,5 %.) Przy stałej pompie straty przenoszą się z rewersowania wirnika na tłoczenie pełnego przepływu przez cały czas: przewody 42,1 %, łożyska silnika 28,2 %, tarcie pompy 13,2 %, zawory kierunkowe 8,3 %, uzwojenie silnika 4,4 %, ogon 1,3 %. W SwimForward ≈0,1 % energii baterii staje się użyteczną pracą napędową. Demo nie zawiera wykresów w repo; generują je skrypty.</figcaption>
   </figure>
 
   <h3>Etapy dema</h3>
@@ -1030,15 +1048,15 @@ figure video { display: block; width: 100%; height: auto; border: 1px solid var(
   </table></div>
 
   <h3>Ta sama ryba, różne prędkości: dlaczego</h3>
-  <p>Przy około 2 Hz trzy dema pływania swobodnego dają prędkości różniące się 2×. Różnica wynika z tego, skąd każde narzędzie bierze ciąg.</p>
+  <p>Przy około 2 Hz trzy dema pływania swobodnego dają prędkości różniące się do 1,6×. Różnica wynika z tego, skąd każde narzędzie bierze ciąg.</p>
   <div class="tbl"><table>
     <thead><tr><th>Narzędzie</th><th class="num">Prędkość przy ok. 2 Hz</th><th>Główne źródło ciągu w modelu</th></tr></thead>
     <tbody>
-      <tr><th><span class="dot mj"></span> MuJoCo</th><td class="num">22 cm/s</td><td>siła nośna Kutty na elipsoidach z wbudowanego modelu</td></tr>
-      <tr><th><span class="dot sf"></span> Stonefish</th><td class="num">34 cm/s</td><td>siła nośna płaskiej płetwy dodana w C++</td></tr>
-      <tr><th><span class="dot pe"></span> PyElastica</th><td class="num">44 cm/s</td><td>siła reakcyjna Lighthilla na krawędzi spływu</td></tr>
-      <tr><th><span class="dot om"></span> OpenModelica</th><td class="num">7,3 cm/s</td><td>sztywna płetwa Lighthilla na ogonie o 1 st. swobody (tylko 3,4° amplitudy przy 2 Hz)</td></tr>
-      <tr><th><span class="dot so"></span> SOFA</th><td class="num">na uwięzi</td><td>opór na trójkątach skóry: 63 mN przy 2 Hz</td></tr>
+      <tr><th><span class="dot mj"></span> MuJoCo</th><td class="num">23 cm/s</td><td>siła nośna Kutty na elipsoidach z wbudowanego modelu</td></tr>
+      <tr><th><span class="dot sf"></span> Stonefish</th><td class="num">34,5 cm/s</td><td>siła nośna płaskiej płetwy dodana w C++</td></tr>
+      <tr><th><span class="dot pe"></span> PyElastica</th><td class="num">37 cm/s</td><td>siła reakcyjna Lighthilla na krawędzi spływu</td></tr>
+      <tr><th><span class="dot om"></span> OpenModelica</th><td class="num">13,3 cm/s</td><td>sztywna płetwa Lighthilla na ogonie o 1 st. swobody (tylko 6,2° amplitudy przy 2 Hz)</td></tr>
+      <tr><th><span class="dot so"></span> SOFA</th><td class="num">na uwięzi</td><td>opór na trójkątach skóry: 13 mN przy 2 Hz</td></tr>
       <tr><th><span class="dot of"></span> OpenFOAM FSI</th><td class="num">na uwięzi</td><td>rozwiązany przepływ: opór wypadkowy przy tym kształcie ogona</td></tr>
     </tbody>
   </table></div>
