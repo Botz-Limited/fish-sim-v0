@@ -10,14 +10,6 @@ Educational simulations of a soft, hydraulically actuated robot fish tail.
 | `openfoam` | `OpenFOAM/` | OpenFOAM + preCICE + CalculiX | FSI: real water flow around the deforming tail, vortex wake, thrust, added mass |
 | `openmodelica` | `FishRobot/` | OpenModelica | System model: DC motor → pump → pipes → chambers → tail, ballast, energy budget, FMU export |
 | `pyelastica` | `fish_elastica_demo/` | PyElastica | Soft fish as a Cosserat rod: chamber-driven curvature, swimming, ballast, depth PID |
+| `waterlily` | `WaterLily/` | WaterLily.jl (Julia) | Immersed-boundary CFD on a Cartesian grid: flow around the valve-driven tail, wake, thrust, frequency sweep, free swimming |
 
-Each branch holds only its own demo. This branch holds `MuJoCo/`; details and instructions: `MuJoCo/README.md`.
-
-## Documentation
-
-A report comparing all six tools covers inputs, outputs, working principle, GUI screenshots and demo videos (`docs/media/`), CAD import, choosing and setting parameters, and a capability matrix:
-
-- English: [`docs/research_EN.pdf`](docs/research_EN.pdf) · [`docs/research_EN.html`](docs/research_EN.html)
-- Polski: [`docs/research_PL.pdf`](docs/research_PL.pdf) · [`docs/research_PL.html`](docs/research_PL.html)
-
-Rebuild the PDFs after editing the HTML: `docs/build_pdf.sh` (needs Google Chrome).
+Each branch holds only its own demo. This branch holds `WaterLily/`; details and instructions: `WaterLily/README.md`.

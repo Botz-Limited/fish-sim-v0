@@ -1,0 +1,19 @@
+Fpx_mean = -0.028771849836782416
+Fvx_mean = 0.0066388850767533526
+Fx_mean = -0.022132964721859546
+Fy_mean = -0.0005049062649623674
+Fz_mean = -1.808887566652992e-7
+Mcells = 67.436544
+Re_sim = 5000.0
+T_AVG = 2.0
+U_in = 0.2
+case = stage7_3d_n224_fin
+device = HIPDevice(id=1, name=AMD Radeon RX 7700 XT, gcn_arch=gfx1101)
+f = 2.0
+fin = true
+grid = 896x336x224
+ms_per_step = 716.192303839102
+n = 224
+steps = 5541
+t_end = 4.000544929504394
+wall_s = 3988.0783710479736

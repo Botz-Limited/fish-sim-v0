@@ -1,0 +1,37 @@
+# Versions used for the WaterLily demo (generated 2026-10-19)
+OS: Fedora Linux 44 (KDE Plasma Desktop Edition), kernel 7.2.10-200.fc44.x86_64
+CPU: AMD Ryzen 5 7600 6-Core Processor, 12 threads
+GPU: Advanced Micro Devices, Inc. [AMD/ATI] Navi 32 [Radeon RX 7700 XT / 7800 XT] (rev ff)
+ROCm runtime: rocm-hip 7.1.1,rocm-runtime 7.1.1
+Julia: julia version 1.13.2
+
+## Main environment (Project.toml)
+Status `~/Dokumenty/GitHub/fish-sim-v0-wt/waterlily/WaterLily/Project.toml`
+  [336ed68f] CSV v1.1.0
+  [a93c6f00] DataFrames v1.8.2
+  [f6369f11] ForwardDiff v1.4.6
+  [033835bb] JLD2 v0.6.7
+  [06905c2e] ParametricBodies v0.3.4
+  [91a5bcdd] Plots v1.41.7
+  [90137ffa] StaticArrays v1.9.23
+  [10745b16] Statistics v1.11.5
+  [ed894a53] WaterLily v1.9.2
+  [de0858da] Printf v1.11.0
+  [8dfed614] Test v1.11.0
+Warning The project dependencies or compat requirements have changed since the manifest was last resolved. It is recommended to `Pkg.resolve()` or consider `Pkg.update()` if necessary.
+
+## GPU environment (gpu/Project.toml)
+⌃ [21141c5a] AMDGPU v2.8.0
+  [90137ffa] StaticArrays v1.9.23
+  [ed894a53] WaterLily v1.9.2
+Info Packages marked with ⌃ have new versions available and may be upgradable.
+
+## Viewer environment (viz/Project.toml)
+  [13f3f980] CairoMakie v0.15.16
+  [40e54616] FishLily v0.1.0 `..`
+  [e9467ef8] GLMakie v0.13.16
+  [ee78f7c6] Makie v0.24.16
+  [90137ffa] StaticArrays v1.9.23
+  [ed894a53] WaterLily v1.9.2
+  [37e2e46d] LinearAlgebra v1.13.0
+  [de0858da] Printf v1.11.0

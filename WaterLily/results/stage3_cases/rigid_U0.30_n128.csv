@@ -1,0 +1,2 @@
+case,kind,U,n,f,t_avg_from,t_avg_to,Fx_mean,Fx_1st_half,Fx_2nd_half,Fpx_mean,Fvx_mean,Fy_mean,theta_pp,switches_per_cycle,steps,wall_s
+rigid_U0.30_n128,rigid,0.3,128,0.0,2.8,5.6,0.3103177439902236,0.3107601948335107,0.3098707083620752,0.21461449071478597,0.09570325178092665,0.0013869858573431013,0.0,NaN,1708,52.730690002441406

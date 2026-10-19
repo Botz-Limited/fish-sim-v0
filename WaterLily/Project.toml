@@ -1,0 +1,17 @@
+name = "FishLily"
+uuid = "40e54616-8532-4e6c-99cb-701a9d37e5f8"
+version = "0.1.0"
+authors = ["fish-sim-v0"]
+
+[deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+ParametricBodies = "06905c2e-4b4a-4765-8bb9-c6b6b2b99b1d"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+WaterLily = "ed894a53-35f9-47f1-b17f-85db9237eebd"
