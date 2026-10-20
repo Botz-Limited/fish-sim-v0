@@ -56,7 +56,8 @@ process, several processes; see `scripts/run_parallel.sh`). Wall times on a Ryze
 Key plots: `results/stage2_vorticity.png`, `results/stage3_inflow_sweep.png`,
 `results/stage4_freq_sweep.png`, `results/stage5_free_swim_n*.png`,
 `results/stage6_coupled_f*_n*.png`, `results/stage7_3d_n224_fin_lambda2.png`. Videos:
-`results/fish_tethered_f2.mp4`, `results/fish_tethered_f2_U0.2.mp4`.
+`results/fish_tethered_f2.mp4`, `results/fish_tethered_f2_U0.2.mp4`, `results/stage7_3d_n128_fin_3d.mp4` (3D, caudal fin, λ2 vortex cores; run with
+`N=128 FIN=1 FRAME_T0=2 FRAME_DT=0.01`, then `julia --project=viz viz/render3d.jl stage7_3d_n128_fin`).
 
 ## Physics in one screen
 

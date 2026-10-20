@@ -8,11 +8,14 @@
 #           julia --project=. scripts/stage7_3d.jl plot
 # Environment variables (run): N (cells per body length, default 160), T_END [s] (4.0),
 #   F [Hz] (2.0), U_IN [m/s] (0.2), FIN (0/1, caudal fin, default 0), BACKEND (gpu/cpu),
-#   CASE (default stage7_3d_n<N>[_fin]), MAX_STEPS (debug), T_AVG (start of averaging, 2.0 s).
+#   CASE (default stage7_3d_n<N>[_fin]), MAX_STEPS (debug), T_AVG (start of averaging, 2.0 s),
+#   FRAME_DT [s] (0 = off; > 0 dumps λ2 + body SDF every FRAME_DT for the video, viz/render3d.jl),
+#   FRAME_T0 [s] (first frame, 0.0), FRAME_STRIDE (downsampling of the dumped fields, 2).
 #
 # Outputs: results/<case>_timeseries.csv, results/<case>_snapshots.jls (slices),
 #   results/<case>_lambda2.jls (downsampled λ2 at t_end), progress file
-#   results/progress/<case>.json; plot mode: results/stage7_*.png, results/stage7_summary.csv.
+#   results/progress/<case>.json, with FRAME_DT > 0 also results/frames/<case>/frame_NNNN.jls;
+#   plot mode: results/stage7_*.png, results/stage7_summary.csv.
 
 const MODE = length(ARGS) >= 1 ? ARGS[1] : "run"
 envf(k, d) = parse(Float64, get(ENV, k, string(d)))
@@ -25,6 +28,9 @@ const U_IN = envf("U_IN", 0.2)
 const FIN = envi("FIN", 0) == 1
 const T_AVG = envf("T_AVG", 2.0)
 const CASE = get(ENV, "CASE", "stage7_3d_n$(N)" * (FIN ? "_fin" : ""))
+const FRAME_DT = envf("FRAME_DT", 0.0)
+const FRAME_T0 = envf("FRAME_T0", 0.0)
+const FRAME_STRIDE = envi("FRAME_STRIDE", 2)
 
 if MODE == "run"
     const BACKEND = lowercase(get(ENV, "BACKEND", "gpu"))
@@ -39,6 +45,18 @@ using .Fish3D: HEAD_A, L_TAIL
 const F3 = Fish3D
 
 # ---------------------------------------------------------------------------------
+"Dump downsampled λ2 [1/s²] and body SDF [cells] for one video frame (host copies)."
+function save_frame(fs, dir, i, t, θ, f)
+    sim, u = fs.sim, fs.units
+    s = FRAME_STRIDE; tf = F3.unit_factor(u, :time)
+    l2 = Array(F3.lambda2!(sim))[2:s:end-1, 2:s:end-1, 2:s:end-1] ./ Float32(tf^2)
+    sd = Array(F3.sdf_field!(sim))[2:s:end-1, 2:s:end-1, 2:s:end-1]
+    serialize(joinpath(dir, @sprintf("frame_%04d.jls", i)),
+              Dict("l2" => l2, "sdf" => sd, "t" => t, "θ" => θ, "Fx" => f.F[1], "Fy" => f.F[2],
+                   "stride" => s, "origin" => Vector(fs.origin), "lf" => F3.unit_factor(u, :length),
+                   "n" => N, "fin" => FIN))
+end
+
 function run3d()
     if BACKEND == "gpu"
         AMDGPU.functional() || error("AMDGPU not functional (ROCM_PATH=gpu/rocm-shim?)")
@@ -73,6 +91,8 @@ function run3d()
     rows = NamedTuple[]
     pr = F3.Progress(CASE, T_END; dir=joinpath(F3.RESULTS_DIR, "progress"))
     steps = 0; wall0 = time(); twarm = NaN; isnap = 1
+    fdir = joinpath(F3.RESULTS_DIR, "frames", CASE); iframe = 1; t_frame = FRAME_T0
+    FRAME_DT > 0 && mkpath(fdir)
     F3._cap_dt!(sim, 0.4)
     try
         while F3.t_phys(fs) < T_END - 1e-12 && steps < max_steps
@@ -96,6 +116,10 @@ function run3d()
             if isnap <= length(t_snaps) && t1 >= t_snaps[isnap] - 1e-9
                 d = F3.slices(fs); d["t"] = t1; d["θ"] = θ1
                 push!(snaps, d); isnap += 1
+            end
+            if FRAME_DT > 0 && t1 >= t_frame - 1e-9
+                save_frame(fs, fdir, iframe, t1, θ1, f)
+                iframe += 1; t_frame += FRAME_DT
             end
         end
     catch err

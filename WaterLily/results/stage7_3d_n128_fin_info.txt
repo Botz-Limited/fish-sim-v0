@@ -1,0 +1,19 @@
+Fpx_mean = -0.02292196475450888
+Fvx_mean = 0.0050726101932445445
+Fx_mean = -0.01784935451472156
+Fy_mean = -0.00041541099166731224
+Fz_mean = 2.303079644478101e-7
+Mcells = 12.582912
+Re_sim = 5000.0
+T_AVG = 2.0
+U_in = 0.2
+case = stage7_3d_n128_fin
+device = HIPDevice(id=1, name=AMD Radeon 840M Graphics, gcn_arch=gfx1152)
+f = 2.0
+fin = true
+grid = 512x192x128
+ms_per_step = 2157.9309239971626
+n = 128
+steps = 2503
+t_end = 4.000039815902709
+wall_s = 5418.220931053162
