@@ -16,6 +16,8 @@ Origin: center of the front wall of the tail (the one attached to the body).
 
 from dataclasses import dataclass, field
 
+import numpy as np
+
 
 @dataclass
 class TailConfig:
@@ -136,6 +138,51 @@ class TailConfig:
     hoop_stiffness: float = 2e5
     include_weight: bool = True    # False = no weight (stage 2: p–V curve depends on the material only)
 
+    # ------------------------------------------------------------------ mount (boundary condition at the root)
+    # "fixed" – front wall clamped, 0 DOF (tail bolted to the body; stages 1–6).
+    # "bench" – aquarium test stand (video VID_20261026_105654.mp4, bench_config()): the front
+    #           wall is bolted to a rigid holder that has 2 DOF – sway (translation along Y,
+    #           perpendicular to the tail, horizontal) and yaw (rotation about the vertical Z axis
+    #           in a bearing). Surge, heave, roll and pitch are locked.
+    mount: str = "fixed"
+    # Yaw bearing axis: vertical line through (mount_pivot_x, 0, ·), i.e. ahead of the tail root
+    # (+X, towards the holder). PLACEHOLDER – to be measured on the stand.
+    mount_pivot_x: float = 0.10    # [m]
+    # Moving part of the stand (holder ring + tube + bracket; the tail itself is NOT included):
+    # mass for sway, moment of inertia about the bearing axis for yaw. PLACEHOLDER – to be measured.
+    mount_mass: float = 0.4        # [kg]
+    mount_inertia_z: float = 4e-3  # [kg·m²]
+    # Return springs of the stand (0 = free, as the stand looks in the video). PLACEHOLDER – to be measured.
+    mount_k_sway: float = 0.0      # [N/m]
+    mount_k_yaw: float = 0.0       # [N·m/rad]
+    # Bearing / guide friction as Rayleigh mass damping of the holder: c_sway = α·mount_mass,
+    # c_yaw = α·mount_inertia_z. Water drag on the holder is not modeled. PLACEHOLDER – to be measured.
+    mount_damping: float = 1.0     # α [1/s]
+
+    # ------------------------------------------------------------------ geometry source
+    # "param" – the parametric tail above (ellipse, linear taper, 2 chambers with a septum),
+    # "step"  – mesh of the CAD model step_file (fishsofa/step_mesh.py): 8 tubes (4 per side
+    #           = chambers L/R), silicone body, plastic fins, stiff tail tip, holder plate.
+    #           The parametric dimensions above are then unused (only validated).
+    geometry: str = "param"
+    step_file: str = "cad/Fish_Tail.step"   # relative to the SOFA/ directory
+    step_tip_start: float = 0.180  # [m] stiff tip from here to the body end (fin root inside the body)
+    step_plate_thickness: float = 0.003  # [m] holder plate closing the tube front ends (rigid, base nodes)
+    # Materials of the STEP regions. All PLACEHOLDER – to be identified from measurements.
+    # Body silicone: young_modulus / rho_silicone above.
+    young_tube: float = 6e5        # [Pa] tube wall (×2 the body; unknown silicone)
+    young_tip: float = 3e6         # [Pa] stiff tail tip (×10 the body)
+    young_fin: float = 2e9         # [Pa] fin plates (plastic sheet, e.g. PETG)
+    rho_fin: float = 1270.0        # [kg/m³] (PETG)
+    # Mesh levels of the STEP tail: (fTetWild target edge length [m], envelope ε relative to the
+    # bounding-box diagonal ≈ 0.3 m -> 1e-3 ≈ 0.3 mm). Tube walls are ~3 mm and fins 2 mm thick.
+    step_mesh_levels: dict = field(default_factory=lambda: {
+        "test": (0.006, 1e-3),   # ε·0.3 m must stay < OVERLAP (0.5 mm) or joints leak
+        "coarse": (0.004, 1e-3),
+        "medium": (0.003, 1e-3),
+        "fine": (0.002, 5e-4),
+    })
+
     # ------------------------------------------------------------------ numerics
     dt: float = 0.002              # [s] time step (stage 1: sag under own weight only)
     # Rayleigh damping in EulerImplicitSolver: C = α·M + β·K. Stands in for the material
@@ -183,6 +230,12 @@ class TailConfig:
             raise ValueError('linear_solver must be "ldl", "cg", "warp" or "cholmod"')
         if self.environment not in ("air", "water"):
             raise ValueError('environment must be "air" or "water"')
+        if self.mount not in ("fixed", "bench"):
+            raise ValueError('mount must be "fixed" or "bench"')
+        if self.geometry not in ("param", "step"):
+            raise ValueError('geometry must be "param" or "step"')
+        if self.mount == "bench" and (self.mount_mass <= 0 or self.mount_inertia_z <= 0):
+            raise ValueError("mount_mass and mount_inertia_z must be > 0 for the bench mount")
         if not 1 <= self.n_actuated <= self.n_segments:
             raise ValueError("n_actuated must be in the range 1..n_segments")
         if not 0.0 < self.poisson_ratio < 0.5:
@@ -221,3 +274,69 @@ class TailConfig:
     def fin_center_x(self) -> float:
         """Fin center: the front edge reaches fin_root_overlap into the tail end."""
         return -self.tail_length - self.fin_semi_x + self.fin_root_overlap
+
+    def region_young(self, region):
+        """Young's modulus [Pa] per material region (tet_region of mesh_gen / step_mesh)."""
+        region = np.asarray(region)
+        e = np.full(region.shape, self.young_modulus)                      # 0 body silicone
+        e[region == 1] = self.young_modulus * self.spine_E_factor          # 1 spine (param geometry)
+        e[region == 2] = self.young_tube                                   # 2 tubes (step)
+        e[region == 3] = self.young_tip                                    # 3 stiff tip (step)
+        e[region == 4] = self.young_fin                                    # 4 fins (step)
+        e[region == 5] = self.young_fin                                    # 5 holder plate (rigid, step)
+        return e
+
+    def region_density(self, region):
+        """Density [kg/m³] per material region (holder plate: its nodes are all constrained)."""
+        region = np.asarray(region)
+        rho = np.full(region.shape, self.rho_silicone)
+        rho[region == 4] = self.rho_fin
+        return rho
+
+
+def bench_config(**overrides) -> TailConfig:
+    """Aquarium test stand (video VID_20261026_105654.mp4, 26.10.2026) with the tail of Fish_Tail.step.
+
+    Boundary conditions read from the video:
+      - tail fully submerged in still water, caudal fin vertical, its top edge ~10–15 mm below
+        the surface (tail axis ~80 mm deep; the free surface is not modeled),
+      - tail root bolted to a holder with 2 DOF: sway (Y) + yaw about a vertical bearing (Z),
+        everything else locked (mount="bench", parameters mount_* above),
+      - flapping ≈ 0.5 Hz (period ≈ 2.0 s from the fin position, 30–68 s of the video).
+
+    Geometry: the CAD model itself (geometry="step", fishsofa/step_mesh.py). Lengths from the
+    tail root = front ends of the tubes (STEP x = 240.0 mm): tubes 0–50 mm, body 50–220 mm,
+    caudal fin 180–260.3 mm (front 40 mm inside the body end), ventral fin 73–134 mm.
+    Stiffer tail tip from 180 mm (where the fin plate sits in the body) and plastic fins.
+
+    The parametric fields below only matter with geometry="param" (fallback: same lengths,
+    elliptical section, taper 0.117 = STEP end width 7.8 mm).
+    """
+    params = dict(
+        environment="water",
+        mount="bench",
+        geometry="step",
+        # fallback parametric tail: 8 × 27.5 = 220 mm, chambers 2 × 27.5 = 55 mm (tubes: 50 mm)
+        n_segments=8,
+        n_actuated=2,
+        segment_length=0.0275,
+        ry0=0.0333,                # [m] half width of the tube bundle at the root
+        rz0=0.0545,                # [m] half height of the tube bundle at the root
+        taper_last=0.117,
+        fin_semi_x=0.040,          # [m] 80.3 mm / 2
+        fin_semi_z=0.066,          # [m] 132.7 mm / 2
+        fin_root_overlap=0.040,    # [m] fin x 420–460 mm lies inside the body
+        chamber_x_start=0.004,
+        # Valve at 0.5 Hz: Q_const = 4·f·A_V -> triangle amplitude ≈ A_V with the valve switching
+        # at the peaks only (2× per cycle), f_track = Q/(2π·A_V) ≈ 0.32 Hz < 0.5 Hz. Same idea as
+        # Q = 7.5·A_V at 1.5–2.5 Hz in the swim demos. PLACEHOLDER – measure the pump flow.
+        tail_freq=0.5,
+        tail_freq_min=0.5,
+        Q_const=26e-6,
+        ramp_time=2.0,             # [s] one cycle at 0.5 Hz
+        # The 8 tubes have no wrap of their own here; hoop fibers stay on (stand-in, unknown
+        # whether the red tubes are reinforced). PLACEHOLDER.
+        hoop_fibers=True,
+    )
+    params.update(overrides)
+    return TailConfig(**params)

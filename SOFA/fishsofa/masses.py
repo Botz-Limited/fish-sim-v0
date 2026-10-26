@@ -32,7 +32,7 @@ class MassModel:
 
 def build(mesh: TailMesh, cfg: TailConfig) -> MassModel:
     vol = tet_volumes(mesh.points, mesh.tets)
-    rho_s = np.full(len(vol), cfg.rho_silicone)
+    rho_s = cfg.region_density(mesh.tet_region)   # silicone; fin plastic in the STEP geometry
     rho_w = np.zeros(len(vol))
 
     # Water in the chambers: mass ρ_w·V_cavity distributed uniformly (by volume) over the
@@ -59,5 +59,5 @@ def build(mesh: TailMesh, cfg: TailConfig) -> MassModel:
         weight[:, 2] = -cfg.gravity * (m_sil + m_wat)
     else:
         # Buoyancy on the silicone: apparent weight. Water in the chambers: weight = buoyancy -> 0.
-        weight[:, 2] = -cfg.gravity * (1.0 - cfg.rho_water / cfg.rho_silicone) * m_sil
+        weight[:, 2] = -cfg.gravity * lump(rho_s - cfg.rho_water)
     return MassModel(density, m_sil + m_wat, weight, float(m_sil.sum()), m_water)

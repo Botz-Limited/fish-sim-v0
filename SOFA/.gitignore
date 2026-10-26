@@ -4,3 +4,4 @@ results/*.vtk
 __pycache__/
 .pytest_cache/
 recordings/
+__tracked_surface.stl   # written by fTetWild (fishsofa/step_mesh.py) into the working directory

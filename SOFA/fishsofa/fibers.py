@@ -42,3 +42,36 @@ def hoop_rings(cfg: TailConfig) -> Rings:
     lengths = np.linalg.norm(pts[springs[:, 1]] - pts[springs[:, 0]], axis=1)
     stiffness = cfg.hoop_stiffness * cfg.fiber_ring_spacing / lengths
     return Rings(pts, springs, lengths, stiffness, n_r)
+
+
+def tube_rings(cfg: TailConfig, tubes: dict) -> Rings:
+    """Hoop fibers of the STEP geometry: rings around each of the 8 tubes (the chambers).
+
+    tubes = step_mesh.load_tubes(): axis end points (8, 2, 3) and outer radii (8, 2) [m] at
+    the front and back end (the tubes are slightly conical). Ring radius = outer radius −
+    fiber_inset, i.e. inside the tube wall. Rings every fiber_ring_spacing, the first and the
+    last one spacing away from the ends (holder plate, tube end wall).
+    """
+    n = cfg.fiber_ring_points
+    phi = np.linspace(0.0, 2 * np.pi, n, endpoint=False)
+    pts, springs = [], []
+    n_rings = 0
+    for (a, b), (ra, rb) in zip(tubes["axis"], tubes["radius"]):
+        length = np.linalg.norm(b - a)
+        ax = (b - a) / length
+        u = np.cross(ax, [0.0, 0.0, 1.0])
+        u /= np.linalg.norm(u)
+        w = np.cross(ax, u)
+        for s in np.arange(cfg.fiber_ring_spacing, length - cfg.fiber_ring_spacing / 2, cfg.fiber_ring_spacing):
+            r = ra + (rb - ra) * s / length - cfg.fiber_inset
+            c = a + s * ax
+            i0 = sum(len(p) for p in pts)
+            pts.append(c + r * (np.outer(np.cos(phi), u) + np.outer(np.sin(phi), w)))
+            i = i0 + np.arange(n)
+            springs.append(np.column_stack([i, np.roll(i, -1)]))
+            n_rings += 1
+    pts = np.vstack(pts)
+    springs = np.vstack(springs)
+    lengths = np.linalg.norm(pts[springs[:, 1]] - pts[springs[:, 0]], axis=1)
+    stiffness = cfg.hoop_stiffness * cfg.fiber_ring_spacing / lengths
+    return Rings(pts, springs, lengths, stiffness, n_rings)

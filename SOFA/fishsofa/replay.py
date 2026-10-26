@@ -152,7 +152,7 @@ def _stress_cached(rec, X):
     if mesh.points.shape != X.shape[1:]:
         print("Replay: mesh does not match the recording - no stress coloring")
         return None
-    young = np.where(mesh.tet_region == 1, cfg.young_modulus * cfg.spine_E_factor, cfg.young_modulus)
+    young = cfg.region_young(mesh.tet_region)
     x0 = X[0]
     Dm_inv = np.linalg.inv(fields.tet_shape(x0, mesh.tets))
     vol = np.abs(np.linalg.det(fields.tet_shape(x0, mesh.tets))) / 6.0

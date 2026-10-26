@@ -3,6 +3,8 @@
 GUI:      scripts/run_gui.sh [coarse|medium|fine]    (runSofa calls createScene;
           FISHSOFA_MODE=flap – flapping, default; sag – sag under own weight;
           FISHSOFA_ENV=air – default, water – water drag and apparent weight;
+          FISHSOFA_SETUP=bench – aquarium test stand (config.bench_config: STEP tail, water,
+          root on a 2-DOF holder: sway + yaw, 0.5 Hz; overrides FISHSOFA_ENV);
           FISHSOFA_MODE=replay – real-time playback of recording FISHSOFA_RECORDING;
           FISHSOFA_OVERLAY=0 – without the readouts: text panel, force arrows, colored skin)
 Headless: fishsofa.headless (same build_tail function)
@@ -13,15 +15,17 @@ already what the SurfacePressureConstraint chambers of stage 2 require.
 
 Scene tree:
   root                      FreeMotionAnimationLoop, BlockGaussSeidelConstraintSolver
-  └─ tail                   integrator, linear solver, FEM, mass, fixation, weight
-     └─ visu (GUI only)     outer surface for rendering
+  ├─ tail                   integrator, linear solver, FEM, mass, fixation, weight
+  │  └─ visu (GUI only)     outer surface for rendering
+  └─ mount (bench only)     rigid holder, 2 DOF (sway, yaw); front wall tied to it by
+     └─ attach              BilateralLagrangianConstraint (in root)
 """
 import os
 
 import numpy as np
 
-from fishsofa import masses, mesh_gen
-from fishsofa.config import TailConfig
+from fishsofa import masses, mesh_gen, step_mesh
+from fishsofa.config import TailConfig, bench_config
 
 # SOFA modules providing this scene's components. An explicit list (instead of the
 # "Sofa.Component" meta-plugin) tells the reader where each component comes from.
@@ -57,8 +61,10 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
     if chambers and solver == "static":
         raise ValueError("chambers (Lagrange constraints) require solver='dynamic' – "
                          "StaticSolver does not work with FreeMotionAnimationLoop (stage 1)")
-    folder = mesh_gen.ensure(cfg, level, mesh_root)
-    mesh = mesh_gen.load(cfg, level, mesh_root)
+    # geometry="step": mesh of the CAD model (fishsofa/step_mesh.py), same TailMesh interface
+    mg = step_mesh if cfg.geometry == "step" else mesh_gen
+    folder = mg.ensure(cfg, level, mesh_root)
+    mesh = mg.load(cfg, level, mesh_root)
     mm = masses.build(mesh, cfg)
 
     root.addObject("RequiredPlugin", pluginName=PLUGINS + (GUI_PLUGINS if gui else [])
@@ -124,8 +130,9 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
     fem_name = "ParallelTetrahedronFEMForceField" if cfg.parallel_fem else "TetrahedronFEMForceField"
     if cfg.parallel_fem:
         root.addObject("RequiredPlugin", pluginName=["MultiThreading"])
-    # Young's modulus per element: silicone or the stiffer "spine" in the septum.
-    young = np.where(mesh.tet_region == 1, cfg.young_modulus * cfg.spine_E_factor, cfg.young_modulus)
+    # Young's modulus per element: silicone, the stiffer "spine" in the septum (param geometry),
+    # tubes / stiff tip / fin plastic / holder plate (STEP geometry), config.region_young.
+    young = cfg.region_young(mesh.tet_region)
     tail.addObject(fem_name, name="fem", method="large",
                    youngModulus=young.tolist(), poissonRatio=cfg.poisson_ratio)
 
@@ -139,7 +146,9 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
     # Fixation: front-wall nodes are fixed (tail bolted to the body, which is also the
     # tethered thrust test rig). The "projective" constraint zeroes the motion of these
     # nodes directly in the system of equations.
-    tail.addObject("FixedProjectiveConstraint", name="fixed", indices=mesh.base_nodes.tolist())
+    # mount="bench": the front wall rides on the 2-DOF holder instead (_add_bench_mount).
+    if cfg.mount == "fixed":
+        tail.addObject("FixedProjectiveConstraint", name="fixed", indices=mesh.base_nodes.tolist())
 
     # Weight (and buoyancy in water) as constant nodal forces.
     weight = mm.node_weight if cfg.include_weight else np.zeros_like(mm.node_weight)
@@ -147,7 +156,10 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
                    indices=list(range(len(mesh.points))), forces=weight.tolist())
 
     if cfg.hoop_fibers:
-        _add_hoop_fibers(tail, cfg)
+        from fishsofa import fibers
+        ring = (fibers.tube_rings(cfg, step_mesh.load_tubes(cfg, level, mesh_root)) if cfg.geometry == "step"
+                else fibers.hoop_rings(cfg))
+        _add_hoop_fibers(tail, ring)
 
     # Water drag (stage 5): forces on skin nodes, computed every step in Python
     # (controller.WaterDragController) and written into this ConstantForceField.
@@ -176,8 +188,14 @@ def build_tail(root, cfg: TailConfig, level: str, mesh_root: str | None = None,
         visu.addObject("OglModel", src="@loader", color=[0.95, 0.70, 0.30, 1.0])
         visu.addObject("BarycentricMapping")
 
+    mount = None
+    if cfg.mount == "bench":
+        if solver != "dynamic":
+            raise ValueError("mount='bench' needs solver='dynamic' (Lagrange attachment)")
+        mount = _add_bench_mount(root, dofs, mesh, cfg)
+
     h = {"tail": tail, "dofs": dofs, "mesh": mesh, "masses": mm, "folder": folder,
-         "chambers": spcs, "dt": cfg.dt, "water": None}
+         "chambers": spcs, "dt": cfg.dt, "water": None, "mount": mount}
     if water_ff is not None:
         from fishsofa.controller import WaterDragController
         h["water"] = root.addObject(WaterDragController(name="waterDrag", root=root, handles=h,
@@ -211,7 +229,7 @@ def add_chamber(tail, folder: str, side: str, mode: str, cfg: TailConfig):
     return spc
 
 
-def _add_hoop_fibers(tail, cfg: TailConfig):
+def _add_hoop_fibers(tail, ring):
     """Hoop fibers: rings of springs just under the skin, attached to the FEM.
 
     The first version placed springs on skin mesh edges, but the lofted mesh has no
@@ -219,9 +237,6 @@ def _add_hoop_fibers(tail, cfg: TailConfig):
     hoop fibers. Now the rings are separate points (fishsofa/fibers.py), and BarycentricMapping
     carries their motion from the tetrahedra they lie in and returns fiber forces to the FEM.
     """
-    from fishsofa import fibers
-
-    ring = fibers.hoop_rings(cfg)
     node = tail.addChild("hoopFibers")
     node.addObject("MechanicalObject", name="dofs", template="Vec3d", position=ring.points.tolist())
     # StiffSpringForceField also adds the spring stiffness matrix to the implicit system,
@@ -232,6 +247,55 @@ def _add_hoop_fibers(tail, cfg: TailConfig):
                    lengths=ring.lengths.tolist(), elongationOnly=" ".join(["1"] * len(ring.springs)),
                    enabled=" ".join(["1"] * len(ring.springs)))
     node.addObject("BarycentricMapping", name="mapping", input="@../dofs", output="@dofs")
+
+
+def _add_bench_mount(root, tail_dofs, mesh, cfg: TailConfig):
+    """Test-stand holder: one rigid body with 2 free DOF (sway Y, yaw about Z) carrying the
+    front wall of the tail.
+
+    The rigid frame sits on the yaw bearing axis (mount_pivot_x, 0, 0). PartialFixedProjectiveConstraint
+    locks tx, tz, rx, ry (Rigid3d order: tx ty tz rx ry rz). The front-wall nodes are copied
+    into a child of the rigid body (RigidMapping) and tied to the tail nodes with
+    BilateralLagrangianConstraint, so the holder and the tail exchange forces through the
+    same constraint solver as the chambers. The holder has its own integrator; its
+    Rayleigh mass damping stands in for the bearing friction (mount_damping).
+    Returns the rigid MechanicalObject (position[0] = [x, y, z, qx, qy, qz, qw]).
+    """
+    root.addObject("RequiredPlugin", pluginName=["Sofa.Component.Mapping.NonLinear",            # RigidMapping
+                                                 "Sofa.Component.Constraint.Lagrangian.Model",  # BilateralLagrangianConstraint
+                                                 "Sofa.Component.SolidMechanics.Spring"])       # RestShapeSpringsForceField
+    node = root.addChild("mount")
+    node.addObject("EulerImplicitSolver", rayleighMass=cfg.mount_damping, rayleighStiffness=0.0)
+    # Direct solver: LinearSolverConstraintCorrection needs an assembled matrix (CG on
+    # GraphScattered vectors is rejected). One rigid body -> a 6×6 system.
+    node.addObject("SparseLDLSolver", template="CompressedRowSparseMatrixd")
+    rigid = node.addObject("MechanicalObject", name="dofs", template="Rigid3d",
+                           position=[[cfg.mount_pivot_x, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]],
+                           showObjectScale=0.03)   # frame axes 3 cm in the GUI (default 1 = 1 m)
+    # Rigid3d mass: [mass, volume, inertia/mass (3×3)]; locked axes get the same value (unused).
+    i_m = cfg.mount_inertia_z / cfg.mount_mass
+    node.addObject("UniformMass", vertexMass=[cfg.mount_mass, 1.0, i_m, 0, 0, 0, i_m, 0, 0, 0, i_m])
+    node.addObject("PartialFixedProjectiveConstraint", indices=[0], fixedDirections=[1, 0, 1, 1, 1, 0])
+    if cfg.mount_k_sway > 0 or cfg.mount_k_yaw > 0:
+        node.addObject("RestShapeSpringsForceField", points=[0], stiffness=[cfg.mount_k_sway],
+                       angularStiffness=[cfg.mount_k_yaw])
+    node.addObject("LinearSolverConstraintCorrection")
+
+    attach = node.addChild("attach")
+    base = mesh.points[mesh.base_nodes]
+    attach.addObject("MechanicalObject", name="dofs", template="Vec3d", position=base.tolist())
+    attach.addObject("RigidMapping", globalToLocalCoords=True)
+
+    root.addObject("BilateralLagrangianConstraint", template="Vec3d",
+                   object1=attach.dofs.getLinkPath(), object2=tail_dofs.getLinkPath(),
+                   first_point=list(range(len(base))), second_point=mesh.base_nodes.tolist())
+    return rigid
+
+
+def mount_pose(rigid) -> tuple[float, float]:
+    """(sway y [m], yaw ψ [rad]) of the bench holder; ψ > 0 turns the tail tip towards −Y."""
+    x, y, z, qx, qy, qz, qw = np.asarray(rigid.position.value)[0]
+    return float(y), float(2.0 * np.arctan2(qz, qw))
 
 
 def _add_ode_solver(tail, cfg: TailConfig, solver: str):
@@ -292,7 +356,10 @@ def createScene(root):
     """
     level = os.environ.get("FISHSOFA_LEVEL", "coarse")
     mode = os.environ.get("FISHSOFA_MODE", "flap")
-    cfg = TailConfig(environment=os.environ.get("FISHSOFA_ENV", "air"))
+    if os.environ.get("FISHSOFA_SETUP", "") == "bench":
+        cfg = bench_config()   # aquarium test stand: water, 2-DOF holder, 0.5 Hz (config.bench_config)
+    else:
+        cfg = TailConfig(environment=os.environ.get("FISHSOFA_ENV", "air"))
     if mode == "sag":
         build_tail(root, cfg, level, gui=True)
     elif mode == "flap":
@@ -313,4 +380,12 @@ def createScene(root):
                      overlay=os.environ.get("FISHSOFA_OVERLAY", "1") != "0")
     else:
         raise ValueError(f"FISHSOFA_MODE={mode!r}: allowed: flap, sag, replay")
+    cad = os.environ.get("FISHSOFA_CAD_OBJ")
+    if cad:
+        # CAD reference (e.g. Fish_Tail.step exported to OBJ in this frame, meters): a
+        # transparent, static shell for comparing the FEM tail with the real geometry.
+        root.addObject("RequiredPlugin", pluginName=["Sofa.GL.Component.Rendering3D", "Sofa.Component.IO.Mesh"])
+        ref = root.addChild("cad_reference")
+        ref.addObject("MeshOBJLoader", name="loader", filename=cad)
+        ref.addObject("OglModel", src="@loader", color=[0.2, 0.6, 1.0, 0.35])
     return root
