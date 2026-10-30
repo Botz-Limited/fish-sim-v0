@@ -27,6 +27,10 @@ end
 "Vertical half-distance between the bent surfaces at x."
 surface_halfwidth(g, x, θ) = (b = bracket_surfaces(g, x, θ); (b[2] - b[1]) / 2)
 
+# stage-8 module (a script library, not part of the FishLily package); top level, so the
+# stage-8 testset is compiled after it is defined (world age)
+include(joinpath(@__DIR__, "..", "scripts", "lib_bench.jl"))
+
 @testset "FishLily" begin
 
 @testset "valve" begin
@@ -191,6 +195,65 @@ end
         @test boxed.u == full.u && boxed.p == full.p
         @test boxed.μ0 == full.μ0 && boxed.μ1 == full.μ1 && boxed.V == full.V
         @test boxed.body.box[] != CartesianIndices(full.p)   # really restricted
+    end
+end
+
+@testset "stage 8: CAD tail on the stand (lib_bench)" begin
+    B = Bench3D
+    if !isfile(joinpath(B.CAD_DIR, "tail_sdf.bin"))
+        @test_skip "cad/tail_sdf.bin missing (python cad/step_to_sdf.py)"
+    else
+        G = B.load_tail_sdf()
+        # SDF sign and volume: union of body + filled tubes + plate, plus the fins outside the body
+        hs = B.TailSDF{Float64,Array{Float64,3}}(Float64.(G.rest), Float64.(G.fin), G.origin, 1 / G.h, G.h, 0.0, 1.0)
+        @test hs(SVector(0.10, 0.0, 0.0), 0) < -0.01           # inside the body
+        @test hs(SVector(0.10, 0.04, 0.0), 0) > 0.01           # beside it
+        @test hs(SVector(0.24, 0.0, 0.05), 0) < 0              # caudal fin plate
+        @test hs(SVector(0.24, 0.004, 0.05), 0) > 0
+        @test hs(SVector(0.60, 0.0, 0.0), 0) ≈ 0.34 atol = 0.02 # outside the SDF grid: grows with distance
+        props = B.tail_props(G)
+        @test props.V * 1e6 ≈ G.meta["union_ml"] + 9.1 rtol = 0.02
+        @test 0.4 < props.m < 0.6 && props.Ma[1, 1] > props.m  # added mass > solid mass (why M_a is needed)
+        # map: identity at rest; the pivot is a fixed point of the yaw; θ bends like geometry.jl
+        u = B.Units(64; L_phys=B.L_REF, U_phys=B.U_BENCH); lf = B.unit_factor(u, :length)
+        o = SVector(40.0, 30.0, 25.0)
+        m0 = B.BenchMap{Float64}(B.bench_geom(), o, lf, B.PIVOT_X, 0, 0, 0, 0, 0, 0, 0)
+        x = o .+ SVector(0.1, 0.02, -0.01) ./ lf
+        @test m0(x, 0.0) ≈ SVector(0.1, 0.02, -0.01)
+        mψ = B.BenchMap{Float64}(B.bench_geom(), o, lf, B.PIVOT_X, 0, 0, 0, 0.01, 0, 0.2, 0)
+        @test mψ(o .+ SVector(B.PIVOT_X, 0.01, 0.0) ./ lf, 0.0) ≈ SVector(B.PIVOT_X, 0.0, 0.0) atol = 1e-12
+        p = SVector(0.15, 0.0, 0.0)                            # point on the axis, rotated by ψ = 0.2
+        pw = SVector(B.PIVOT_X + cos(0.2) * (p[1] - B.PIVOT_X), 0.01 + sin(0.2) * (p[1] - B.PIVOT_X), 0.0)
+        @test mψ(o .+ pw ./ lf, 0.0) ≈ p atol = 1e-12
+        # body box covers every cell near the bent, moved tail
+        n = 48
+        bs = B.make_bench_sim(; n, grid=G)
+        θ, s, ψ = 0.3, 0.01, -0.15
+        bs.sim.body = B.retrack(bs.sim.body, G, bs.units, bs.origin, 0.0, 1.0, θ, θ, SVector(s, ψ), SVector(s, ψ))
+        σ = fill!(similar(bs.sim.flow.p), 100)                  # measure_sdf! fills only the inside cells
+        WaterLily.measure_sdf!(σ, bs.sim.body, 0.5f0)
+        R = WaterLily.bbox(bs.sim.body, CartesianIndices(σ))
+        near = findall(<(4), σ)
+        @test !isempty(near) && all(I -> I ∈ R, near)
+        # holder: clamped stays at rest; free, no damping/springs/added mass: q̈ = M⁻¹(Q − Sθ̈)
+        Hf = B.Holder(props; fixed=true)
+        @test B.holder_step!(Hf, 0.01, SVector(1.0, 0.1), 2.0) == (SVector(0.0, 0.0), SVector(0.0, 0.0))
+        H = B.Holder(props; α=0.0); H.Ma .= 0
+        B.holder_step!(H, 0.01, SVector(1.0, 0.1), 2.0)
+        @test H.a ≈ H.M \ (SVector(1.0, 0.1) - props.S * 2.0)
+        # a few coarse CFD steps with the valve and the free holder: finite loads
+        bs = B.make_bench_sim(; n=32, grid=G)
+        Hb = B.Holder(props); valve = B.Valve(B.BENCH_FREQ; p=B.BENCH_VALVE); tf = B.unit_factor(bs.units, :time)
+        Q = SVector(0.0, 0.0); θp = 0.0
+        for _ in 1:10
+            t0g = Float64(WaterLily.time(bs.sim.flow)); t1g = Float64(sum(bs.sim.flow.Δt))
+            st = B.valve_state(valve, t1g * tf); θ1 = B.theta_kinematic(st.V_p, B.BENCH_VALVE)
+            q0, q1 = B.holder_step!(Hb, (t1g - t0g) * tf, Q, 0.0)
+            bs.sim.body = B.retrack(bs.sim.body, G, bs.units, bs.origin, t0g, t1g, θp, θ1, q0, q1); θp = θ1
+            sim_step!(bs.sim; remeasure=true); B.clean_pressure!(bs.sim)
+            ld = B.body_loads(bs, q1[1]); Q = SVector(ld.F[2], ld.M[3])
+        end
+        @test all(isfinite, Q) && all(isfinite, Hb.q)
     end
 end
 

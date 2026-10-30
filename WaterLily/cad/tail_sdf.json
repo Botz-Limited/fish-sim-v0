@@ -1,0 +1,28 @@
+{
+ "dims": [
+  284,
+  91,
+  152
+ ],
+ "h": 0.001,
+ "origin": [
+  -0.012930964406271173,
+  -0.04512688403505728,
+  -0.07568539157929519
+ ],
+ "x_root_step": 0.24,
+ "plate_t": 0.003,
+ "fields": [
+  "rest",
+  "fin"
+ ],
+ "volumes_ml": {
+  "body": 242.985125,
+  "tube": 193.43225,
+  "fin": 13.735625,
+  "plate": 23.8995
+ },
+ "union_ml": 480.28975,
+ "step": "Fish_Tail.step",
+ "layout": "Float32, Fortran order (x fastest), rest then fin; body frame x tail, y side, z up [m]"
+}

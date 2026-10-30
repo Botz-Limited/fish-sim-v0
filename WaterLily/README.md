@@ -1,6 +1,6 @@
 # WaterLily.jl – flow around a hydraulically actuated fish tail
 
-2D (and one 3D) CFD of the fish from the other branches: rigid head, soft tail bent by a
+2D (and 3D) CFD of the fish from the other branches: rigid head, soft tail bent by a
 chamber that a **constant pump + ±1 directional valve** fills and empties (same valve model as
 MuJoCo / OpenFOAM: relay with δ = 1 ml, 0.2 s dwell, tail 1.5–2.5 Hz). WaterLily.jl solves
 incompressible Navier–Stokes on a uniform Cartesian grid with an immersed boundary (BDIM), so
@@ -8,7 +8,7 @@ the bending tail and the swimming body need no remeshing.
 
 **All physical numbers are PLACEHOLDER – the demo is qualitative.** Full design: `SPEC_fish_waterlily_demo.md`.
 Detailed per-stage write-ups: `NOTES.md` (stages 0–1, problems), `results/stage2-4_summary.md`,
-`results/stage6_summary.md`, `results/stage7_summary.md`, `gpu/README.md`, `viz/README.md`.
+`results/stage6_summary.md`, `results/stage7_summary.md`, `results/stage8_summary.md`, `gpu/README.md`, `viz/README.md`.
 
 ## Install (once, about 10 min)
 
@@ -17,10 +17,12 @@ curl -fsSL https://install.julialang.org | sh          # juliaup; this demo used
 cd WaterLily
 julia --project=.   -e 'using Pkg; Pkg.instantiate()'  # solver + scripts (FishLily package)
 julia --project=viz -e 'using Pkg; Pkg.instantiate()'  # live viewer / videos (Makie)
-julia --project=.   -e 'using Pkg; Pkg.test()'         # 656 tests, about 2 min
+julia --project=.   -e 'using Pkg; Pkg.test()'         # 670 tests, about 2 min (stage 8 tests need cad/tail_sdf.bin)
 ```
 
 GPU (optional, stage 7, AMD RX 7700 XT on Fedora): `gpu/setup_rocm_shim.sh`, then see `gpu/README.md`.
+Stage 8 (CAD tail) needs its SDF once: `python cad/step_to_sdf.py` (Python with gmsh, numpy, scipy –
+the SOFA env `fishsofa` has them; ~20 s, writes the git-ignored `cad/tail_sdf.bin`).
 
 ## Watch it live
 
@@ -52,11 +54,12 @@ process, several processes; see `scripts/run_parallel.sh`). Wall times on a Ryze
 | 5 | `stage5_free_swim.jl` | 1-DOF surge from rest, 2 Hz | steady 0.361 m/s (1.72 L/s) at n=128, St 0.33 | PASS (+8.8 % vs U*, limit 25 %) |
 | 6 | `stage6_coupled.jl` | tail angle from hydraulics + fluid load ODE | θ amplitude 0.93–0.97 × kinematic, Δp max 13–19 kPa, relief never opens | PASS (stable at 1.5/2/2.5 Hz) |
 | 7 | `stage7_3d.jl` (GPU) | 3D fish, n=224, 67 M cells | no fin: drag 6 mN; caudal fin: thrust 22 mN | runs, wake images |
+| 8 | `stage8_bench.jl` | CAD tail (`cad/Fish_Tail.step`) on the aquarium stand, 0.5 Hz, holder free in sway + yaw (as SOFA `bench_config`) | clamped: mean thrust 31 mN; free holder: sway ±8 mm, yaw ±7°, thrust 4 mN; side-force peaks 2–3 N at valve reversals (prescribed kinematics) | runs, `results/stage8_summary.md` |
 
 Key plots: `results/stage2_vorticity.png`, `results/stage3_inflow_sweep.png`,
 `results/stage4_freq_sweep.png`, `results/stage5_free_swim_n*.png`,
 `results/stage6_coupled_f*_n*.png`, `results/stage7_3d_n224_fin_lambda2.png`. Videos:
-`results/fish_tethered_f2.mp4`, `results/fish_tethered_f2_U0.2.mp4`, `results/stage7_3d_n128_fin_3d.mp4` (3D, caudal fin, λ2 vortex cores; run with
+`results/fish_tethered_f2.mp4`, `results/fish_tethered_f2_U0.2.mp4`, `results/stage8_bench_n128_bench_3d.mp4` (stage 8, CAD tail on the stand), `results/stage7_3d_n128_fin_3d.mp4` (3D, caudal fin, λ2 vortex cores; run with
 `N=128 FIN=1 FRAME_T0=2 FRAME_DT=0.01`, then `julia --project=viz viz/render3d.jl stage7_3d_n128_fin`).
 
 ## Physics in one screen
@@ -88,7 +91,8 @@ Key plots: `results/stage2_vorticity.png`, `results/stage3_inflow_sweep.png`,
 
 ```
 src/        FishLily package: params, units, valve, geometry, forces, sim (run_fish!), boxbody, progress, live hook
-scripts/    stage0–7, live.jl, animate.jl, progress.jl, run_parallel.sh, shared libs
+scripts/    stage0–8, live.jl, animate.jl, progress.jl, run_parallel.sh, shared libs (lib_3d, lib_bench)
+cad/        Fish_Tail.step (same file as SOFA/cad/), step_to_sdf.py -> tail_sdf.bin/.json
 test/       Pkg.test() suite
 viz/        Makie viewer (own environment): live window on the primary monitor, MP4/PNG
 gpu/        AMDGPU environment, benchmark (3D 5.6×, 2D 1.9× vs CPU), ROCm shim script
